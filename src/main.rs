@@ -20,7 +20,7 @@ const DIR_RIGHT: i32 = 2;
 const DIR_DOWN : i32 = 3;
 const DIR_LEFT : i32 = 4;
 
-const DELAY_MS: u64 = 100;
+const DELAY_MS: u64 = 30;
 
 // Power up / character ability ideas:
 // - after breaking a block do not change direction
@@ -190,6 +190,8 @@ fn main() {
 
   let delay = time::Duration::from_millis(DELAY_MS);
 
+  #[allow(dead_code)]
+
   // ░ ▒ ▓ █
 
   // TODO: Use dedicated rng. Doesn't really matter here yet but maybe later.
@@ -239,17 +241,10 @@ fn main() {
   let table_str: String = serialize_world(&golden_map, miner.x, miner.y, miner.dir);
   println!("{}", table_str);
 
-  print!("\x1b[s"); // "Store cursor position"
-
   loop {
     // Recreate the rng fresh for every new Miner
     let mut rng = Pcg64::seed_from_u64(options.seed);
     let mut world: World = golden_map.clone();
-
-    print!("\x1b[u"); // "Restore cursor position"
-    print!("\x1b[s"); // "Store cursor position"
-
-    print!("\033[7A\033[1;35m BASH \033[7B\033[6D");
 
     println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy: {}", 0, miner.x, miner.y, miner.dir, miner.energy, miner.points, miner.multiplier_points, miner.multiplier_energy);
 
@@ -288,8 +283,12 @@ fn main() {
       iteration = iteration + 1;
 
       if options.visual {
+
+        print!("\x1BU"); // "Restore cursor position"
+
         println!("update {} x: {} y: {} dir: {} energy: {} points: {}", iteration + 1, miner.x, miner.y, miner.dir, miner.energy, miner.points);
         let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
+        print!("\x1b[54A\n");
         println!("{}", table_str);
 
         thread::sleep(delay);
