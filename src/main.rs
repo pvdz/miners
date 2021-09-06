@@ -1,5 +1,6 @@
 use std::{thread, time};
 use std::env;
+use std::fmt::Write;
 
 use rand::prelude::*;
 use rand_pcg::Pcg64;
@@ -19,7 +20,7 @@ const DIR_RIGHT: i32 = 2;
 const DIR_DOWN : i32 = 3;
 const DIR_LEFT : i32 = 4;
 
-const DELAY_MS: u64 = 35;
+const DELAY_MS: u64 = 100;
 
 // Power up / character ability ideas:
 // - after breaking a block do not change direction
@@ -44,6 +45,7 @@ struct Options {
   seed: u64,
   visual: bool,
 }
+type World = [[char; HEIGHT]; WIDTH];
 
 #[derive(Copy, Clone)]
 struct Miner {
@@ -61,25 +63,22 @@ struct Miner {
 //  multiplier_cooldown: i32,
 }
 
-//fn print_table(array: &[[char; HEIGHT]; WIDTH], miner: &Miner) {
-fn print_table(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usize, miner_dir: i32) {
-  print!("/");
+fn serialize_world(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usize, miner_dir: i32) -> String {
+  let mut buf : String = "/".to_string();
   for _ in 0..WIDTH*2 {
-    print!("-");
+    write!(buf, "-").unwrap();
   }
-  println!("\\");
+  write!(buf, "\\\n").unwrap();
 
   for y in 0..HEIGHT {
-    print!("|");
+    write!(buf, "|").unwrap();
     for x in 0..WIDTH {
-//      if x == miner.x && y == miner.y {
       if x == miner_x && y == miner_y {
-//        match miner.dir.as_str() {
         match miner_dir {
-          DIR_UP => print!("^ "),
-          DIR_DOWN => print!("v "),
-          DIR_LEFT => print!("< "),
-          DIR_RIGHT => print!("> "),
+          DIR_UP => write!(buf, "^ ").unwrap(),
+          DIR_DOWN => write!(buf, "v ").unwrap(),
+          DIR_LEFT => write!(buf, "< ").unwrap(),
+          DIR_RIGHT => write!(buf, "> ").unwrap(),
           _ => {
             println!("unexpected dir: {:?}", miner_dir);
             panic!("dir is enum");
@@ -87,20 +86,22 @@ fn print_table(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usize, 
         };
       } else {
         match array[x][y] {
-          ICON_ENERGY => print!("{}", ICON_ENERGY),
-          ICON_DIAMOND => print!("{}", ICON_DIAMOND),
-          v => print!("{0}{0}", v),
+          ICON_ENERGY => write!(buf, "{}", ICON_ENERGY).unwrap(),
+          ICON_DIAMOND => write!(buf, "{}", ICON_DIAMOND).unwrap(),
+          v => write!(buf, "{0}{0}", v).unwrap(),
         }
       }
     }
-    println!("|");
+    write!(buf, "|\n").unwrap();
   }
 
-  print!("\\");
+  write!(buf, "\\").unwrap();
   for _ in 0..WIDTH*2 {
-    print!("-");
+    write!(buf, "-").unwrap();
   }
-  println!("/");
+  write!(buf, "/").unwrap();
+
+  buf
 }
 
 fn parse_cli_args() -> Options {
@@ -134,6 +135,43 @@ fn parse_cli_args() -> Options {
   }
   
   options
+}
+
+fn move_miner(miner: &mut Miner, world: &mut World, nextx: usize, nexty: usize, nextdir: i32) {
+  match world[nextx][nexty] {
+    '█' => {
+      world[nextx][nexty] = '▓';
+      miner.dir = nextdir;
+    },
+    '▓' => {
+      world[nextx][nexty] = '▒';
+      miner.dir = nextdir;
+    },
+    '▒' => {
+      world[nextx][nexty] = '░';
+      miner.dir = nextdir;
+    },
+    '░' => {
+      world[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
+      miner.dir = nextdir; // Or maybe not? Could be a miner property or powerup
+    },
+    ICON_ENERGY => {
+      miner.energy = miner.energy + E_VALUE;
+      world[nextx][nexty] = ' ';
+      miner.x = nextx;
+      miner.y = nexty;
+    },
+    ICON_DIAMOND => {
+      miner.points = miner.points + 1; // Different gems with different points. Miners could have properties or powerups to affect this.
+      world[nextx][nexty] = ' ';
+      miner.x = nextx;
+      miner.y = nexty;
+    },
+    _ => {
+      miner.x = nextx;
+      miner.y = nexty;
+    },
+  }
 }
 
 fn main() {
@@ -177,7 +215,7 @@ fn main() {
   let diey = Uniform::from(0..HEIGHT);
 
   // Generate the map for this run. We'll clone it for each cycle.
-  let mut golden_map: [[char; HEIGHT]; WIDTH] = [[' '; WIDTH]; HEIGHT];
+  let mut golden_map: World = [[' '; WIDTH]; HEIGHT];
 
   // Add energy modules
   for _ in 0..E_COUNT {
@@ -198,12 +236,20 @@ fn main() {
   }
 
   // Print the initial world at least once
-  print_table(&golden_map, miner.x, miner.y, miner.dir);
+  let table_str: String = serialize_world(&golden_map, miner.x, miner.y, miner.dir);
+  println!("{}", table_str);
+
+  print!("\x1b[s"); // "Store cursor position"
 
   loop {
     // Recreate the rng fresh for every new Miner
     let mut rng = Pcg64::seed_from_u64(options.seed);
-    let mut array = golden_map.clone();
+    let mut world: World = golden_map.clone();
+
+    print!("\x1b[u"); // "Restore cursor position"
+    print!("\x1b[s"); // "Store cursor position"
+
+    print!("\033[7A\033[1;35m BASH \033[7B\033[6D");
 
     println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy: {}", 0, miner.x, miner.y, miner.dir, miner.energy, miner.points, miner.multiplier_points, miner.multiplier_energy);
 
@@ -212,132 +258,24 @@ fn main() {
     while miner.energy > 0 {
       match miner.dir {
         DIR_UP => {
+          let nextx: usize = miner.x.clone();
           let nexty = if miner.y == 0 { HEIGHT - 1 } else { miner.y - 1 };
-          match array[miner.x][nexty] {
-            '█' => {
-              array[miner.x][nexty] = '▓';
-              miner.dir = DIR_LEFT;
-            },
-            '▓' => {
-              array[miner.x][nexty] = '▒';
-              miner.dir = DIR_LEFT;
-            },
-            '▒' => {
-              array[miner.x][nexty] = '░';
-              miner.dir = DIR_LEFT;
-            },
-            '░' => {
-              array[miner.x][nexty] = ICON_DIAMOND; // Or a different powerup?
-              miner.dir = DIR_LEFT; // Or maybe not? Could be a miner property or powerup
-            },
-           ICON_ENERGY => {
-              miner.energy = miner.energy + E_VALUE;
-              array[miner.x][nexty] = ' ';
-              miner.y = nexty;
-            },
-           ICON_DIAMOND => {
-              miner.points = miner.points + 1; // Different gems with different points. Miners could have properties or powerups to affect this.
-              array[miner.x][nexty] = ' ';
-              miner.y = nexty;
-            },
-            _ => miner.y = nexty,
-          }          
+          move_miner(&mut miner, &mut world, nextx, nexty, DIR_LEFT);
         },
         DIR_LEFT => {
           let nextx = if miner.x == 0 { WIDTH - 1 } else { miner.x - 1 };
-          match array[nextx][miner.y] {
-            '█' => {
-              array[nextx][miner.y] = '▓';
-              miner.dir = DIR_DOWN;
-            },
-            '▓' => {
-              array[nextx][miner.y] = '▒';
-              miner.dir = DIR_DOWN;
-            },
-            '▒' => {
-              array[nextx][miner.y] = '░';
-              miner.dir = DIR_DOWN;
-            },
-            '░' => {
-              array[nextx][miner.y] = ICON_DIAMOND;
-              miner.dir = DIR_DOWN;
-            },
-           ICON_ENERGY => {
-              miner.energy = miner.energy + E_VALUE;
-              array[nextx][miner.y] = ' ';
-              miner.x = nextx;
-            },
-           ICON_DIAMOND => {
-              miner.points = miner.points + 1;
-              array[nextx][miner.y] = ' ';
-              miner.x = nextx;
-            },
-            _ => miner.x = nextx,
-          }
+          let nexty: usize = miner.y.clone();
+          move_miner(&mut miner, &mut world, nextx, nexty, DIR_DOWN);
         },
         DIR_DOWN => {
+          let nextx: usize = miner.x.clone();
           let nexty = if miner.y == HEIGHT - 1 { 0 } else { miner.y + 1 };
-          match array[miner.x][nexty] {
-            '█' => {
-              array[miner.x][nexty] = '▓';
-              miner.dir = DIR_RIGHT;
-            },
-            '▓' => {
-              array[miner.x][nexty] = '▒';
-              miner.dir = DIR_RIGHT;
-            },
-            '▒' => {
-              array[miner.x][nexty] = '░';
-              miner.dir = DIR_RIGHT;
-            },
-            '░' => {
-              array[miner.x][nexty] = ICON_DIAMOND;
-              miner.dir = DIR_RIGHT;
-            },
-           ICON_ENERGY => {
-              miner.energy = miner.energy + E_VALUE;
-              array[miner.x][nexty] = ' ';
-              miner.y = nexty;
-            },
-           ICON_DIAMOND => {
-              miner.points = miner.points + 1;
-              array[miner.x][nexty] = ' ';
-              miner.y = nexty;
-            },
-            _ => miner.y = nexty,
-          }
+          move_miner(&mut miner, &mut world, nextx, nexty, DIR_RIGHT);
         },
-       DIR_RIGHT => {
+        DIR_RIGHT => {
           let nextx = if miner.x == WIDTH - 1 { 0 } else { miner.x + 1 };
-          match array[nextx][miner.y] {
-            '█' => {
-              array[nextx][miner.y] = '▓';
-              miner.dir = DIR_UP;
-            },
-            '▓' => {
-              array[nextx][miner.y] = '▒';
-              miner.dir = DIR_UP;
-            },
-            '▒' => {
-              array[nextx][miner.y] = '░';
-              miner.dir = DIR_UP;
-            },
-            '░' => {
-              array[nextx][miner.y] = ICON_DIAMOND;
-              miner.dir = DIR_UP;
-            },
-           ICON_ENERGY => {
-              miner.energy = miner.energy + E_VALUE;
-              array[nextx][miner.y] = ' ';
-              miner.x = nextx;
-            },
-           ICON_DIAMOND => {
-              miner.points = miner.points + 1;
-              array[nextx][miner.y] = ' ';
-              miner.x = nextx;
-            },
-            _ => miner.x = nextx,
-          }
+          let nexty: usize = miner.y.clone();
+          move_miner(&mut miner, &mut world, nextx, nexty, DIR_UP);
         },
 
         _ => {
@@ -351,7 +289,9 @@ fn main() {
 
       if options.visual {
         println!("update {} x: {} y: {} dir: {} energy: {} points: {}", iteration + 1, miner.x, miner.y, miner.dir, miner.energy, miner.points);
-        print_table(&array, miner.x, miner.y, miner.dir);
+        let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
+        println!("{}", table_str);
+
         thread::sleep(delay);
       }
     }
