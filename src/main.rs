@@ -38,8 +38,6 @@ const DELAY_MS: u64 = 10;
 // - if turning left or right puts you towards a diamond, prefer that (something radar ish)
 // - split up? could share energy source or at least deplete at a faster rate, collisions destroy you, stuff like that.
 
-
-
 const ICON_DIAMOND: char = '💎';
 const ICON_ENERGY: char = '🔋';
 const ICON_TURN_RIGHT: char = '🗘';
@@ -183,45 +181,8 @@ fn move_miner(miner: &mut Miner, world: &mut World, nextx: usize, nexty: usize, 
   }
 }
 
-fn main() {
-  let mut options = parse_cli_args();
-
-  if options.seed == 0 {
-    // Did not receive a seed from the CLI so generate one now. We'll print it so if we find
-    // something interesting we can re-play it reliably.
-    let mut seed_rng = rand::thread_rng();
-    let seed_range = Uniform::from(0..1000000);
-    options.seed = seed_range.sample(&mut seed_rng);
-  }
-  println!("Seed: {}", options.seed);
-
+fn generate_world(options: &Options) -> World {
   let mut map_rng = Pcg64::seed_from_u64(options.seed);
-
-  let delay = time::Duration::from_millis(DELAY_MS);
-
-  #[allow(dead_code)]
-
-  // ░ ▒ ▓ █
-
-  // TODO: Use dedicated rng. Doesn't really matter here yet but maybe later.
-  let multiplier_range = Uniform::from(0..100);
-  let multiplier_energy_start = multiplier_range.sample(&mut map_rng);
-  let multiplier_points = 100 - multiplier_energy_start;
-  let multiplier_energy_pickup = multiplier_range.sample(&mut map_rng);
-
-  let mut miner: Miner = Miner {
-    x: WIDTH >> 1,
-    y: HEIGHT >> 1,
-    dir: DIR_UP,
-    energy: (INIT_ENERGY as f64 * (multiplier_energy_start as f64 / 100.0)) as i32,
-    points: 0,
-
-    multiplier_energy_start,
-    multiplier_points,
-    multiplier_energy_pickup,
-    block_bump_cost: 5,
-  };
-  let mut best_miner = miner;
 
   let diex = Uniform::from(0..WIDTH);
   let diey = Uniform::from(0..HEIGHT);
@@ -246,6 +207,49 @@ fn main() {
       }
     }
   }
+
+  return golden_map;
+}
+
+fn main() {
+  let mut options = parse_cli_args();
+
+  if options.seed == 0 {
+    // Did not receive a seed from the CLI so generate one now. We'll print it so if we find
+    // something interesting we can re-play it reliably.
+    let mut seed_rng = rand::thread_rng();
+    let seed_range = Uniform::from(0..1000000);
+    options.seed = seed_range.sample(&mut seed_rng);
+  }
+  println!("Seed: {}", options.seed);
+
+  let delay = time::Duration::from_millis(DELAY_MS);
+
+  #[allow(dead_code)]
+
+  // ░ ▒ ▓ █
+
+  let mut init_rng = Pcg64::seed_from_u64(options.seed);
+  let multiplier_range = Uniform::from(0..100);
+  let multiplier_energy_start = multiplier_range.sample(&mut init_rng);
+  let multiplier_points = 100 - multiplier_energy_start;
+  let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
+
+  let mut miner: Miner = Miner {
+    x: WIDTH >> 1,
+    y: HEIGHT >> 1,
+    dir: DIR_UP,
+    energy: (INIT_ENERGY as f64 * (multiplier_energy_start as f64 / 100.0)) as i32,
+    points: 0,
+
+    multiplier_energy_start,
+    multiplier_points,
+    multiplier_energy_pickup,
+    block_bump_cost: 5,
+  };
+  let mut best_miner = miner;
+
+  let mut golden_map: World = generate_world(&options);
 
   // Print the initial world at least once
   let table_str: String = serialize_world(&golden_map, miner.x, miner.y, miner.dir);
