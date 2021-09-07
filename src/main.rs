@@ -12,7 +12,7 @@ const INIT_BLOCKS_PER_ROW: i32 = WIDTH as i32 >> 1; // Half?
 
 const E_COUNT: i32 = 50; // How many modules do we spawn
 const E_VALUE: i32 = 125; // Energy module bonus. 5%?
-const INIT_ENERGY: i32 = 1000;
+const INIT_ENERGY: i32 = 500;
 
 // TODO: this must be typeable :)
 const DIR_UP   : i32 = 1;
@@ -20,7 +20,7 @@ const DIR_RIGHT: i32 = 2;
 const DIR_DOWN : i32 = 3;
 const DIR_LEFT : i32 = 4;
 
-const DELAY_MS: u64 = 30;
+const DELAY_MS: u64 = 10;
 
 // Power up / character ability ideas:
 // - after breaking a block do not change direction
@@ -28,7 +28,7 @@ const DELAY_MS: u64 = 30;
 // - double energy
 // - random starting position?
 // - wider reach? ability to hit a diagonal block
-// - ability to move diagionally, too?
+// - ability to move diagonally, too?
 // - touch diamonds/items in the 9x9 around you
 // - diamonds give you energy
 // - active: generate random diamond / block
@@ -38,8 +38,11 @@ const DELAY_MS: u64 = 30;
 // - if turning left or right puts you towards a diamond, prefer that (something radar ish)
 // - split up? could share energy source or at least deplete at a faster rate, collisions destroy you, stuff like that.
 
+
+
 const ICON_DIAMOND: char = '💎';
 const ICON_ENERGY: char = '🔋';
+const ICON_TURN_RIGHT: char = '🗘';
 
 struct Options {
   seed: u64,
@@ -58,8 +61,10 @@ struct Miner {
 //  cooldown: i32, // Iterations before item can be used again
 
   // These multipliers are in whole percentages
-  multiplier_energy: i32,
+  multiplier_energy_start: i32,
   multiplier_points: i32,
+  block_bump_cost: i32,
+  multiplier_energy_pickup: i32,
 //  multiplier_cooldown: i32,
 }
 
@@ -142,21 +147,25 @@ fn move_miner(miner: &mut Miner, world: &mut World, nextx: usize, nexty: usize, 
     '█' => {
       world[nextx][nexty] = '▓';
       miner.dir = nextdir;
+      miner.energy = miner.energy - miner.block_bump_cost;
     },
     '▓' => {
       world[nextx][nexty] = '▒';
       miner.dir = nextdir;
+      miner.energy = miner.energy - miner.block_bump_cost;
     },
     '▒' => {
       world[nextx][nexty] = '░';
       miner.dir = nextdir;
+      miner.energy = miner.energy - miner.block_bump_cost;
     },
     '░' => {
       world[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
       miner.dir = nextdir; // Or maybe not? Could be a miner property or powerup
+      miner.energy = miner.energy - miner.block_bump_cost;
     },
     ICON_ENERGY => {
-      miner.energy = miner.energy + E_VALUE;
+      miner.energy = miner.energy + (E_VALUE as f64 * ((100.0 + miner.multiplier_energy_pickup as f64) / 100.0)) as i32;
       world[nextx][nexty] = ' ';
       miner.x = nextx;
       miner.y = nexty;
@@ -196,20 +205,21 @@ fn main() {
 
   // TODO: Use dedicated rng. Doesn't really matter here yet but maybe later.
   let multiplier_range = Uniform::from(0..100);
-  let multiplier_energy = multiplier_range.sample(&mut map_rng);
-  let multiplier_points = 100 - multiplier_energy;
-
-  println!("e {} m {} p {} so {}", INIT_ENERGY, multiplier_energy, (multiplier_energy as f64 / 100.0), (INIT_ENERGY as f64 * (multiplier_energy as f64 / 100.0)) as i32);
+  let multiplier_energy_start = multiplier_range.sample(&mut map_rng);
+  let multiplier_points = 100 - multiplier_energy_start;
+  let multiplier_energy_pickup = multiplier_range.sample(&mut map_rng);
 
   let mut miner: Miner = Miner {
     x: WIDTH >> 1,
     y: HEIGHT >> 1,
     dir: DIR_UP,
-    energy: (INIT_ENERGY as f64 * (multiplier_energy as f64 / 100.0)) as i32,
+    energy: (INIT_ENERGY as f64 * (multiplier_energy_start as f64 / 100.0)) as i32,
     points: 0,
 
-    multiplier_energy,
+    multiplier_energy_start,
     multiplier_points,
+    multiplier_energy_pickup,
+    block_bump_cost: 5,
   };
   let mut best_miner = miner;
 
@@ -246,7 +256,10 @@ fn main() {
     let mut rng = Pcg64::seed_from_u64(options.seed);
     let mut world: World = golden_map.clone();
 
-    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy: {}", 0, miner.x, miner.y, miner.dir, miner.energy, miner.points, miner.multiplier_points, miner.multiplier_energy);
+    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.x, miner.y, miner.dir, miner.energy, miner.points, miner.multiplier_points, miner.multiplier_energy_start, miner.multiplier_energy_pickup);
+    println!("data here");
+    let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
+    println!("{}", table_str);
 
     // Move it move it
     let mut iteration = 0;
@@ -283,12 +296,9 @@ fn main() {
       iteration = iteration + 1;
 
       if options.visual {
-
-        print!("\x1BU"); // "Restore cursor position"
-
-        println!("update {} x: {} y: {} dir: {} energy: {} points: {}", iteration + 1, miner.x, miner.y, miner.dir, miner.energy, miner.points);
         let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
         print!("\x1b[54A\n");
+        println!("update {} x: {} y: {} dir: {} energy: {} points: {}                 ", iteration + 1, miner.x, miner.y, miner.dir, miner.energy, miner.points);
         println!("{}", table_str);
 
         thread::sleep(delay);
@@ -296,14 +306,34 @@ fn main() {
     }
 
     // TODO: use dedicated unseeded rng here, once we do.
-    let prev_m_p = miner.multiplier_points;
-    let prev_m_e = miner.multiplier_energy;
-    let next_m_e = prev_m_e + 1;
 
-    let post_points = miner.points as i32 * ((INIT_ENERGY as f64 * (next_m_e as f64 / 100.0)) as i32);
-    println!("Final points: {} after {} iterations", miner.points, iteration);
-    if miner.points > best_miner.points {
-      println!("Found a better miner {} to {} points", best_miner.points, miner.points);
+    let prev_m_p = miner.multiplier_points;
+    let mut delta_p = (prev_m_p as f64 * 0.05) as i32;
+    if delta_p == 0 {
+      delta_p = 1;
+    }
+    let next_m_p = prev_m_p + delta_p;
+
+    let prev_m_es = miner.multiplier_energy_start;
+    let mut delta_es = (prev_m_es as f64 * 0.05) as i32;
+    if delta_es == 0 {
+      delta_es = 1;
+    }
+    let next_m_es = prev_m_es + delta_es;
+
+    let prev_m_ep = miner.multiplier_energy_pickup;
+    let mut delta_ep = (prev_m_ep as f64 * 0.05) as i32;
+    if delta_ep == 0 {
+      delta_ep = 1;
+    }
+    let next_m_ep = prev_m_ep + delta_ep;
+
+    let post_points = miner.points as i32 * ((miner.points as f64 * ((100.0 + miner.multiplier_points as f64) / 100.0)) as i32);
+    let best_points = best_miner.points as i32 * ((best_miner.points as f64 * ((100.0 + best_miner.multiplier_points as f64) / 100.0)) as i32);
+    print!("\x1b[55A\n");
+    println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.points, post_points);
+    if post_points > best_points {
+      println!("Found a better miner {} to {} points                 ", best_points, post_points);
       best_miner = miner;
     }
 
@@ -311,11 +341,13 @@ fn main() {
       x: WIDTH >> 1,
       y: HEIGHT >> 1,
       dir: DIR_UP,
-      energy: (INIT_ENERGY as f64 * (next_m_e as f64 / 100.0)) as i32,
+      energy: (INIT_ENERGY as f64 * (next_m_es as f64 / 100.0)) as i32,
       points: 0,
 
-      multiplier_points: prev_m_p - 1,
-      multiplier_energy: next_m_e,
+      multiplier_points: next_m_p,
+      multiplier_energy_start: next_m_es,
+      multiplier_energy_pickup: next_m_ep,
+      block_bump_cost: 5,
     };
   }
 }
