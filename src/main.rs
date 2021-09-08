@@ -12,7 +12,7 @@ const INIT_BLOCKS_PER_ROW: i32 = WIDTH as i32 >> 1; // Half?
 
 const E_COUNT: i32 = 50; // How many modules do we spawn
 const E_VALUE: i32 = 125; // Energy module bonus. 5%?
-const INIT_ENERGY: i32 = 500;
+const INIT_ENERGY: i32 = 3000;
 
 // TODO: this must be typeable :)
 const DIR_UP   : i32 = 1;
@@ -41,6 +41,24 @@ const DELAY_MS: u64 = 10;
 const ICON_DIAMOND: char = '💎';
 const ICON_ENERGY: char = '🔋';
 const ICON_TURN_RIGHT: char = '🗘';
+const ICON_HEAVY_UP: char = '🡅';
+const ICON_HEAVY_RIGHT: char = '🡆';
+const ICON_HEAVY_DOWN: char = '🡇';
+const ICON_HEAVY_LEFT: char = '🡄';
+const ICON_INDEX_UP: char = '👆';
+const ICON_INDEX_RIGHT: char = '👉';
+const ICON_INDEX_DOWN: char = '👇';
+const ICON_INDEX_LEFT: char = '👈';
+
+const ICON_MINER_UP: char = ICON_HEAVY_UP;
+const ICON_MINER_RIGHT: char = ICON_HEAVY_RIGHT;
+const ICON_MINER_DOWN: char = ICON_HEAVY_DOWN;
+const ICON_MINER_LEFT: char = ICON_HEAVY_LEFT;
+
+const ICON_DRONE_UP: char = ICON_INDEX_UP;
+const ICON_DRONE_RIGHT: char = ICON_INDEX_RIGHT;
+const ICON_DRONE_DOWN: char = ICON_INDEX_DOWN;
+const ICON_DRONE_LEFT: char = ICON_INDEX_LEFT;
 
 struct Options {
   seed: u64,
@@ -67,6 +85,7 @@ struct MinerMeta {
   points: i32,
   //  item:
   //  cooldown: i32, // Iterations before item can be used again
+  drone_gen_cooldown: i32, // Generate a new drone every this many ticks
 
   // These multipliers are in whole percentages
   multiplier_energy_start: i32,
@@ -84,7 +103,41 @@ struct Miner {
   drones: [Option<Drone>; 32],
 }
 
-fn serialize_world(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usize, miner_dir: i32) -> String {
+fn serialize_world(world: &World, miner: &Miner) -> String {
+  // Clone the world so we can print the moving entities on it
+  // Otherwise for each cell we'd have to scan all the entitie to check if they're on it
+  // We could also construct an empty world with just the entities and check for non-zero instead
+  let mut new_world: World = world.clone();
+  new_world[miner.movable.x][miner.movable.y] = match miner.movable.dir {
+    DIR_UP => ICON_MINER_UP,
+    DIR_DOWN => ICON_MINER_DOWN,
+    DIR_LEFT => ICON_MINER_LEFT,
+    DIR_RIGHT => ICON_MINER_RIGHT,
+    _ => {
+      println!("unexpected dir: {:?}", miner.movable.dir);
+      panic!("dir is enum");
+    },
+  };
+  for drone in miner.drones.iter() {
+    match drone {
+      Some(drone) => {
+        if drone.movable.energy > 0 {
+          new_world[drone.movable.x][drone.movable.y] = match drone.movable.dir {
+            DIR_UP => ICON_DRONE_UP,
+            DIR_DOWN => ICON_DRONE_DOWN,
+            DIR_LEFT => ICON_DRONE_LEFT,
+            DIR_RIGHT => ICON_DRONE_RIGHT,
+            _ => {
+              println!("unexpected dir: {:?}", drone.movable.dir);
+              panic!("dir is enum");
+            },
+          }
+        }
+      },
+      None => ()
+    }
+  }
+
   let mut buf : String = "/".to_string();
   for _ in 0..WIDTH*2 {
     write!(buf, "-").unwrap();
@@ -94,23 +147,24 @@ fn serialize_world(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usi
   for y in 0..HEIGHT {
     write!(buf, "|").unwrap();
     for x in 0..WIDTH {
-      if x == miner_x && y == miner_y {
-        match miner_dir {
-          DIR_UP => write!(buf, "^ ").unwrap(),
-          DIR_DOWN => write!(buf, "v ").unwrap(),
-          DIR_LEFT => write!(buf, "< ").unwrap(),
-          DIR_RIGHT => write!(buf, "> ").unwrap(),
-          _ => {
-            println!("unexpected dir: {:?}", miner_dir);
-            panic!("dir is enum");
-          },
-        };
-      } else {
-        match array[x][y] {
-          ICON_ENERGY => write!(buf, "{}", ICON_ENERGY).unwrap(),
-          ICON_DIAMOND => write!(buf, "{}", ICON_DIAMOND).unwrap(),
-          v => write!(buf, "{0}{0}", v).unwrap(),
-        }
+      let c: char = new_world[x][y];
+      match c {
+        | ICON_ENERGY
+        | ICON_DIAMOND
+        | ICON_TURN_RIGHT
+        | ICON_INDEX_UP
+        | ICON_INDEX_RIGHT
+        | ICON_INDEX_LEFT
+        | ICON_INDEX_DOWN
+        => write!(buf, "{}", c).unwrap(),
+
+        | ICON_HEAVY_UP
+        | ICON_HEAVY_RIGHT
+        | ICON_HEAVY_DOWN
+        | ICON_HEAVY_LEFT
+        => write!(buf, "{} ", c).unwrap(),
+
+        v => write!(buf, "{0}{0}", v).unwrap(),
       }
     }
     write!(buf, "|\n").unwrap();
@@ -202,24 +256,20 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
 fn move_movable(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World) {
   match movable.dir {
     DIR_UP => {
-      let nextx: usize = movable.x.clone();
       let nexty: usize = if movable.y == 0 { HEIGHT - 1 } else { movable.y - 1 };
-      move_it_xy(movable, meta, world, nextx, nexty, DIR_LEFT);
+      move_it_xy(movable, meta, world, movable.x, nexty, DIR_LEFT);
     },
     DIR_LEFT => {
       let nextx = if movable.x == 0 { WIDTH - 1 } else { movable.x - 1 };
-      let nexty: usize = movable.y.clone();
-      move_it_xy(movable, meta, world, nextx, nexty, DIR_DOWN);
+      move_it_xy(movable, meta, world, nextx, movable.y, DIR_DOWN);
     },
     DIR_DOWN => {
-      let nextx: usize = movable.x.clone();
       let nexty = if movable.y == HEIGHT - 1 { 0 } else { movable.y + 1 };
-      move_it_xy(movable, meta, world, nextx, nexty, DIR_RIGHT);
+      move_it_xy(movable, meta, world, movable.x, nexty, DIR_RIGHT);
     },
     DIR_RIGHT => {
       let nextx = if movable.x == WIDTH - 1 { 0 } else { movable.x + 1 };
-      let nexty: usize = movable.y.clone();
-      move_it_xy(movable, meta, world, nextx, nexty, DIR_UP);
+      move_it_xy(movable, meta, world, nextx, movable.y, DIR_UP);
     },
 
     _ => {
@@ -278,8 +328,11 @@ fn main() {
   let mut init_rng = Pcg64::seed_from_u64(options.seed);
   let multiplier_range = Uniform::from(0..100);
   let multiplier_energy_start = multiplier_range.sample(&mut init_rng);
-  let multiplier_points = 100 - multiplier_energy_start;
+  let multiplier_points = 1;
   let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
+
+  let drone_range_x = Uniform::from(0..WIDTH);
+  let drone_range_y = Uniform::from(0..HEIGHT);
 
   let mut miner: Miner = Miner {
     movable: Movable {
@@ -290,6 +343,7 @@ fn main() {
     },
     meta: MinerMeta {
       points: 0,
+      drone_gen_cooldown: 50,
       multiplier_energy_start,
       multiplier_points,
       multiplier_energy_pickup,
@@ -300,22 +354,22 @@ fn main() {
   };
   let mut best_miner = miner;
 
-  // miner.drones[0] = Some(Drone { movable: Movable { x: 0, y: 0, dir: DIR_DOWN, energy: 50 }});
-
   let golden_map: World = generate_world(&options);
 
   // Print the initial world at least once
-  let table_str: String = serialize_world(&golden_map, miner.movable.x, miner.movable.y, miner.movable.dir);
+  let table_str: String = serialize_world(&golden_map, &miner);
   println!("{}", table_str);
 
   loop {
     // Recreate the rng fresh for every new Miner
     // let mut rng = Pcg64::seed_from_u64(options.seed);
+    let mut drone_rng = Pcg64::seed_from_u64(options.seed);
+
     let mut world: World = golden_map.clone();
 
     println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.multiplier_points, miner.meta.multiplier_energy_start, miner.meta.multiplier_energy_pickup);
     println!("data here");
-    let table_str: String = serialize_world(&world, miner.movable.x, miner.movable.y, miner.movable.dir);
+    let table_str: String = serialize_world(&world, &miner);
     println!("{}", table_str);
 
     // Move it move it
@@ -323,17 +377,52 @@ fn main() {
     while miner.movable.energy > 0 {
 
       move_movable(&mut miner.movable, &mut miner.meta, &mut world);
+      for drone in miner.drones.iter_mut() {
+        match drone {
+          Some(drone) => move_movable(&mut drone.movable, &mut miner.meta, &mut world),
+          None => (),
+        }
+      }
 
       miner.movable.energy = miner.movable.energy - 1;
       iteration = iteration + 1;
 
       if options.visual {
-        let table_str: String = serialize_world(&world, miner.movable.x, miner.movable.y, miner.movable.dir);
+        let table_str: String = serialize_world(&world, &miner);
         print!("\x1b[54A\n");
-        println!("update {} x: {} y: {} dir: {} energy: {} points: {}                 ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points);
+        println!("update {} x: {} y: {} dir: {} energy: {} points: {} drone_cooldown: {}                         ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.drone_gen_cooldown);
         println!("{}", table_str);
 
         thread::sleep(delay);
+      }
+
+      if miner.meta.drone_gen_cooldown > 0 {
+        miner.meta.drone_gen_cooldown = miner.meta.drone_gen_cooldown - 1;
+      }
+      let mut spawn_drone = miner.meta.drone_gen_cooldown == 0 && miner.movable.energy > 50;
+
+      for i in 0..miner.drones.len() {
+        let drone: Option<Drone> = miner.drones[i];
+        match drone {
+          Some(drone) => {
+            if drone.movable.energy <= 0 {
+              miner.drones[i] = None;
+            }
+          },
+          None => {
+            if spawn_drone {
+              miner.drones[i] = Some(Drone { movable: Movable {
+                x: miner.movable.x,
+                y: miner.movable.y,
+                dir: if miner.movable.dir == DIR_UP { DIR_DOWN } else { DIR_UP },
+                energy: 50
+              }});
+              miner.meta.drone_gen_cooldown = 50;
+              miner.movable.energy = miner.movable.energy - 50;
+              spawn_drone = false;
+            }
+          },
+        }
       }
     }
 
@@ -360,8 +449,8 @@ fn main() {
     }
     let next_m_ep = prev_m_ep + delta_ep;
 
-    let post_points = miner.meta.points as i32 * ((miner.meta.points as f64 * ((100.0 + miner.meta.multiplier_points as f64) / 100.0)) as i32);
-    let best_points = best_miner.meta.points as i32 * ((best_miner.meta.points as f64 * ((100.0 + best_miner.meta.multiplier_points as f64) / 100.0)) as i32);
+    let post_points = (miner.meta.points as f64 * ((100.0 + miner.meta.multiplier_points as f64) / 100.0)) as i32;
+    let best_points = (best_miner.meta.points as f64 * ((100.0 + best_miner.meta.multiplier_points as f64) / 100.0)) as i32;
     print!("\x1b[55A\n");
     println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.meta.points, post_points);
     if post_points > best_points {
@@ -378,6 +467,7 @@ fn main() {
       },
       meta: MinerMeta {
         points: 0,
+        drone_gen_cooldown: 50,
         multiplier_points: next_m_p,
         multiplier_energy_start: next_m_es,
         multiplier_energy_pickup: next_m_ep,
