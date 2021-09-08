@@ -49,21 +49,39 @@ struct Options {
 type World = [[char; HEIGHT]; WIDTH];
 
 #[derive(Copy, Clone)]
-struct Miner {
+struct Movable {
   x: usize,
   y: usize,
   dir: i32,
   energy: i32,
+}
+
+#[derive(Copy, Clone)]
+struct Drone {
+  // Each drone has its own x, y, direction, and energy
+  movable: Movable,
+}
+
+#[derive(Copy, Clone)]
+struct MinerMeta {
   points: i32,
-//  item: 
-//  cooldown: i32, // Iterations before item can be used again
+  //  item:
+  //  cooldown: i32, // Iterations before item can be used again
 
   // These multipliers are in whole percentages
   multiplier_energy_start: i32,
   multiplier_points: i32,
   block_bump_cost: i32,
   multiplier_energy_pickup: i32,
-//  multiplier_cooldown: i32,
+  //  multiplier_cooldown: i32,
+}
+
+#[derive(Copy, Clone)]
+struct Miner {
+  movable: Movable,
+  meta: MinerMeta,
+  // Whenever a drone is generated it will take a chunk of energy from the miner
+  drones: [Option<Drone>; 32],
 }
 
 fn serialize_world(array: &[[char; HEIGHT]; WIDTH], miner_x: usize, miner_y: usize, miner_dir: i32) -> String {
@@ -140,43 +158,73 @@ fn parse_cli_args() -> Options {
   options
 }
 
-fn move_miner(miner: &mut Miner, world: &mut World, nextx: usize, nexty: usize, nextdir: i32) {
+fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, nextx: usize, nexty: usize, nextdir: i32) {
   match world[nextx][nexty] {
     '█' => {
       world[nextx][nexty] = '▓';
-      miner.dir = nextdir;
-      miner.energy = miner.energy - miner.block_bump_cost;
+      movable.dir = nextdir;
+      movable.energy = movable.energy - meta.block_bump_cost;
     },
     '▓' => {
       world[nextx][nexty] = '▒';
-      miner.dir = nextdir;
-      miner.energy = miner.energy - miner.block_bump_cost;
+      movable.dir = nextdir;
+      movable.energy = movable.energy - meta.block_bump_cost;
     },
     '▒' => {
       world[nextx][nexty] = '░';
-      miner.dir = nextdir;
-      miner.energy = miner.energy - miner.block_bump_cost;
+      movable.dir = nextdir;
+      movable.energy = movable.energy - meta.block_bump_cost;
     },
     '░' => {
       world[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
-      miner.dir = nextdir; // Or maybe not? Could be a miner property or powerup
-      miner.energy = miner.energy - miner.block_bump_cost;
+      movable.dir = nextdir; // Or maybe not? Could be a miner property or powerup
+      movable.energy = movable.energy - meta.block_bump_cost;
     },
     ICON_ENERGY => {
-      miner.energy = miner.energy + (E_VALUE as f64 * ((100.0 + miner.multiplier_energy_pickup as f64) / 100.0)) as i32;
+      movable.energy = movable.energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as i32;
       world[nextx][nexty] = ' ';
-      miner.x = nextx;
-      miner.y = nexty;
+      movable.x = nextx;
+      movable.y = nexty;
     },
     ICON_DIAMOND => {
-      miner.points = miner.points + 1; // Different gems with different points. Miners could have properties or powerups to affect this.
+      meta.points = meta.points + 1; // Different gems with different points. Miners could have properties or powerups to affect this.
       world[nextx][nexty] = ' ';
-      miner.x = nextx;
-      miner.y = nexty;
+      movable.x = nextx;
+      movable.y = nexty;
     },
     _ => {
-      miner.x = nextx;
-      miner.y = nexty;
+      movable.x = nextx;
+      movable.y = nexty;
+    },
+  }
+}
+
+fn move_movable(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World) {
+  match movable.dir {
+    DIR_UP => {
+      let nextx: usize = movable.x.clone();
+      let nexty: usize = if movable.y == 0 { HEIGHT - 1 } else { movable.y - 1 };
+      move_it_xy(movable, meta, world, nextx, nexty, DIR_LEFT);
+    },
+    DIR_LEFT => {
+      let nextx = if movable.x == 0 { WIDTH - 1 } else { movable.x - 1 };
+      let nexty: usize = movable.y.clone();
+      move_it_xy(movable, meta, world, nextx, nexty, DIR_DOWN);
+    },
+    DIR_DOWN => {
+      let nextx: usize = movable.x.clone();
+      let nexty = if movable.y == HEIGHT - 1 { 0 } else { movable.y + 1 };
+      move_it_xy(movable, meta, world, nextx, nexty, DIR_RIGHT);
+    },
+    DIR_RIGHT => {
+      let nextx = if movable.x == WIDTH - 1 { 0 } else { movable.x + 1 };
+      let nexty: usize = movable.y.clone();
+      move_it_xy(movable, meta, world, nextx, nexty, DIR_UP);
+    },
+
+    _ => {
+      println!("unexpected dir is: {}", movable.dir);
+      panic!("dir is enum");
     },
   }
 }
@@ -225,8 +273,6 @@ fn main() {
 
   let delay = time::Duration::from_millis(DELAY_MS);
 
-  #[allow(dead_code)]
-
   // ░ ▒ ▓ █
 
   let mut init_rng = Pcg64::seed_from_u64(options.seed);
@@ -236,73 +282,55 @@ fn main() {
   let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
   let mut miner: Miner = Miner {
-    x: WIDTH >> 1,
-    y: HEIGHT >> 1,
-    dir: DIR_UP,
-    energy: (INIT_ENERGY as f64 * (multiplier_energy_start as f64 / 100.0)) as i32,
-    points: 0,
+    movable: Movable {
+      x: WIDTH >> 1,
+      y: HEIGHT >> 1,
+      dir: DIR_UP,
+      energy: (INIT_ENERGY as f64 * (multiplier_energy_start as f64 / 100.0)) as i32,
+    },
+    meta: MinerMeta {
+      points: 0,
+      multiplier_energy_start,
+      multiplier_points,
+      multiplier_energy_pickup,
+      block_bump_cost: 5,
+    },
 
-    multiplier_energy_start,
-    multiplier_points,
-    multiplier_energy_pickup,
-    block_bump_cost: 5,
+    drones: [None; 32],
   };
   let mut best_miner = miner;
 
-  let mut golden_map: World = generate_world(&options);
+  // miner.drones[0] = Some(Drone { movable: Movable { x: 0, y: 0, dir: DIR_DOWN, energy: 50 }});
+
+  let golden_map: World = generate_world(&options);
 
   // Print the initial world at least once
-  let table_str: String = serialize_world(&golden_map, miner.x, miner.y, miner.dir);
+  let table_str: String = serialize_world(&golden_map, miner.movable.x, miner.movable.y, miner.movable.dir);
   println!("{}", table_str);
 
   loop {
     // Recreate the rng fresh for every new Miner
-    let mut rng = Pcg64::seed_from_u64(options.seed);
+    // let mut rng = Pcg64::seed_from_u64(options.seed);
     let mut world: World = golden_map.clone();
 
-    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.x, miner.y, miner.dir, miner.energy, miner.points, miner.multiplier_points, miner.multiplier_energy_start, miner.multiplier_energy_pickup);
+    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.multiplier_points, miner.meta.multiplier_energy_start, miner.meta.multiplier_energy_pickup);
     println!("data here");
-    let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
+    let table_str: String = serialize_world(&world, miner.movable.x, miner.movable.y, miner.movable.dir);
     println!("{}", table_str);
 
     // Move it move it
     let mut iteration = 0;
-    while miner.energy > 0 {
-      match miner.dir {
-        DIR_UP => {
-          let nextx: usize = miner.x.clone();
-          let nexty = if miner.y == 0 { HEIGHT - 1 } else { miner.y - 1 };
-          move_miner(&mut miner, &mut world, nextx, nexty, DIR_LEFT);
-        },
-        DIR_LEFT => {
-          let nextx = if miner.x == 0 { WIDTH - 1 } else { miner.x - 1 };
-          let nexty: usize = miner.y.clone();
-          move_miner(&mut miner, &mut world, nextx, nexty, DIR_DOWN);
-        },
-        DIR_DOWN => {
-          let nextx: usize = miner.x.clone();
-          let nexty = if miner.y == HEIGHT - 1 { 0 } else { miner.y + 1 };
-          move_miner(&mut miner, &mut world, nextx, nexty, DIR_RIGHT);
-        },
-        DIR_RIGHT => {
-          let nextx = if miner.x == WIDTH - 1 { 0 } else { miner.x + 1 };
-          let nexty: usize = miner.y.clone();
-          move_miner(&mut miner, &mut world, nextx, nexty, DIR_UP);
-        },
+    while miner.movable.energy > 0 {
 
-        _ => {
-          println!("unexpected dir is: {}", miner.dir);
-          panic!("dir is enum");
-        },
-      }
+      move_movable(&mut miner.movable, &mut miner.meta, &mut world);
 
-      miner.energy = miner.energy - 1;
+      miner.movable.energy = miner.movable.energy - 1;
       iteration = iteration + 1;
 
       if options.visual {
-        let table_str: String = serialize_world(&world, miner.x, miner.y, miner.dir);
+        let table_str: String = serialize_world(&world, miner.movable.x, miner.movable.y, miner.movable.dir);
         print!("\x1b[54A\n");
-        println!("update {} x: {} y: {} dir: {} energy: {} points: {}                 ", iteration + 1, miner.x, miner.y, miner.dir, miner.energy, miner.points);
+        println!("update {} x: {} y: {} dir: {} energy: {} points: {}                 ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points);
         println!("{}", table_str);
 
         thread::sleep(delay);
@@ -311,47 +339,51 @@ fn main() {
 
     // TODO: use dedicated unseeded rng here, once we do.
 
-    let prev_m_p = miner.multiplier_points;
+    let prev_m_p = miner.meta.multiplier_points;
     let mut delta_p = (prev_m_p as f64 * 0.05) as i32;
     if delta_p == 0 {
       delta_p = 1;
     }
     let next_m_p = prev_m_p + delta_p;
 
-    let prev_m_es = miner.multiplier_energy_start;
+    let prev_m_es = miner.meta.multiplier_energy_start;
     let mut delta_es = (prev_m_es as f64 * 0.05) as i32;
     if delta_es == 0 {
       delta_es = 1;
     }
     let next_m_es = prev_m_es + delta_es;
 
-    let prev_m_ep = miner.multiplier_energy_pickup;
+    let prev_m_ep = miner.meta.multiplier_energy_pickup;
     let mut delta_ep = (prev_m_ep as f64 * 0.05) as i32;
     if delta_ep == 0 {
       delta_ep = 1;
     }
     let next_m_ep = prev_m_ep + delta_ep;
 
-    let post_points = miner.points as i32 * ((miner.points as f64 * ((100.0 + miner.multiplier_points as f64) / 100.0)) as i32);
-    let best_points = best_miner.points as i32 * ((best_miner.points as f64 * ((100.0 + best_miner.multiplier_points as f64) / 100.0)) as i32);
+    let post_points = miner.meta.points as i32 * ((miner.meta.points as f64 * ((100.0 + miner.meta.multiplier_points as f64) / 100.0)) as i32);
+    let best_points = best_miner.meta.points as i32 * ((best_miner.meta.points as f64 * ((100.0 + best_miner.meta.multiplier_points as f64) / 100.0)) as i32);
     print!("\x1b[55A\n");
-    println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.points, post_points);
+    println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.meta.points, post_points);
     if post_points > best_points {
       println!("Found a better miner {} to {} points                 ", best_points, post_points);
       best_miner = miner;
     }
 
     miner = Miner {
-      x: WIDTH >> 1,
-      y: HEIGHT >> 1,
-      dir: DIR_UP,
-      energy: (INIT_ENERGY as f64 * (next_m_es as f64 / 100.0)) as i32,
-      points: 0,
-
-      multiplier_points: next_m_p,
-      multiplier_energy_start: next_m_es,
-      multiplier_energy_pickup: next_m_ep,
-      block_bump_cost: 5,
+      movable: Movable {
+        x: WIDTH >> 1,
+        y: HEIGHT >> 1,
+        dir: DIR_UP,
+        energy: (INIT_ENERGY as f64 * (next_m_es as f64 / 100.0)) as i32,
+      },
+      meta: MinerMeta {
+        points: 0,
+        multiplier_points: next_m_p,
+        multiplier_energy_start: next_m_es,
+        multiplier_energy_pickup: next_m_ep,
+        block_bump_cost: 5,
+      },
+      drones: [None; 32],
     };
   }
 }
