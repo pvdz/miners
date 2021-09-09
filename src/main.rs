@@ -200,6 +200,12 @@ fn parse_cli_args() -> Options {
           panic!("Seed must be a non-zero positive integer");
         }
       }
+      "--visual" => {
+        options.visual = true;
+      }
+      "--no-visual" => {
+        options.visual = false;
+      }
       _ => {
         println!("Unknown parameter: {}", args[index]);
         panic!();
@@ -368,9 +374,10 @@ fn main() {
     let mut world: World = golden_map.clone();
 
     println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.multiplier_points, miner.meta.multiplier_energy_start, miner.meta.multiplier_energy_pickup);
-    println!("data here");
-    let table_str: String = serialize_world(&world, &miner);
-    println!("{}", table_str);
+    if options.visual {
+      let table_str: String = serialize_world(&world, &miner);
+      println!("{}", table_str);
+    }
 
     // Move it move it
     let mut iteration = 0;
@@ -389,9 +396,11 @@ fn main() {
 
       if options.visual {
         let table_str: String = serialize_world(&world, &miner);
-        print!("\x1b[54A\n");
-        println!("update {} x: {} y: {} dir: {} energy: {} points: {} drone_cooldown: {}                         ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.drone_gen_cooldown);
-        println!("{}", table_str);
+        if options.visual {
+          print!("\x1b[54A\n");
+          println!("update {} x: {} y: {} dir: {} energy: {} points: {} drone_cooldown: {}                         ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.drone_gen_cooldown);
+          println!("{}", table_str);
+        }
 
         thread::sleep(delay);
       }
@@ -451,7 +460,9 @@ fn main() {
 
     let post_points = (miner.meta.points as f64 * ((100.0 + miner.meta.multiplier_points as f64) / 100.0)) as i32;
     let best_points = (best_miner.meta.points as f64 * ((100.0 + best_miner.meta.multiplier_points as f64) / 100.0)) as i32;
-    print!("\x1b[55A\n");
+    if options.visual {
+      print!("\x1b[55A\n");
+    }
     println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.meta.points, post_points);
     if post_points > best_points {
       println!("Found a better miner {} to {} points                 ", best_points, post_points);
