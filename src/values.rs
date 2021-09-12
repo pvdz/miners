@@ -22,6 +22,7 @@ pub const TITLE_EMPTINESS: &str = "Empty";
 pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
 pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
 
+// ░ ▒ ▓ █
 pub const ICON_BORDER_TL: char = '╔';
 pub const ICON_BORDER_BL: char = '╚';
 pub const ICON_BORDER_TR: char = '╗';

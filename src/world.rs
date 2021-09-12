@@ -96,8 +96,8 @@ pub fn serialize_world(world: &World, miner: &Miner) -> String {
         const HEADER: usize = 11;
         match if y < HEADER { y } else { y - HEADER + 100 } {
             // Miner meta information
-            0  => write!(buf, "  Miner:  {}  x  {} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
-            1  => write!(buf, "  Energy: {}{} ({}%) {} / {} {: >60}\n",
+            0  => write!(buf, "  Miner:  {: <2}  x  {: <2} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
+            1  => write!(buf, "  Energy: {}{} ({: <2}%) {} / {} {: >60}\n",
                          std::iter::repeat('|').take(((miner.movable.energy as f32 / miner.meta.max_energy as f32) * 20.0) as usize).collect::<String>(),
                          std::iter::repeat('-').take(20 - ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 20.0) as usize).collect::<String>(),
                          ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 100.0) as i32,
@@ -105,14 +105,14 @@ pub fn serialize_world(world: &World, miner: &Miner) -> String {
                          miner.meta.max_energy,
                          ' '
             ).unwrap(),
-            2  => write!(buf, "  Boredom: Level: {} Current step: {} Rate: {} {: >60}\n", miner.meta.boredom_level, miner.meta.boredom_steps, miner.meta.boredom_rate, ' ').unwrap(),
+            2  => write!(buf, "  Boredom: Rate: {: <2} per level. Level: {: <3}. Cost per step: {} {: >60}\n", miner.meta.boredom_rate as i32, miner.meta.boredom_level, (miner.meta.boredom_rate * miner.meta.boredom_level as f32) as i32, ' ').unwrap(),
             3  => write!(buf, "  Points: {} {: >60}\n", miner.meta.points, ' ').unwrap(),
             4  => write!(buf, "  Block bump cost: {} {: >60}\n", miner.meta.block_bump_cost, ' ').unwrap(),
 
-            6  => write!(buf, "  GA config: {: >60}\n", ' ').unwrap(),
-            7  => write!(buf, "  Multiplier energy:        {} {: >60}\n", miner.meta.multiplier_energy_start, ' ').unwrap(),
-            8  => write!(buf, "  Multiplier points:        {} {: >60}\n", miner.meta.multiplier_points, ' ').unwrap(),
-            9  => write!(buf, "  Multiplier energy pickup: {} {: >60}\n", miner.meta.multiplier_energy_pickup, ' ').unwrap(),
+            // 6  => write!(buf, "  GA config: {: >60}\n", ' ').unwrap(),
+            // 7  => write!(buf, "  Multiplier energy:        {} {: >60}\n", miner.meta.multiplier_energy_start, ' ').unwrap(),
+            // 8  => write!(buf, "  Multiplier points:        {} {: >60}\n", miner.meta.multiplier_points, ' ').unwrap(),
+            // 9  => write!(buf, "  Multiplier energy pickup: {} {: >60}\n", miner.meta.multiplier_energy_pickup, ' ').unwrap(),
 
             // The slots
             100  => write!(buf, "  Slots: {: >60}\n", ' ').unwrap(),

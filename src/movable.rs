@@ -17,7 +17,6 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             world[nextx][nexty] = '▓';
             movable.dir = nextdir;
             movable.energy = movable.energy - meta.block_bump_cost;
-            meta.boredom_steps = meta.boredom_steps + 1;
         },
         '▓' => {
             world[nextx][nexty] = '▒';
@@ -53,23 +52,16 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             movable.x = nextx;
             movable.y = nexty;
             was_boring = true;
-            // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
-            if movable.what == WHAT_MINER {
-                movable.energy = movable.energy - meta.boredom_level;
-            }
         },
     }
 
     if movable.what == WHAT_MINER {
         if was_boring {
-            meta.boredom_steps = meta.boredom_steps + 1;
-            if meta.boredom_steps >= meta.boredom_rate {
-                meta.boredom_steps = 0;
-                meta.boredom_level = meta.boredom_level + 1;
-                meta.boredom_level = meta.boredom_level + 1;
-            }
+            // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
+            movable.energy = movable.energy - meta.boredom_level;
+            // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
+            meta.boredom_level = meta.boredom_level + 1;
         } else {
-            meta.boredom_steps = 0;
             meta.boredom_level = 0;
         }
     }

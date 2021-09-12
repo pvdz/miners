@@ -52,7 +52,7 @@ impl fmt::Display for DroneLauncher {
         if self.drone.movable.energy <= 0 {
             write!(f, "Drone inactive {:>50}", ' ')
         } else {
-            write!(f, "x: {}, y: {}, dir: {}, energy: {} {:>50}", self.drone.movable.x, self.drone.movable.y, self.drone.movable.dir, self.drone.movable.energy, ' ')
+            write!(f, "x: {: <2}, y: {: <2}, dir: {}, energy: {} {:>50}", self.drone.movable.x, self.drone.movable.y, self.drone.movable.dir, self.drone.movable.energy, ' ')
         }
     }
 }

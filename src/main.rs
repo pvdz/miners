@@ -8,11 +8,12 @@ pub mod energy_cell;
 pub mod movable;
 pub mod emptiness;
 pub mod miner;
+pub mod helix;
 
 use std::{thread, time};
 
 use rand::prelude::*;
-use rand_pcg::Pcg64;
+use rand_pcg::{Pcg64, Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
 
 // Power up / character ability ideas:
@@ -48,46 +49,15 @@ fn main() {
 
   let delay = time::Duration::from_millis(values::DELAY_MS);
 
-  // ░ ▒ ▓ █
+  // This copy of rng is the one that is "random" for this whole run, not one epoch
+  // It's seeded so are able to repro a run (in case bugs happen) but I think we should not seed it to the map seed by default (TODO)
+  let mut instance_rng: Lcg128Xsl64  = Pcg64::seed_from_u64(options.seed);
+  // let multiplier_range = Uniform::from(0..100);
+  // let multiplier_energy_start = multiplier_range.sample(&mut init_rng);
+  // let multiplier_points = 1;
+  // let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
-  let mut init_rng = Pcg64::seed_from_u64(options.seed);
-  let multiplier_range = Uniform::from(0..100);
-  let multiplier_energy_start = multiplier_range.sample(&mut init_rng);
-  let multiplier_points = 1;
-  let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
-
-  let mut best_miner = miner::Miner {
-    movable: movable::Movable {
-      what: values::WHAT_MINER,
-      x: values::WIDTH >> 1,
-      y: values::HEIGHT >> 1,
-      dir: values::DIR_UP,
-      energy: 0,
-    },
-    meta: miner::MinerMeta {
-      points: 0,
-      max_energy: values::INIT_ENERGY,
-      boredom_level: 0,
-      boredom_rate: 10,
-      boredom_steps: 0,
-      drone_gen_cooldown: 50,
-      multiplier_energy_start,
-      multiplier_points,
-      multiplier_energy_pickup,
-      block_bump_cost: 5,
-    },
-
-    slots: [
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-      Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }), Box::new(emptiness::Emptiness { }),
-    ],
-  };
+  let mut best_miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng));
 
   let golden_map: world::World = world::generate_world(&options);
 
@@ -97,63 +67,7 @@ fn main() {
 
   loop {
 
-    let start_energy = (best_miner.meta.max_energy as f64 * (1.0 + multiplier_energy_start as f64 / 100.0)) as i32;
-    let mut miner: miner::Miner = miner::Miner {
-      movable: movable::Movable {
-        what: values::WHAT_MINER,
-        x: values::WIDTH >> 1,
-        y: values::HEIGHT >> 1,
-        dir: values::DIR_UP,
-        energy: start_energy,
-      },
-      meta: miner::MinerMeta {
-        max_energy: start_energy,
-        points: 0,
-        boredom_level: 0,
-        boredom_rate: 0,
-        boredom_steps: 0,
-        drone_gen_cooldown: 50,
-        multiplier_energy_start,
-        multiplier_points,
-        multiplier_energy_pickup,
-        block_bump_cost: 5,
-      },
-
-      slots: [
-        Box::new(drone_launcher::DroneLauncher { drone: drone::Drone { movable: movable::Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-        Box::new(drone_launcher::DroneLauncher { drone: drone::Drone { movable: movable::Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-        Box::new(drone_launcher::DroneLauncher { drone: drone::Drone { movable: movable::Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-        Box::new(drone_launcher::DroneLauncher { drone: drone::Drone { movable: movable::Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-        Box::new(energy_cell::EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-        Box::new(energy_cell::EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-        Box::new(energy_cell::EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-        Box::new(energy_cell::EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-        Box::new(emptiness::Emptiness { }),
-      ],
-    };
+    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng));
 
     // Recreate the rng fresh for every new Miner
     // let mut rng = Pcg64::seed_from_u64(options.seed);
@@ -161,7 +75,7 @@ fn main() {
 
     let mut world: world::World = golden_map.clone();
 
-    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} multiplier_points: {} multiplier_energy_start: {} multiplier_energy_pickup: {}                 ", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.multiplier_points, miner.meta.multiplier_energy_start, miner.meta.multiplier_energy_pickup);
+    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} {: >100}", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, ' ');
     if options.visual {
       let table_str: String = world::serialize_world(&world, &miner);
       println!("{}", table_str);
@@ -200,34 +114,18 @@ fn main() {
       }
     }
 
-    // TODO: use dedicated unseeded rng here, once we do.
-    //
-    // let prev_m_p = miner.meta.multiplier_points;
-    // let mut delta_p = (prev_m_p as f64 * 0.05) as i32;
-    // if delta_p == 0 {
-    //   delta_p = 1;
-    // }
-    //
-    // let prev_m_es = miner.meta.multiplier_energy_start;
-    // let mut delta_es = (prev_m_es as f64 * 0.05) as i32;
-    // if delta_es == 0 {
-    //   delta_es = 1;
-    // }
-    //
-    // let prev_m_ep = miner.meta.multiplier_energy_pickup;
-    // let mut delta_ep = (prev_m_ep as f64 * 0.05) as i32;
-    // if delta_ep == 0 {
-    //   delta_ep = 1;
-    // }
-
-    let post_points = (miner.meta.points as f64 * ((100.0 + miner.meta.multiplier_points as f64) / 100.0)) as i32;
-    let best_points = (best_miner.meta.points as f64 * ((100.0 + best_miner.meta.multiplier_points as f64) / 100.0)) as i32;
+    let post_points = (miner.meta.points as f64 * ((100.0 + miner.helix.multiplier_points as f64) / 100.0)) as i32;
+    let best_points = (best_miner.meta.points as f64 * ((100.0 + best_miner.helix.multiplier_points as f64) / 100.0)) as i32;
     if options.visual {
-      print!("\x1b[55A\n");
+      if post_points > best_points {
+        print!("\n\n\n\x1b[57A\n");
+      } else {
+        print!("\n\n\x1b[56A\n");
+      }
     }
-    println!("Out of energy! Iterations: {}, absolute points: {} final points: {}       ", iteration, miner.meta.points, post_points);
+    println!("Out of energy! Iterations: {}, max energy: {}, absolute points: {}, final points: {} best points was: {} {: >100}", iteration, miner.meta.max_energy, miner.meta.points, post_points, best_points, ' ');
     if post_points > best_points {
-      println!("Found a better miner {} to {} points                 ", best_points, post_points);
+      println!("Found a better miner {} to {} points {: >100}", best_points, post_points, ' ');
       best_miner = miner;
     }
   }
