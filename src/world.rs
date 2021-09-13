@@ -40,7 +40,7 @@ pub fn generate_world(options: &Options) -> World {
     return golden_map;
 }
 
-pub fn serialize_world(world: &World, miner: &Miner) -> String {
+pub fn serialize_world(world: &World, miner: &Miner, best: &Miner) -> String {
     // We assume a 150x80 terminal screen space (half my ultra wide)
     // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
@@ -93,26 +93,28 @@ pub fn serialize_world(world: &World, miner: &Miner) -> String {
         }
         write!(buf, "{}", ICON_BORDER_V).unwrap();
 
-        const HEADER: usize = 11;
+        const HEADER: usize = 13;
         match if y < HEADER { y } else { y - HEADER + 100 } {
             // Miner meta information
-            0  => write!(buf, "  Miner:  {: <2}  x  {: <2} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
-            1  => write!(buf, "  Energy: {}{} ({: <2}%) {} / {} {: >60}\n",
+             0  => write!(buf, "  Miner:  {: <2}  x  {: <2} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
+             1  => write!(buf, "  Energy: {}{} ({: <2}%) {} / {} {: >60}\n",
                          std::iter::repeat('|').take(((miner.movable.energy as f32 / miner.meta.max_energy as f32) * 20.0) as usize).collect::<String>(),
                          std::iter::repeat('-').take(20 - ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 20.0) as usize).collect::<String>(),
                          ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 100.0) as i32,
                          miner.movable.energy,
                          miner.meta.max_energy,
                          ' '
-            ).unwrap(),
-            2  => write!(buf, "  Boredom: Rate: {: <2} per level. Level: {: <3}. Cost per step: {} {: >60}\n", miner.meta.boredom_rate as i32, miner.meta.boredom_level, (miner.meta.boredom_rate * miner.meta.boredom_level as f32) as i32, ' ').unwrap(),
-            3  => write!(buf, "  Points: {} {: >60}\n", miner.meta.points, ' ').unwrap(),
-            4  => write!(buf, "  Block bump cost: {} {: >60}\n", miner.meta.block_bump_cost, ' ').unwrap(),
+             ).unwrap(),
+             2  => write!(buf, "  Boredom: Rate: {: <2} per level. Level: {: <3}. Cost per step: {} {: >60}\n", miner.meta.boredom_rate as i32, miner.meta.boredom_level, (miner.meta.boredom_rate * miner.meta.boredom_level as f32) as i32, ' ').unwrap(),
+             3  => write!(buf, "  Points: {} {: >60}\n", miner.meta.points, ' ').unwrap(),
+             4  => write!(buf, "  Block bump cost: {} {: >60}\n", miner.meta.block_bump_cost, ' ').unwrap(),
 
-            // 6  => write!(buf, "  GA config: {: >60}\n", ' ').unwrap(),
-            // 7  => write!(buf, "  Multiplier energy:        {} {: >60}\n", miner.meta.multiplier_energy_start, ' ').unwrap(),
-            // 8  => write!(buf, "  Multiplier points:        {} {: >60}\n", miner.meta.multiplier_points, ' ').unwrap(),
-            // 9  => write!(buf, "  Multiplier energy pickup: {} {: >60}\n", miner.meta.multiplier_energy_pickup, ' ').unwrap(),
+             6  => write!(buf, "  Helix:                         Current:                Best:{: >60}\n", ' ').unwrap(),
+             7  => write!(buf, "  Max energy:               {: >20} {: >20} {: >60}\n", miner.helix.multiplier_energy_start, best.helix.multiplier_energy_start, ' ').unwrap(),
+             8  => write!(buf, "  Multiplier points:        {: >20} {: >20} {: >60}\n", miner.helix.multiplier_points, best.helix.multiplier_points, ' ').unwrap(),
+             9  => write!(buf, "  Multiplier energy pickup: {: >20} {: >20} {: >60}\n", miner.meta.multiplier_energy_pickup, best.meta.multiplier_energy_pickup, ' ').unwrap(),
+            10  => write!(buf, "  Block bump cost:          {: >20} {: >20} {: >60}\n", miner.helix.block_bump_cost, best.helix.block_bump_cost, ' ').unwrap(),
+            11  => write!(buf, "  Drone gen cooldown:       {: >20} {: >20} {: >60}\n", miner.helix.drone_gen_cooldown, best.helix.drone_gen_cooldown, ' ').unwrap(),
 
             // The slots
             100  => write!(buf, "  Slots: {: >60}\n", ' ').unwrap(),
@@ -151,7 +153,7 @@ pub fn serialize_world(world: &World, miner: &Miner) -> String {
 
             _ => {
                 if y <= HEADER {
-                    write!(buf, " {: >60}", ' ').unwrap();
+                    write!(buf, " {: >120}", ' ').unwrap();
                 }
                 write!(buf, "\n").unwrap()
             }

@@ -55,7 +55,7 @@ pub struct MinerMeta {
 }
 
 pub fn create_miner_from_helix(helix: Helix) -> Miner {
-    let max_energy = ((INIT_ENERGY as f32) * ((100 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
+    let max_energy = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
 
     return Miner {
         helix,
@@ -73,8 +73,8 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             boredom_level: 0,
             boredom_rate: (max_energy as f32).log(2.0),
 
-            drone_gen_cooldown: 50,
-            block_bump_cost: 5,
+            drone_gen_cooldown: helix.drone_gen_cooldown as i32,
+            block_bump_cost: helix.block_bump_cost as i32,
             multiplier_energy_pickup: 1, // TODO
         },
 

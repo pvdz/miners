@@ -58,16 +58,16 @@ fn main() {
   // let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
   let mut best_miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng));
+  let mut prev_best_points = best_miner.helix.multiplier_points;
 
   let golden_map: world::World = world::generate_world(&options);
 
   // Print the initial world at least once
-  let table_str: String = world::serialize_world(&golden_map, &best_miner);
+  let table_str: String = world::serialize_world(&golden_map, &best_miner, &best_miner);
   println!("{}", table_str);
 
   loop {
-
-    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng));
+    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.helix)); // The helix will clone/copy. Can/should we prevent this?
 
     // Recreate the rng fresh for every new Miner
     // let mut rng = Pcg64::seed_from_u64(options.seed);
@@ -77,7 +77,7 @@ fn main() {
 
     println!("Start {} x: {} y: {} dir: {} energy: {} points: {} {: >100}", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, ' ');
     if options.visual {
-      let table_str: String = world::serialize_world(&world, &miner);
+      let table_str: String = world::serialize_world(&world, &miner, &best_miner);
       println!("{}", table_str);
     }
 
@@ -95,7 +95,7 @@ fn main() {
       iteration = iteration + 1;
 
       if options.visual {
-        let table_str: String = world::serialize_world(&world, &miner);
+        let table_str: String = world::serialize_world(&world, &miner, &best_miner);
         if options.visual {
           print!("\x1b[53A\n");
           // println!("update {} x: {} y: {} dir: {} energy: {} points: {} drone_cooldown: {}                         ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.drone_gen_cooldown);
@@ -115,7 +115,7 @@ fn main() {
     }
 
     let post_points = (miner.meta.points as f64 * ((100.0 + miner.helix.multiplier_points as f64) / 100.0)) as i32;
-    let best_points = (best_miner.meta.points as f64 * ((100.0 + best_miner.helix.multiplier_points as f64) / 100.0)) as i32;
+    let best_points = (best_miner.meta.points as f64 * ((100.0 + prev_best_points.clone() as f64) / 100.0)) as i32;
     if options.visual {
       if post_points > best_points {
         print!("\n\n\n\x1b[57A\n");
@@ -127,6 +127,7 @@ fn main() {
     if post_points > best_points {
       println!("Found a better miner {} to {} points {: >100}", best_points, post_points, ' ');
       best_miner = miner;
+      prev_best_points = best_miner.helix.multiplier_points
     }
   }
 }
