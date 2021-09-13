@@ -13,6 +13,8 @@ pub struct EnergyCell {
     pub energy_bonus: i32,
     pub max_cooldown: i32,
     pub cooldown: i32,
+    // Offset zero. The how manieth energy cell is this? Every extra cell is half as efficient as the previous.
+    pub nth: i32,
 }
 
 impl Slottable for EnergyCell {

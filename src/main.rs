@@ -57,7 +57,7 @@ fn main() {
   // let multiplier_points = 1;
   // let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
-  let mut best_miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng));
+  let mut best_miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng), &mut instance_rng);
   let mut prev_best_points = best_miner.helix.multiplier_points;
 
   let golden_map: world::World = world::generate_world(&options);
@@ -67,7 +67,7 @@ fn main() {
   println!("{}", table_str);
 
   loop {
-    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.helix)); // The helix will clone/copy. Can/should we prevent this?
+    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.helix), &mut instance_rng); // The helix will clone/copy. Can/should we prevent this?
 
     // Recreate the rng fresh for every new Miner
     // let mut rng = Pcg64::seed_from_u64(options.seed);

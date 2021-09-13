@@ -22,6 +22,6 @@ impl Slottable for Emptiness {
 
 impl fmt::Display for Emptiness {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "")
+        write!(f, "{: >100}", ' ')
     }
 }

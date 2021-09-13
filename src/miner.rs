@@ -54,8 +54,63 @@ pub struct MinerMeta {
     //  multiplier_cooldown: i32,
 }
 
-pub fn create_miner_from_helix(helix: Helix) -> Miner {
+pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
     let max_energy = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
+
+    let mut slots: [Box<Slottable>; 32] = [
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+        Box::new(Emptiness { }),
+    ];
+
+    let slot_range: Uniform<i32> = Uniform::from(0..3);
+    let mut energy_cells = 0;
+    for i in 0..32 {
+        match helix.slots[i] {
+            0 => {
+                slots[i] = Box::new(Emptiness {})
+            },
+            1 => {
+                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100 * 2.0_f32.powf(energy_cells as f32) as i32, cooldown: 0, nth: energy_cells });
+                energy_cells = energy_cells + 1;
+            },
+            2 => {
+                slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } });
+            },
+            _ => {
+                // ?
+            },
+        }
+    }
 
     return Miner {
         helix,
@@ -78,40 +133,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             multiplier_energy_pickup: 1, // TODO
         },
 
-        slots: [
-            Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-            Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-            Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-            Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-            Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-            Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-            Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-            Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-            Box::new(Emptiness { }),
-        ],
+        slots,
     };
 
 }
