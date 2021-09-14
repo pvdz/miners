@@ -92,7 +92,6 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
         Box::new(Emptiness { }),
     ];
 
-    let slot_range: Uniform<i32> = Uniform::from(0..3);
     let mut energy_cells = 0;
     for i in 0..32 {
         match helix.slots[i] {
@@ -137,63 +136,3 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
     };
 
 }
-
-
-
-// let start_energy = (best_miner.meta.max_energy as f64 * (1.0 + multiplier_energy_start as f64 / 100.0)) as i32;
-// let mut miner: miner::Miner = miner::Miner {
-// movable: Movable {
-// what: values::WHAT_MINER,
-// x: values::WIDTH >> 1,
-// y: values::HEIGHT >> 1,
-// dir: values::DIR_UP,
-// energy: start_energy,
-// },
-// meta: miner::MinerMeta {
-// max_energy: start_energy,
-// points: 0,
-// boredom_level: 0,
-// boredom_rate: 0,
-// boredom_steps: 0,
-// drone_gen_cooldown: 50,
-// multiplier_energy_start,
-// multiplier_points,
-// multiplier_energy_pickup,
-// block_bump_cost: 5,
-// },
-//
-// slots: [
-// Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-// Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-// Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-// Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } }),
-// Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-// Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-// Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-// Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100, cooldown: 0 }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// Box::new(emptiness::Emptiness { }),
-// ],
-// };

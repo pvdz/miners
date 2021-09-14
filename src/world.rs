@@ -7,6 +7,7 @@ use rand::distributions::{Distribution, Uniform};
 use crate::miner::*;
 use crate::values::*;
 use crate::options::*;
+use crate::helix::*;
 
 pub type World = [[char; HEIGHT]; WIDTH];
 
@@ -40,7 +41,7 @@ pub fn generate_world(options: &Options) -> World {
     return golden_map;
 }
 
-pub fn serialize_world(world: &World, miner: &Miner, best: &Miner) -> String {
+pub fn serialize_world(world: &World, miner: &Miner, best: (Helix, i32)) -> String {
     // We assume a 150x80 terminal screen space (half my ultra wide)
     // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
@@ -110,11 +111,11 @@ pub fn serialize_world(world: &World, miner: &Miner, best: &Miner) -> String {
              4  => write!(buf, "  Block bump cost: {} {: >60}\n", miner.meta.block_bump_cost, ' ').unwrap(),
 
              6  => write!(buf, "  Helix:                         Current:                Best:{: >60}\n", ' ').unwrap(),
-             7  => write!(buf, "  Max energy:               {: >20} {: >20} {: >60}\n", miner.helix.multiplier_energy_start, best.helix.multiplier_energy_start, ' ').unwrap(),
-             8  => write!(buf, "  Multiplier points:        {: >20} {: >20} {: >60}\n", miner.helix.multiplier_points, best.helix.multiplier_points, ' ').unwrap(),
-             9  => write!(buf, "  Multiplier energy pickup: {: >20} {: >20} {: >60}\n", miner.meta.multiplier_energy_pickup, best.meta.multiplier_energy_pickup, ' ').unwrap(),
-            10  => write!(buf, "  Block bump cost:          {: >20} {: >20} {: >60}\n", miner.helix.block_bump_cost, best.helix.block_bump_cost, ' ').unwrap(),
-            11  => write!(buf, "  Drone gen cooldown:       {: >20} {: >20} {: >60}\n", miner.helix.drone_gen_cooldown, best.helix.drone_gen_cooldown, ' ').unwrap(),
+             7  => write!(buf, "  Max energy:               {: >20} {: >20} {: >60}\n", miner.helix.multiplier_energy_start, best.0.multiplier_energy_start, ' ').unwrap(),
+             8  => write!(buf, "  Multiplier points:        {: >20} {: >20} {: >60}\n", miner.helix.multiplier_points, best.0.multiplier_points, ' ').unwrap(),
+             9  => write!(buf, "  Multiplier energy pickup: {: >20} {: >20} {: >60}\n", miner.meta.multiplier_energy_pickup, 0.0, ' ').unwrap(),
+            10  => write!(buf, "  Block bump cost:          {: >20} {: >20} {: >60}\n", miner.helix.block_bump_cost, best.0.block_bump_cost, ' ').unwrap(),
+            11  => write!(buf, "  Drone gen cooldown:       {: >20} {: >20} {: >60}\n", miner.helix.drone_gen_cooldown, best.0.drone_gen_cooldown, ' ').unwrap(),
 
             // The slots
             100  => write!(buf, "  Slots: {: >60}\n", ' ').unwrap(),

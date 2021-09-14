@@ -9,6 +9,7 @@ pub mod movable;
 pub mod emptiness;
 pub mod miner;
 pub mod helix;
+pub mod dome;
 
 use std::{thread, time};
 
@@ -57,17 +58,60 @@ fn main() {
   // let multiplier_points = 1;
   // let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
-  let mut best_miner = miner::create_miner_from_helix(helix::create_initial_helix(&mut instance_rng), &mut instance_rng);
-  let mut prev_best_points = best_miner.helix.multiplier_points;
+  let mut best_miner: (helix::Helix, i32) = (
+     helix::create_initial_helix(&mut instance_rng),
+     0,
+  );
 
   let golden_map: world::World = world::generate_world(&options);
 
   // Print the initial world at least once
-  let table_str: String = world::serialize_world(&golden_map, &best_miner, &best_miner);
-  println!("{}", table_str);
+  // let table_str: String = world::serialize_world(&golden_map, &best_miner, &best_miner);
+  // println!("{}", table_str);
 
   loop {
-    let mut miner: miner::Miner = miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.helix), &mut instance_rng); // The helix will clone/copy. Can/should we prevent this?
+    let mut domes = [
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+      dome::Dome {
+        world: golden_map.clone(),
+        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0), &mut instance_rng), // The helix will clone/copy. Can/should we prevent this?
+      },
+    ];
 
     // Recreate the rng fresh for every new Miner
     // let mut rng = Pcg64::seed_from_u64(options.seed);
@@ -75,59 +119,82 @@ fn main() {
 
     let mut world: world::World = golden_map.clone();
 
-    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} {: >100}", 0, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, ' ');
+    println!("Start {} x: {} y: {} dir: {} energy: {} points: {} {: >100}", 0, domes[0].miner.movable.x, domes[0].miner.movable.y, domes[0].miner.movable.dir, domes[0].miner.movable.energy, domes[0].miner.meta.points, ' ');
     if options.visual {
-      let table_str: String = world::serialize_world(&world, &miner, &best_miner);
+      let table_str: String = world::serialize_world(&world, &domes[0].miner, best_miner);
       println!("{}", table_str);
     }
 
     // Move it move it
     let mut iteration = 0;
-    while miner.movable.energy > 0 {
+    while domes[0].miner.movable.energy > 0 {
 
-      movable::move_movable(&mut miner.movable, &mut miner.meta, &mut world);
-      for i in 0..miner.slots.len() {
-      // for slot in miner.slots.iter_mut() {
-        miner.slots[i].before_paint(&mut miner.movable, &mut miner.meta, &mut world);
+      for m in 0..domes.len() {
+        movable::move_movable(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
+        for i in 0..domes[m].miner.slots.len() {
+          domes[m].miner.slots[i].before_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
+        }
       }
 
-      miner.movable.energy = miner.movable.energy - 1;
       iteration = iteration + 1;
 
       if options.visual {
-        let table_str: String = world::serialize_world(&world, &miner, &best_miner);
+        let table_str: String = world::serialize_world(&domes[0].world, &domes[0].miner, best_miner);
         if options.visual {
           print!("\x1b[53A\n");
-          // println!("update {} x: {} y: {} dir: {} energy: {} points: {} drone_cooldown: {}                         ", iteration + 1, miner.movable.x, miner.movable.y, miner.movable.dir, miner.movable.energy, miner.meta.points, miner.meta.drone_gen_cooldown);
           println!("{}", table_str);
         }
 
         thread::sleep(delay);
       }
 
-      if miner.meta.drone_gen_cooldown > 0 {
-        miner.meta.drone_gen_cooldown = miner.meta.drone_gen_cooldown - 1;
-      }
-
-      for slot in miner.slots.iter_mut() {
-        slot.after_paint(&mut miner.movable, &mut miner.meta, &mut world);
+      for m in 0..domes.len() {
+        if domes[m].miner.meta.drone_gen_cooldown > 0 {
+          domes[m].miner.meta.drone_gen_cooldown = domes[m].miner.meta.drone_gen_cooldown - 1;
+        }
+        for slot in domes[m].miner.slots.iter_mut() {
+          slot.after_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
+        }
       }
     }
 
-    let post_points = (miner.meta.points as f64 * ((100.0 + miner.helix.multiplier_points as f64) / 100.0)) as i32;
-    let best_points = (best_miner.meta.points as f64 * ((100.0 + prev_best_points.clone() as f64) / 100.0)) as i32;
+    let mut winner = (
+      domes[0].miner.helix,
+      (domes[0].miner.meta.points as f64 * ((100.0 + domes[0].miner.helix.multiplier_points as f64) / 100.0)) as i32
+    );
+    for m in 1..domes.len() {
+      let points = (domes[m].miner.meta.points as f64 * ((100.0 + domes[m].miner.helix.multiplier_points as f64) / 100.0)) as i32;
+
+      if points > winner.1 {
+        winner = (
+          domes[m].miner.helix,
+          points
+        )
+      }
+    }
+
     if options.visual {
-      if post_points > best_points {
-        print!("\n\n\n\x1b[57A\n");
-      } else {
-        print!("\n\n\x1b[56A\n");
+      print!("\x1b[{}A\n", 55 + domes.len());
+
+      for m in 1..domes.len() {
+        let points = (domes[m].miner.meta.points as f64 * ((100.0 + domes[m].miner.helix.multiplier_points as f64) / 100.0)) as i32;
+        println!("- Points: {} :: {}", points, domes[m].miner.helix);
       }
     }
-    println!("Out of energy! Iterations: {}, max energy: {}, absolute points: {}, final points: {} best points was: {} {: >100}", iteration, miner.meta.max_energy, miner.meta.points, post_points, best_points, ' ');
-    if post_points > best_points {
-      println!("Found a better miner {} to {} points {: >100}", best_points, post_points, ' ');
-      best_miner = miner;
-      prev_best_points = best_miner.helix.multiplier_points
+
+    println!(
+      "Out of energy! Iterations: {}, max energy: {}, final points: {} best points was: {} {: >100}",
+      iteration,
+      ((values::INIT_ENERGY as f32) * ((100.0 + winner.0.multiplier_energy_start) as f32) / 100.0) as i32,
+      winner.1,
+      best_miner.1,
+      ' '
+    );
+    if winner.1 > best_miner.1 {
+      println!("Found a better miner {} to {} points {: >100}", best_miner.1, winner.1, ' ');
+      best_miner = winner;
+    } else {
+      println!("Did not find a better miner. Current best: {} points {: >100}", best_miner.1, ' ');
     }
   }
 }
