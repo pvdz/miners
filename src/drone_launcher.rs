@@ -7,6 +7,8 @@ use crate::world::*;
 use crate::values::*;
 use crate::drone::*;
 
+pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
+
 pub struct DroneLauncher {
     pub drone: Drone,
 }

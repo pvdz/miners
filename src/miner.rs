@@ -7,6 +7,9 @@ use crate::drone_launcher::*;
 use crate::drone::*;
 use crate::energy_cell::*;
 use crate::movable::*;
+use crate::world::*;
+use crate::hammer::*;
+use crate::drill::*;
 
 pub struct Miner {
     // The genes that generated this miner
@@ -34,6 +37,11 @@ pub struct MinerMeta {
     pub max_energy: i32,
     // How many points has the miner accrued so far?
     pub points: i32,
+
+    // Number of hammer slots (determines bump strength)
+    pub hammers: i32,
+    // Number of drill slots (determines how far back you bump)
+    pub drills: i32,
 
     // Increase energy cost per step per boredom level
     // The miner finds plain moves boring and the price for keep doing these will grow until something happens.
@@ -93,6 +101,8 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
     ];
 
     let mut energy_cells = 0;
+    let mut hammers = 0;
+    let mut drills = 0;
     for i in 0..32 {
         match helix.slots[i] {
             0 => {
@@ -105,8 +115,16 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
             2 => {
                 slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } });
             },
+            3 => {
+                slots[i] = Box::new(Hammer {});
+                hammers = hammers + 1;
+            },
+            4 => {
+                slots[i] = Box::new(Drill {});
+                drills = drills + 1;
+            },
             _ => {
-                // ?
+                panic!("Fix slot range generator in helix")
             },
         }
     }
@@ -124,6 +142,9 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
             points: 0,
             max_energy,
 
+            hammers,
+            drills,
+
             boredom_level: 0,
             boredom_rate: (max_energy as f32).log(2.0),
 
@@ -135,4 +156,22 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
         slots,
     };
 
+}
+
+pub fn paint(miner: &Miner, world: &mut World, symbol: char) {
+    world[miner.movable.x][miner.movable.y] =
+        if symbol != ' ' {
+            symbol
+        } else {
+            match miner.movable.dir {
+                DIR_UP => ICON_MINER_UP,
+                DIR_DOWN => ICON_MINER_DOWN,
+                DIR_LEFT => ICON_MINER_LEFT,
+                DIR_RIGHT => ICON_MINER_RIGHT,
+                _ => {
+                    println!("unexpected dir: {:?}", miner.movable.dir);
+                    panic!("dir is enum");
+                },
+            }
+        }
 }

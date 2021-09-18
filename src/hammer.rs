@@ -6,11 +6,11 @@ use crate::values::*;
 use crate::movable::*;
 use crate::world::*;
 
-pub const TITLE_EMPTINESS: &str = "Empty";
+pub const TITLE_HAMMER: &str = "Hammer";
 
-pub struct Emptiness {}
+pub struct Hammer {}
 
-impl Slottable for Emptiness {
+impl Slottable for Hammer {
     fn before_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {
         // Do nothing
     }
@@ -19,10 +19,10 @@ impl Slottable for Emptiness {
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 
-    fn title(&self) -> &str { return TITLE_EMPTINESS; }
+    fn title(&self) -> &str { return TITLE_HAMMER; }
 }
 
-impl fmt::Display for Emptiness {
+impl fmt::Display for Hammer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{: >100}", ' ')
     }

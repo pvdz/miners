@@ -6,6 +6,8 @@ use crate::world::*;
 use crate::values::*;
 use crate::movable::*;
 
+pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
+
 /**
  * An energy cell gives you an energy boost at a certain interval. It takes up n slots.
  */
@@ -41,10 +43,11 @@ impl fmt::Display for EnergyCell {
 
         write!(
             f,
-            "{}{} {}%",
+            "{}{} {}% {: >100}",
             std::iter::repeat('|').take(((self.cooldown as f32 / self.max_cooldown as f32) * 10.0) as usize).collect::<String>(),
             std::iter::repeat('-').take(10 - ((self.cooldown as f64 / self.max_cooldown as f64) * 10.0) as usize).collect::<String>(),
-            ((self.cooldown as f64 / self.max_cooldown as f64) * 100.0) as i32
+            ((self.cooldown as f64 / self.max_cooldown as f64) * 100.0) as i32,
+            ' ',
         )
 
         // write!(f, "|||||||||||||||||| {} %", self.energy_bonus)

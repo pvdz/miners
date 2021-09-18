@@ -8,6 +8,7 @@ use crate::miner::*;
 use crate::values::*;
 use crate::options::*;
 use crate::helix::*;
+use crate::dome::*;
 
 pub type World = [[char; HEIGHT]; WIDTH];
 
@@ -41,7 +42,9 @@ pub fn generate_world(options: &Options) -> World {
     return golden_map;
 }
 
-pub fn serialize_world(world: &World, miner: &Miner, best: (Helix, i32)) -> String {
+pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32)) -> String {
+    let miner: &Miner = &domes[0].miner;
+
     // We assume a 150x80 terminal screen space (half my ultra wide)
     // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
@@ -49,16 +52,10 @@ pub fn serialize_world(world: &World, miner: &Miner, best: (Helix, i32)) -> Stri
     // Otherwise for each cell we'd have to scan all the entitie to check if they're on it
     // We could also construct an empty world with just the entities and check for non-zero instead
     let mut new_world: World = world.clone();
-    new_world[miner.movable.x][miner.movable.y] = match miner.movable.dir {
-        DIR_UP => ICON_MINER_UP,
-        DIR_DOWN => ICON_MINER_DOWN,
-        DIR_LEFT => ICON_MINER_LEFT,
-        DIR_RIGHT => ICON_MINER_RIGHT,
-        _ => {
-            println!("unexpected dir: {:?}", miner.movable.dir);
-            panic!("dir is enum");
-        },
-    };
+    for dome in domes.iter() {
+        paint(&dome.miner, &mut new_world, ICON_GHOST);
+    }
+    paint(miner, &mut new_world, ' ');
     for slot in miner.slots.iter() {
         slot.paint(&mut new_world);
     }
@@ -81,6 +78,7 @@ pub fn serialize_world(world: &World, miner: &Miner, best: (Helix, i32)) -> Stri
                 | ICON_INDEX_RIGHT
                 | ICON_INDEX_LEFT
                 | ICON_INDEX_DOWN
+                | ICON_GHOST
                 => write!(buf, "{}", c).unwrap(),
 
                 | ICON_HEAVY_UP

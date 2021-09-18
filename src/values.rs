@@ -18,11 +18,10 @@ pub const DIR_LEFT : i32 = 4;
 pub const WHAT_MINER: i32 = 0;
 pub const WHAT_DRONE: i32 = 1;
 
-pub const TITLE_EMPTINESS: &str = "Empty";
-pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
-pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
-
-// ░ ▒ ▓ █
+pub const ICON_BLOCK_100: char = '█';
+pub const ICON_BLOCK_75: char = '▓';
+pub const ICON_BLOCK_50: char = '▒';
+pub const ICON_BLOCK_25: char = '░';
 pub const ICON_BORDER_TL: char = '╔';
 pub const ICON_BORDER_BL: char = '╚';
 pub const ICON_BORDER_TR: char = '╗';
@@ -31,6 +30,7 @@ pub const ICON_BORDER_V: char = '║';
 pub const ICON_BORDER_H: char = '═';
 pub const ICON_DIAMOND: char = '💎';
 pub const ICON_ENERGY: char = '🔋';
+pub const ICON_GHOST: char = '😶';
 pub const ICON_TURN_RIGHT: char = '🗘';
 pub const ICON_HEAVY_UP: char = '🡅';
 pub const ICON_HEAVY_RIGHT: char = '🡆';
