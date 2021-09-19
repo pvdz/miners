@@ -10,22 +10,38 @@ use crate::options::*;
 use crate::helix::*;
 use crate::dome::*;
 
-pub type World = [[char; HEIGHT]; WIDTH];
+pub type Grid = [[char; HEIGHT]; WIDTH];
+
+#[derive(Clone, Copy)]
+pub struct World {
+  pub max_points: i32,
+  // Inanimate objects like blocks and pickups
+  pub tiles: Grid,
+  // Values of object at each tile, when applicable
+  pub values: Grid,
+}
 
 pub fn generate_world(options: &Options) -> World {
     let mut map_rng = Pcg64::seed_from_u64(options.seed);
 
     let diex = Uniform::from(0..WIDTH);
     let diey = Uniform::from(0..HEIGHT);
+    let ten = Uniform::from(0..10);
 
     // Generate the map for this run. We'll clone it for each cycle.
-    let mut golden_map: World = [[' '; WIDTH]; HEIGHT];
+    let mut golden_map: World = World {
+        max_points: 0,
+        tiles: [[' '; WIDTH]; HEIGHT],
+        values: [[' '; WIDTH]; HEIGHT],
+    };
+
+    let mut max_points = 0;
 
     // Add energy modules
     for _ in 0..E_COUNT {
         let x = diex.sample(&mut map_rng);
         let y = diey.sample(&mut map_rng);
-        golden_map[x][y] = ICON_ENERGY;
+        golden_map.tiles[x][y] = ICON_ENERGY;
     }
 
     // Add blocks
@@ -33,31 +49,41 @@ pub fn generate_world(options: &Options) -> World {
         for _n in 0..INIT_BLOCKS_PER_ROW {
             let y = diey.sample(&mut map_rng);
             // Do not erase energy modules
-            if golden_map[x][y] != ICON_ENERGY {
-                golden_map[x][y] = '▓';
+            if golden_map.tiles[x][y] == ' ' {
+                golden_map.tiles[x][y] = '▓';
+                golden_map.values[x][y] = match ten.sample(&mut map_rng) { 0 => '3', 1 | 2 => '2', _ => '1' };
+
+                max_points = max_points + match golden_map.values[x][y] {
+                    '1' => 1,
+                    '2' => 1,
+                    '3' => 1,
+                    v => panic!("Unknown block value: {}", v),
+                }
             }
         }
     }
 
+    golden_map.max_points = max_points;
+
     return golden_map;
 }
 
-pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32)) -> String {
+pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32), options: &Options) -> String {
     let miner: &Miner = &domes[0].miner;
 
     // We assume a 150x80 terminal screen space (half my ultra wide)
     // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
-    // Clone the world so we can print the moving entities on it
-    // Otherwise for each cell we'd have to scan all the entitie to check if they're on it
+    // Clone the world tiles so we can print the moving entities on it
+    // Otherwise for each cell we'd have to scan all the entities to check if they're on it
     // We could also construct an empty world with just the entities and check for non-zero instead
-    let mut new_world: World = world.clone();
+    let mut painting: Grid = world.tiles.clone();
     for dome in domes.iter() {
-        paint(&dome.miner, &mut new_world, ICON_GHOST);
+        paint(&dome.miner, &mut painting, ICON_GHOST);
     }
-    paint(miner, &mut new_world, ' ');
+    paint(miner, &mut painting, ' ');
     for slot in miner.slots.iter() {
-        slot.paint(&mut new_world);
+        slot.paint(&mut painting, world);
     }
 
     let mut buf : String = ICON_BORDER_TL.to_string();
@@ -67,30 +93,48 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32)) ->
     write!(buf, "\n").unwrap();
 
     for y in 0..HEIGHT {
-        write!(buf, "{}", ICON_BORDER_V).unwrap();
+        write!(buf, "{}", ICON_BORDER_V).unwrap_or_else(|err| panic!("{:?}", err));
         for x in 0..WIDTH {
-            let c: char = new_world[x][y];
+            let c: char = painting[x][y];
             match c {
                 | ICON_ENERGY
+                => write!(buf, "\x1b[33;1m{}\x1b[0m", c),
                 | ICON_DIAMOND
+                => match world.values[x][y] {
+                    '1' => write!(buf, "\x1b[;1;1m{0}\x1b[0m", c),
+                    '2' => write!(buf, "\x1b[;1;1m\x1b[32m{0}\x1b[0m", c),
+                    '3' => write!(buf, "\x1b[;1;1m\x1b[34m{0}\x1b[0m", c),
+                    _ => panic!("Unexpected world value: {}", c),
+                },
                 | ICON_TURN_RIGHT
                 | ICON_INDEX_UP
                 | ICON_INDEX_RIGHT
                 | ICON_INDEX_LEFT
                 | ICON_INDEX_DOWN
                 | ICON_GHOST
-                => write!(buf, "{}", c).unwrap(),
+                => write!(buf, "{}", c),
 
-                | ICON_HEAVY_UP
-                | ICON_HEAVY_RIGHT
-                | ICON_HEAVY_DOWN
-                | ICON_HEAVY_LEFT
-                => write!(buf, "{} ", c).unwrap(),
+                | ICON_MINER_UP
+                | ICON_MINER_RIGHT
+                | ICON_MINER_DOWN
+                | ICON_MINER_LEFT
+                => write!(buf, "\x1b[;1;1m\x1b[31m{} \x1b[0m", c),
 
-                v => write!(buf, "{0}{0}", v).unwrap(),
-            }
+                | ICON_BLOCK_100
+                | ICON_BLOCK_75
+                | ICON_BLOCK_50
+                | ICON_BLOCK_25
+                => match world.values[x][y] {
+                    '1' => write!(buf, "{0}{0}\x1b[0m", c),
+                    '2' => write!(buf, "\x1b[32m{0}{0}\x1b[0m", c),
+                    '3' => write!(buf, "\x1b[34m{0}{0}\x1b[0m", c),
+                    _ => write!(buf, "\x1b[34m{0}{0}\x1b[0m", c),
+                },
+
+                v => write!(buf, "{0}{0}", v),
+            }.unwrap_or_else(|err| panic!("{:?}", err));
         }
-        write!(buf, "{}", ICON_BORDER_V).unwrap();
+        write!(buf, "{}", ICON_BORDER_V).unwrap_or_else(|err| panic!("{:?}", err));
 
         const HEADER: usize = 13;
         match if y < HEADER { y } else { y - HEADER + 100 } {
@@ -149,6 +193,13 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32)) ->
             130  => write!(buf, "    - {: <20} {}\n", miner.slots[29].title(), miner.slots[29]).unwrap(),
             131  => write!(buf, "    - {: <20} {}\n", miner.slots[30].title(), miner.slots[30]).unwrap(),
             132  => write!(buf, "    - {: <20} {}\n", miner.slots[31].title(), miner.slots[31]).unwrap(),
+
+
+            133  => write!(buf, "{: <100}\n", ' ').unwrap(),
+            134  => write!(buf, "{: <100}\n", ' ').unwrap(),
+            135  => write!(buf, "{: <100}\n", ' ').unwrap(),
+            136  => write!(buf, "    Seed: {} Speed: {} (+⏎/-⏎ to change speed, v⏎ to toggle visual mode) {: <100}\n", options.seed, options.speed, ' ').unwrap(),
+
 
             _ => {
                 if y <= HEADER {

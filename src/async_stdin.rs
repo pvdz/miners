@@ -4,9 +4,7 @@
 use std::io;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::sync::mpsc::TryRecvError;
 use std::{thread, time};
-use std::io::Read;
 
 pub fn spawn_stdin_channel() -> Receiver<String> {
     let (tx, rx) = mpsc::channel::<String>();
@@ -32,9 +30,4 @@ pub fn spawn_stdin_channel() -> Receiver<String> {
         // tx.send(s).unwrap();
     });
     rx
-}
-
-fn sleep(millis: u64) {
-    let duration = time::Duration::from_millis(millis);
-    thread::sleep(duration);
 }

@@ -2,6 +2,7 @@ use std::env;
 
 pub struct Options {
     pub seed: u64,
+    pub speed: u64,
     pub visual: bool,
 }
 
@@ -9,6 +10,7 @@ pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
         seed: 0,
+        speed: 10,
         visual: true,
     };
 

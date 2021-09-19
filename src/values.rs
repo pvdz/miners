@@ -3,8 +3,6 @@ pub const HEIGHT: usize = 50;
 
 pub const INIT_BLOCKS_PER_ROW: i32 = WIDTH as i32 >> 1; // Half?
 
-pub const DELAY_MS: u64 = 10;
-
 pub const E_COUNT: i32 = 50; // How many energy pickups do we spawn
 pub const E_VALUE: i32 = 125; // Energy pickup bonus. 5%?
 pub const INIT_ENERGY: i32 = 5000;

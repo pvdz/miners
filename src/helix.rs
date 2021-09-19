@@ -85,10 +85,10 @@ pub fn create_initial_helix(rng: &mut Lcg128Xsl64) -> Helix {
 }
 
 pub fn mutated_helix(rng: &mut Lcg128Xsl64, helix: Helix) -> Helix {
-    // Modify each gene by up to 5%, up or down. Make sure the final value does not underflow or overflow.
+    // Modify each gene by up to x%, up or down. Make sure the final value does not underflow or overflow.
     let multiplier_5_percent: Uniform<f32> = Uniform::from(0.0..10.0);
     let multiplier_slot_type: Uniform<i32> = Uniform::from(0..3);
-    let slot_odds = 0.1;
+    let slot_odds = 0.5; // range goes from 0 to 10 so each point is 10%
 
     return Helix {
         drone_gen_cooldown: (helix.drone_gen_cooldown + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),

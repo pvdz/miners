@@ -20,9 +20,9 @@ impl Slottable for DroneLauncher {
         }
     }
 
-    fn paint(&self, world: &mut World) {
+    fn paint(&self, painting: &mut Grid, world: &World) {
         if self.drone.movable.energy > 0 {
-            world[self.drone.movable.x][self.drone.movable.y] = match self.drone.movable.dir {
+            painting[self.drone.movable.x][self.drone.movable.y] = match self.drone.movable.dir {
                 DIR_UP => ICON_DRONE_UP,
                 DIR_DOWN => ICON_DRONE_DOWN,
                 DIR_LEFT => ICON_DRONE_LEFT,

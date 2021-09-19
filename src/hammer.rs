@@ -2,7 +2,6 @@ use std::fmt;
 
 use crate::slottable::*;
 use crate::miner::*;
-use crate::values::*;
 use crate::movable::*;
 use crate::world::*;
 
@@ -15,7 +14,7 @@ impl Slottable for Hammer {
         // Do nothing
     }
 
-    fn paint(&self, _world: &mut World) {}
+    fn paint(&self, painting: &mut Grid, world: &World) {}
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 

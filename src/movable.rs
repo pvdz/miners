@@ -34,9 +34,9 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
         let ny: usize = next_y as usize;
 
         // Apply the drill power
-        match world[nx][ny] {
+        match world.tiles[nx][ny] {
             ICON_BLOCK_100 => {
-                world[nx][ny] = match strength {
+                world.tiles[nx][ny] = match strength {
                     1 => ICON_BLOCK_75,
                     2 => ICON_BLOCK_50,
                     3 => ICON_BLOCK_25,
@@ -47,7 +47,7 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
                 };
             },
             ICON_BLOCK_75 => {
-                world[nx][ny] = match strength {
+                world.tiles[nx][ny] = match strength {
                     1 => ICON_BLOCK_50,
                     2 => ICON_BLOCK_25,
                     _ => {
@@ -57,7 +57,7 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
                 };
             },
             ICON_BLOCK_50 => {
-                world[nx][ny] = match strength {
+                world.tiles[nx][ny] = match strength {
                     1 => ICON_BLOCK_25,
                     _ => {
                         remaining = 1;
@@ -66,7 +66,7 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
                 };
             },
             ICON_BLOCK_25 => {
-                world[nx][ny] = ICON_DIAMOND; // Or a different powerup?
+                world.tiles[nx][ny] = ICON_DIAMOND; // Or a different powerup?
                 remaining = 1;
             },
             _ => {
@@ -85,9 +85,9 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
 
 fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, nextx: usize, nexty: usize, deltax: i32, deltay: i32, nextdir: i32) {
     let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
-    match world[nextx][nexty] {
+    match world.tiles[nextx][nexty] {
         ICON_BLOCK_100 => {
-            world[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
+            world.tiles[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
                 0 => ICON_BLOCK_75,
                 1 => ICON_BLOCK_50,
                 2 => ICON_BLOCK_25,
@@ -100,7 +100,7 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             }
         },
         ICON_BLOCK_75 => {
-            world[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
+            world.tiles[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
                 0 => ICON_BLOCK_50,
                 1 => ICON_BLOCK_25,
                 _ => ICON_DIAMOND,
@@ -112,7 +112,7 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             }
         },
         ICON_BLOCK_50 => {
-            world[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
+            world.tiles[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
                 0 => ICON_BLOCK_25,
                 _ => ICON_DIAMOND,
             };
@@ -123,7 +123,7 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             }
         },
         ICON_BLOCK_25 => {
-            world[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
+            world.tiles[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
             movable.dir = nextdir; // Or maybe not? Could be a miner property or powerup
             movable.energy = movable.energy - meta.block_bump_cost;
             if movable.what == WHAT_MINER && meta.drills > 0 {
@@ -135,13 +135,19 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             if movable.energy > meta.max_energy {
                 movable.energy = meta.max_energy;
             }
-            world[nextx][nexty] = ' ';
+            world.tiles[nextx][nexty] = ' ';
             movable.x = nextx;
             movable.y = nexty;
         },
         ICON_DIAMOND => {
-            meta.points = meta.points + 1; // Different gems with different points. Miners could have properties or powerups to affect this.
-            world[nextx][nexty] = ' ';
+            // Different gems with different points. Miners could have properties or powerups to affect this, too.
+            meta.points = meta.points + match world.values[nextx][nexty] {
+                '1' => 1,
+                '2' => 2,
+                '3' => 3,
+                _ => panic!("what value did this block have: {}", world.values[nextx][nexty]),
+            };
+            world.tiles[nextx][nexty] = ' ';
             movable.x = nextx;
             movable.y = nexty;
         },

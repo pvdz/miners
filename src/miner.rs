@@ -62,7 +62,7 @@ pub struct MinerMeta {
     //  multiplier_cooldown: i32,
 }
 
-pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
+pub fn create_miner_from_helix(helix: Helix) -> Miner {
     let max_energy = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
 
     let mut slots: [Box<Slottable>; 32] = [
@@ -158,8 +158,8 @@ pub fn create_miner_from_helix(helix: Helix, rng: &mut Lcg128Xsl64) -> Miner {
 
 }
 
-pub fn paint(miner: &Miner, world: &mut World, symbol: char) {
-    world[miner.movable.x][miner.movable.y] =
+pub fn paint(miner: &Miner, painting: &mut Grid, symbol: char) {
+    painting[miner.movable.x][miner.movable.y] =
         if symbol != ' ' {
             symbol
         } else {
