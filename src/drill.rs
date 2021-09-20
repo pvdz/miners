@@ -1,9 +1,9 @@
 use std::fmt;
 
-use crate::slottable::*;
-use crate::miner::*;
-use crate::movable::*;
-use crate::world::*;
+use super::slottable::*;
+use super::miner::*;
+use super::movable::*;
+use super::world::*;
 
 pub const TITLE_DRILL: &str = "Drill";
 
@@ -19,6 +19,8 @@ impl Slottable for Drill {
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 
     fn title(&self) -> &str { return TITLE_DRILL; }
+
+    fn to_symbol(&self) -> &str { return "d"; }
 }
 
 impl fmt::Display for Drill {

@@ -4,11 +4,11 @@ use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rand::distributions::{Distribution, Uniform};
 
-use crate::miner::*;
-use crate::values::*;
-use crate::options::*;
-use crate::helix::*;
-use crate::dome::*;
+use super::miner::*;
+use super::values::*;
+use super::options::*;
+use super::helix::*;
+use super::dome::*;
 
 pub type Grid = [[char; HEIGHT]; WIDTH];
 
@@ -140,7 +140,7 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32), op
         match if y < HEADER { y } else { y - HEADER + 100 } {
             // Miner meta information
              0  => write!(buf, "  Miner:  {: <2}  x  {: <2} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
-             1  => write!(buf, "  Energy: {}{} ({: <2}%) {} / {} {: >60}\n",
+             1  => write!(buf, "  Energy: {}{} ({: >3}%) {} / {} {: >60}\n",
                          std::iter::repeat('|').take(((miner.movable.energy as f32 / miner.meta.max_energy as f32) * 20.0) as usize).collect::<String>(),
                          std::iter::repeat('-').take(20 - ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 20.0) as usize).collect::<String>(),
                          ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 100.0) as i32,
@@ -160,7 +160,7 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32), op
             11  => write!(buf, "  Drone gen cooldown:       {: >20} {: >20} {: >60}\n", miner.helix.drone_gen_cooldown, best.0.drone_gen_cooldown, ' ').unwrap(),
 
             // The slots
-            100  => write!(buf, "  Slots: {: >60}\n", ' ').unwrap(),
+            100  => write!(buf, "  Slots: {: >120}\n", ' ').unwrap(),
             101  => write!(buf, "    - {: <20} {}\n", miner.slots[0].title(), miner.slots[0]).unwrap(),
             102  => write!(buf, "    - {: <20} {}\n", miner.slots[1].title(), miner.slots[1]).unwrap(),
             103  => write!(buf, "    - {: <20} {}\n", miner.slots[2].title(), miner.slots[2]).unwrap(),
@@ -197,8 +197,12 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32), op
 
             133  => write!(buf, "{: <100}\n", ' ').unwrap(),
             134  => write!(buf, "{: <100}\n", ' ').unwrap(),
-            135  => write!(buf, "{: <100}\n", ' ').unwrap(),
-            136  => write!(buf, "    Seed: {} Speed: {} (+⏎/-⏎ to change speed, v⏎ to toggle visual mode) {: <100}\n", options.seed, options.speed, ' ').unwrap(),
+            135  => {
+                let mut he : String = "".to_string();
+                helix_to_string(&mut he, &best.0);
+                write!(buf, "    Best {}{: <40}\n", he, ' ').unwrap();
+            },
+            136  => write!(buf, "    Seed: {} Speed: {} Gene rate: {} Slot rate: {} (+⏎/-⏎ to change speed, v⏎ to toggle visual mode) {: <100}\n", options.seed, options.speed, options.mutation_rate_genes, options.mutation_rate_slots, ' ').unwrap(),
 
 
             _ => {

@@ -1,5 +1,5 @@
-use crate::miner::*;
-use crate::world::*;
+use super::miner::*;
+use super::world::*;
 
 pub struct Dome {
     pub world: World,

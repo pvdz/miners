@@ -2,6 +2,8 @@ use std::env;
 
 pub struct Options {
     pub seed: u64,
+    pub mutation_rate_genes: f32,
+    pub mutation_rate_slots: f32,
     pub speed: u64,
     pub visual: bool,
 }
@@ -11,6 +13,8 @@ pub fn parse_cli_args() -> Options {
     let mut options = Options {
         seed: 0,
         speed: 10,
+        mutation_rate_genes: 5.0,
+        mutation_rate_slots: 5.0,
         visual: true,
     };
 

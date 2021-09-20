@@ -4,7 +4,7 @@
 use std::io;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::{thread, time};
+use std::thread;
 
 pub fn spawn_stdin_channel() -> Receiver<String> {
     let (tx, rx) = mpsc::channel::<String>();

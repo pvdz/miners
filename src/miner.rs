@@ -1,15 +1,17 @@
-use crate::slottable::*;
-use crate::*;
-use crate::values::*;
-use crate::emptiness::*;
-use crate::helix::*;
-use crate::drone_launcher::*;
-use crate::drone::*;
-use crate::energy_cell::*;
-use crate::movable::*;
-use crate::world::*;
-use crate::hammer::*;
-use crate::drill::*;
+use super::slottable::*;
+use super::values::*;
+use super::emptiness::*;
+use super::helix::*;
+use super::drone_launcher::*;
+use super::drone::*;
+use super::energy_cell::*;
+use super::movable::*;
+use super::world::*;
+use super::hammer::*;
+use super::drill::*;
+use super::purity_scanner::*;
+
+pub type MinerSlots = [Box<Slottable>; 32];
 
 pub struct Miner {
     // The genes that generated this miner
@@ -22,7 +24,7 @@ pub struct Miner {
     pub meta: MinerMeta,
 
     // The items the miner is carrying
-    pub slots: [Box<Slottable>; 32],
+    pub slots: MinerSlots,
 }
 
 /**
@@ -37,6 +39,7 @@ pub struct MinerMeta {
     pub max_energy: i32,
     // How many points has the miner accrued so far?
     pub points: i32,
+    pub points_last_move: i32, // How many points has the miner gathered last time it moved? Does not include points from drones (or whatever else).
 
     // Number of hammer slots (determines bump strength)
     pub hammers: i32,
@@ -65,7 +68,7 @@ pub struct MinerMeta {
 pub fn create_miner_from_helix(helix: Helix) -> Miner {
     let max_energy = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
 
-    let mut slots: [Box<Slottable>; 32] = [
+    let mut slots: MinerSlots = [
         Box::new(Emptiness { }),
         Box::new(Emptiness { }),
         Box::new(Emptiness { }),
@@ -103,25 +106,30 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
     let mut energy_cells = 0;
     let mut hammers = 0;
     let mut drills = 0;
+    let mut scanners = 0;
     for i in 0..32 {
         match helix.slots[i] {
-            0 => {
+            SlotType::Emptiness => {
                 slots[i] = Box::new(Emptiness {})
             },
-            1 => {
-                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100 * 2.0_f32.powf(energy_cells as f32) as i32, cooldown: 0, nth: energy_cells });
+            SlotType::EnergyCell => {
+                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100 * 2.0_f32.powf(energy_cells as f32) as i32, cooldown: 0, nth: energy_cells, generated: 0 });
                 energy_cells = energy_cells + 1;
             },
-            2 => {
-                slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: values::WHAT_DRONE, x: 0, y: 0, dir: values::DIR_DOWN, energy: 0 } } });
+            SlotType::DroneLauncher => {
+                slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: WHAT_DRONE, x: 0, y: 0, dir: DIR_DOWN, energy: 0 } } });
             },
-            3 => {
+            SlotType::Hammer => {
                 slots[i] = Box::new(Hammer {});
                 hammers = hammers + 1;
             },
-            4 => {
+            SlotType::Drill => {
                 slots[i] = Box::new(Drill {});
                 drills = drills + 1;
+            },
+            SlotType::PurityScanner => {
+                slots[i] = Box::new(PurityScanner { nth: scanners, max_cooldown: 100 * 2.0_f32.powf(scanners as f32) as i32, cooldown: 0, generated: 0 });
+                scanners = scanners + 1;
             },
             _ => {
                 panic!("Fix slot range generator in helix")
@@ -140,6 +148,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
         },
         meta: MinerMeta {
             points: 0,
+            points_last_move: 0,
             max_energy,
 
             hammers,

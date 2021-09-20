@@ -13,6 +13,7 @@ pub mod dome;
 pub mod hammer;
 pub mod drill;
 pub mod async_stdin;
+pub mod purity_scanner;
 
 use std::{thread, time};
 use std::sync::mpsc::TryRecvError;
@@ -89,83 +90,83 @@ fn main() {
     let mut domes = [
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
       dome::Dome {
         world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutated_helix(&mut instance_rng, best_miner.0)), // The helix will clone/copy. Can/should we prevent this?
+        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
       },
     ];
 
@@ -188,7 +189,7 @@ fn main() {
     let mut has_energy = true;
     while has_energy {
 
-
+      // Handle keyboard event
       match stdin_channel.try_recv() {
         Ok(key) => match key.as_str() {
           "v\n" => options.visual = !options.visual,
@@ -200,6 +201,10 @@ fn main() {
             options.speed = (options.speed as f64 - (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
             delay = time::Duration::from_millis(options.speed);
           },
+          "o\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 1.0).max(0.0),
+          "p\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 1.0).max(0.0),
+          "k\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 1.0).max(0.0),
+          "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
           v => (),
         }
         Err(TryRecvError::Empty) => (),
@@ -266,19 +271,20 @@ fn main() {
       }
     }
 
+    let mut he : String = "".to_string();
+    helix::helix_to_string(&mut he, &winner.0);
+
     println!(
-      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}. Best points: {: >5}, winner points: {: >5}, max base points: {}. Helix: max energy: {: >5}, drone gen: {: >10}, bump cost: {: >10} {: >100}",
+      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}. Winner/Best/Max points: {: >5} / {: >5} / {}. Winner {} {: >50}",
       match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
       iteration,
       miner_count,
 
-      best_miner.1,
       winner.1,
+      best_miner.1,
       golden_map.max_points,
 
-      ((values::INIT_ENERGY as f32) * ((100.0 + winner.0.multiplier_energy_start) as f32) / 100.0) as i32,
-      winner.0.drone_gen_cooldown,
-      winner.0.block_bump_cost,
+      he,
       ' '
     );
     if winner.1 > best_miner.1 {

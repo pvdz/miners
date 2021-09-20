@@ -1,8 +1,12 @@
+use std::fmt::Write;
+
 use std::fmt;
 use rand_pcg::{Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
 
-use crate::miner::*;
+use super::miner::*;
+use super::options::*;
+use super::slottable::*;
 
 /**
  * Describe the genes for a single Miner instantiation
@@ -28,7 +32,7 @@ pub struct Helix {
     // Gene: How effective are items (slottables)?
     //  multiplier_cooldown: i32,
 
-    pub slots: [i32; 32],
+    pub slots: [SlotType; 32],
 }
 
 impl fmt::Display for Helix {
@@ -37,102 +41,133 @@ impl fmt::Display for Helix {
     }
 }
 
+fn slots_string(slots: [SlotType; 32]) -> String  {
+    slots.iter().map(|slot| slot_type_to_symbol(&slot)).collect()
+}
+
 pub fn create_initial_helix(rng: &mut Lcg128Xsl64) -> Helix {
     let multiplier_percent: Uniform<f32> = Uniform::from(0.0..100.0);
-    let multiplier_slot_type: Uniform<i32> = Uniform::from(0..5);
 
     return Helix {
-        drone_gen_cooldown: multiplier_percent.sample(rng),
-        multiplier_energy_start: multiplier_percent.sample(rng),
+        drone_gen_cooldown: multiplier_percent.sample(rng).round(),
+        multiplier_energy_start: multiplier_percent.sample(rng).round(),
         multiplier_points: 0f32, // multiplier_percent.sample(rng),
-        block_bump_cost: multiplier_percent.sample(rng),
+        block_bump_cost: multiplier_percent.sample(rng).round(),
         multiplier_energy_pickup: 0.0, // multiplier_percent.sample(rng),
         slots: [
-            multiplier_slot_type.sample(rng),
-            multiplier_slot_type.sample(rng),
-            multiplier_slot_type.sample(rng),
-            multiplier_slot_type.sample(rng),
-            multiplier_slot_type.sample(rng),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
+            get_random_slot(rng),
+            get_random_slot(rng),
+            get_random_slot(rng),
+            get_random_slot(rng),
+            get_random_slot(rng),
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
+            SlotType::Emptiness,
         ],
     }
 }
 
-pub fn mutated_helix(rng: &mut Lcg128Xsl64, helix: Helix) -> Helix {
+fn mutate_gen_maybe(current: f32, roll: f32, options: &Options) -> f32 {
+    // Roll is 0..100
+    // Move the value up or down by 5%
+    // Return a rounded value
+    // Do not underflow
+    let delta = (roll / 100.0) * (2.0 * options.mutation_rate_genes) - options.mutation_rate_genes;
+    let mutated = current + delta;
+    return mutated.round().max(0.0);
+}
+
+fn mutate_slot_maybe(current: SlotType, roll: f32, rng: &mut Lcg128Xsl64, options: &Options) -> SlotType {
+    if roll < options.mutation_rate_slots {
+        get_random_slot(rng)
+    } else {
+        current
+    }
+}
+
+pub fn mutate_helix(rng: &mut Lcg128Xsl64, helix: Helix, options: &Options) -> Helix {
     // Modify each gene by up to x%, up or down. Make sure the final value does not underflow or overflow.
-    let multiplier_5_percent: Uniform<f32> = Uniform::from(0.0..10.0);
-    let multiplier_slot_type: Uniform<i32> = Uniform::from(0..3);
-    let slot_odds = 0.5; // range goes from 0 to 10 so each point is 10%
+    let pct_roller: Uniform<f32> = Uniform::from(0.0..100.0);
 
     return Helix {
-        drone_gen_cooldown: (helix.drone_gen_cooldown + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),
-        multiplier_energy_start: (helix.multiplier_energy_start + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),
-        multiplier_points: 0f32, // (helix.multiplier_points + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),
-        block_bump_cost: (helix.block_bump_cost + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),
-        multiplier_energy_pickup: 0.0, // (helix.multiplier_energy_pickup + (multiplier_5_percent.sample(rng) - 5.0)).max(0.0),
+        drone_gen_cooldown: mutate_gen_maybe(helix.drone_gen_cooldown, pct_roller.sample(rng), options),
+        multiplier_energy_start: mutate_gen_maybe(helix.multiplier_energy_start, pct_roller.sample(rng), options),
+        multiplier_points: 0.0,
+        block_bump_cost: mutate_gen_maybe(helix.block_bump_cost, pct_roller.sample(rng), options),
+        multiplier_energy_pickup: 0.0,
         slots: [
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[0] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[1] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[2] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[3] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[4] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[5] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[6] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[7] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[8] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[9] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[10] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[11] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[12] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[13] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[14] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[15] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[16] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[17] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[18] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[19] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[11] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[20] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[21] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[22] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[23] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[24] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[25] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[26] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[27] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[28] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[30] },
-            if multiplier_5_percent.sample(rng) < slot_odds { multiplier_slot_type.sample(rng) } else { helix.slots[31] },
+            mutate_slot_maybe(helix.slots[0], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[1], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[2], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[3], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[4], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[5], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[6], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[7], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[8], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[9], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[10], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[11], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[12], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[13], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[14], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[15], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[16], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[17], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[19], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[20], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[21], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[22], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[23], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[24], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[25], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[26], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[27], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[28], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[29], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[30], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[31], pct_roller.sample(rng), rng, options),
+            mutate_slot_maybe(helix.slots[18], pct_roller.sample(rng), rng, options),
         ],
     }
 }
 
 pub fn fitness(miner: Miner) -> i32 {
   return miner.meta.points;
+}
+
+pub fn helix_to_string(into: &mut String, helix: &Helix) {
+    // let mut out: String = "".to_string();
+    write!(into, "Helix {{ drone gen: {}, energy start: {}, points: {}, bump cost: {}, energy pickups: {}, slots: {} }}",
+           helix.drone_gen_cooldown,
+           helix.multiplier_energy_start,
+           helix.multiplier_points,
+           helix.block_bump_cost,
+           helix.multiplier_energy_pickup,
+           slots_string(helix.slots),
+    ).unwrap();
 }

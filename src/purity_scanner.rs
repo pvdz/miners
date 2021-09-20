@@ -5,29 +5,29 @@ use super::miner::*;
 use super::world::*;
 use super::movable::*;
 
-pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
+pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
 
 /**
- * An energy cell gives you an energy boost at a certain interval. It takes up n slots.
+ * A purity scanner gives your next gem double points. Has a cooldown that doubles with
+ * each additional scanner you get.
  */
-pub struct EnergyCell {
-    pub energy_bonus: i32,
-    pub generated: i32,
+pub struct PurityScanner {
+    // pub point_bonus: i32, // Do we want to make this somehow scaling rather than absolute double?
     pub max_cooldown: i32,
     pub cooldown: i32,
-    // Offset zero. The how manieth energy cell is this? Every extra cell is half as efficient as the previous.
+    pub generated: i32,
+    // Offset zero. The how manieth purity scanner is this? Every extra scanner is half as efficient as the previous.
     pub nth: i32,
 }
 
-impl Slottable for EnergyCell {
+impl Slottable for PurityScanner {
     fn before_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
-        self.cooldown = self.cooldown + 1;
-        if self.cooldown >= self.max_cooldown {
-            miner_movable.energy = miner_movable.energy + self.energy_bonus;
-            self.generated = self.generated + self.energy_bonus;
-            if miner_movable.energy > miner_meta.max_energy {
-                miner_movable.energy = miner_meta.max_energy;
-            }
+        if self.cooldown < self.max_cooldown {
+            self.cooldown = self.cooldown + 1;
+        }
+        if self.cooldown >= self.max_cooldown && miner_meta.points_last_move > 0 {
+            miner_meta.points = miner_meta.points + miner_meta.points_last_move;
+            self.generated = self.generated + miner_meta.points_last_move;
             self.cooldown = 0;
         }
     }
@@ -36,12 +36,12 @@ impl Slottable for EnergyCell {
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 
-    fn title(&self) -> &str { return TITLE_ENERGY_CELL; }
+    fn title(&self) -> &str { return TITLE_PURITY_SCANNER; }
 
-    fn to_symbol(&self) -> &str { return "E"; }
+    fn to_symbol(&self) -> &str { return "P"; }
 }
 
-impl fmt::Display for EnergyCell {
+impl fmt::Display for PurityScanner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
         write!(

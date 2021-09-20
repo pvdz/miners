@@ -1,6 +1,6 @@
-use crate::miner::*;
-use crate::world::*;
-use crate::values::*;
+use super::miner::*;
+use super::world::*;
+use super::values::*;
 
 pub struct Movable {
     pub what: i32,
@@ -85,6 +85,9 @@ fn drill_deeper(drills: i32, hammers: i32, x: usize, y: usize, dx: i32, dy: i32,
 
 fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, nextx: usize, nexty: usize, deltax: i32, deltay: i32, nextdir: i32) {
     let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
+    if movable.what == WHAT_MINER {
+        meta.points_last_move = 0;
+    }
     match world.tiles[nextx][nexty] {
         ICON_BLOCK_100 => {
             world.tiles[nextx][nexty] = match if movable.what == WHAT_MINER { meta.hammers } else { 1 } {
@@ -141,12 +144,16 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
         },
         ICON_DIAMOND => {
             // Different gems with different points. Miners could have properties or powerups to affect this, too.
-            meta.points = meta.points + match world.values[nextx][nexty] {
+            let gem_value = match world.values[nextx][nexty] {
                 '1' => 1,
                 '2' => 2,
                 '3' => 3,
                 _ => panic!("what value did this block have: {}", world.values[nextx][nexty]),
             };
+            meta.points = meta.points + gem_value;
+            if movable.what == WHAT_MINER {
+                meta.points_last_move = gem_value;
+            }
             world.tiles[nextx][nexty] = ' ';
             movable.x = nextx;
             movable.y = nexty;

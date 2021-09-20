@@ -1,11 +1,11 @@
 use std::fmt;
 
-use crate::slottable::*;
-use crate::movable::*;
-use crate::miner::*;
-use crate::world::*;
-use crate::values::*;
-use crate::drone::*;
+use super::slottable::*;
+use super::movable::*;
+use super::miner::*;
+use super::world::*;
+use super::values::*;
+use super::drone::*;
 
 pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
 
@@ -24,9 +24,9 @@ impl Slottable for DroneLauncher {
         if self.drone.movable.energy > 0 {
             painting[self.drone.movable.x][self.drone.movable.y] = match self.drone.movable.dir {
                 DIR_UP => ICON_DRONE_UP,
+                DIR_RIGHT => ICON_DRONE_RIGHT,
                 DIR_DOWN => ICON_DRONE_DOWN,
                 DIR_LEFT => ICON_DRONE_LEFT,
-                DIR_RIGHT => ICON_DRONE_RIGHT,
                 _ => {
                     println!("unexpected dir: {:?}", self.drone.movable.dir);
                     panic!("dir is enum");
@@ -40,13 +40,21 @@ impl Slottable for DroneLauncher {
             self.drone.movable.energy = 100;
             self.drone.movable.x = miner_movable.x;
             self.drone.movable.y = miner_movable.y;
-            self.drone.movable.dir = if miner_movable.dir == DIR_UP { DIR_DOWN } else { DIR_UP };
+            self.drone.movable.dir = match miner_movable.dir {
+                DIR_UP => DIR_RIGHT,
+                DIR_RIGHT => DIR_DOWN,
+                DIR_DOWN => DIR_LEFT,
+                DIR_LEFT => DIR_UP,
+                _ => panic!("Fix dir in drone_launcher::after_paint"),
+            };
             miner_meta.drone_gen_cooldown = 50;
             miner_movable.energy = miner_movable.energy - 100;
         }
     }
 
     fn title(&self) -> &str { return TITLE_DRONE_LAUNCHER; }
+
+    fn to_symbol(&self) -> &str { return "D"; }
 }
 
 impl fmt::Display for DroneLauncher {
