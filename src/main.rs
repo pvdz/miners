@@ -14,6 +14,7 @@ pub mod hammer;
 pub mod drill;
 pub mod async_stdin;
 pub mod purity_scanner;
+pub mod broken_gps;
 
 use std::{thread, time};
 use std::sync::mpsc::TryRecvError;
@@ -202,9 +203,13 @@ fn main() {
             delay = time::Duration::from_millis(options.speed);
           },
           "o\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 1.0).max(0.0),
+          "oo\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 5.0).max(0.0),
           "p\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 1.0).max(0.0),
+          "pp\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 5.0).max(0.0),
           "k\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 1.0).max(0.0),
+          "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
           "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
+          "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
           v => (),
         }
         Err(TryRecvError::Empty) => (),

@@ -22,9 +22,10 @@ pub enum SlotType {
     Emptiness = 4,
     EnergyCell = 5,
     PurityScanner = 6,
+    BrokenGps = 7,
 }
 
-pub const SLOT_COUNT: i32 = 6; // Must manually keep up to date with the enum ;(
+pub const SLOT_COUNT: i32 = 7; // Must manually keep up to date with the enum ;(
 // This function serves as a sanity check for the size constant
 fn assert_size(x: &SlotType) -> i32 {
     match x {
@@ -34,6 +35,7 @@ fn assert_size(x: &SlotType) -> i32 {
         | SlotType::Emptiness
         | SlotType::EnergyCell
         | SlotType::PurityScanner
+        | SlotType::BrokenGps
         => SLOT_COUNT, // Update SLOT_COUNT when this function updates
     }
 }
@@ -48,6 +50,7 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotType {
         3 => SlotType::Emptiness,
         4 => SlotType::EnergyCell,
         5 => SlotType::PurityScanner,
+        6 => SlotType::BrokenGps,
         _ => panic!("wat?"),
     }
 }
@@ -60,5 +63,6 @@ pub fn slot_type_to_symbol(slot: &SlotType) -> String {
         SlotType::Emptiness => "e".to_string(),
         SlotType::EnergyCell => "E".to_string(),
         SlotType::PurityScanner => "P".to_string(),
+        SlotType::BrokenGps => "G".to_string(),
     }
 }

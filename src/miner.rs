@@ -10,6 +10,7 @@ use super::world::*;
 use super::hammer::*;
 use super::drill::*;
 use super::purity_scanner::*;
+use super::broken_gps::*;
 
 pub type MinerSlots = [Box<Slottable>; 32];
 
@@ -107,6 +108,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
     let mut hammers = 0;
     let mut drills = 0;
     let mut scanners = 0;
+    let mut gpses = 0;
     for i in 0..32 {
         match helix.slots[i] {
             SlotType::Emptiness => {
@@ -131,6 +133,10 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 slots[i] = Box::new(PurityScanner { nth: scanners, max_cooldown: 100 * 2.0_f32.powf(scanners as f32) as i32, cooldown: 0, generated: 0 });
                 scanners = scanners + 1;
             },
+            SlotType::BrokenGps => {
+                slots[i] = Box::new(BrokenGps { nth: gpses, max_cooldown: 100 * 2.0_f32.powf(gpses as f32) as i32, cooldown: 0, last_degrees: 90 });
+                gpses = gpses + 1;
+            }
             _ => {
                 panic!("Fix slot range generator in helix")
             },
