@@ -58,6 +58,7 @@ pub struct MinerMeta {
 
     // TODO: find a meaningful use for this cost
     pub block_bump_cost: i32,
+    pub prev_move_bumped: bool, // Hack until I figure out how to model this better. If we bumped during a move, all slots should cool down.
 
     // Gene: How effective are pickups?
     pub multiplier_energy_pickup: i32,
@@ -115,7 +116,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 slots[i] = Box::new(Emptiness {})
             },
             SlotType::EnergyCell => {
-                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100 * 2.0_f32.powf(energy_cells as f32) as i32, cooldown: 0, nth: energy_cells, generated: 0 });
+                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100.0 * 2.0_f32.powf(energy_cells as f32), cooldown: 0.0, nth: energy_cells, generated: 0 });
                 energy_cells = energy_cells + 1;
             },
             SlotType::DroneLauncher => {
@@ -130,11 +131,11 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 drills = drills + 1;
             },
             SlotType::PurityScanner => {
-                slots[i] = Box::new(PurityScanner { nth: scanners, max_cooldown: 100 * 2.0_f32.powf(scanners as f32) as i32, cooldown: 0, generated: 0 });
+                slots[i] = Box::new(PurityScanner { nth: scanners, max_cooldown: 100.0 * 2.0_f32.powf(scanners as f32), cooldown: 0.0, generated: 0 });
                 scanners = scanners + 1;
             },
             SlotType::BrokenGps => {
-                slots[i] = Box::new(BrokenGps { nth: gpses, max_cooldown: 100 * 2.0_f32.powf(gpses as f32) as i32, cooldown: 0, last_degrees: 90 });
+                slots[i] = Box::new(BrokenGps { nth: gpses, max_cooldown: 100.0 * 2.0_f32.powf(gpses as f32), cooldown: 0.0, last_degrees: 90 });
                 gpses = gpses + 1;
             }
             _ => {
@@ -165,6 +166,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
 
             drone_gen_cooldown: helix.drone_gen_cooldown as i32,
             block_bump_cost: helix.block_bump_cost as i32,
+            prev_move_bumped: false,
             multiplier_energy_pickup: 1, // TODO
         },
 
@@ -173,20 +175,24 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
 
 }
 
-pub fn paint(miner: &Miner, painting: &mut Grid, symbol: char) {
-    painting[miner.movable.x][miner.movable.y] =
-        if symbol != ' ' {
-            symbol
-        } else {
-            match miner.movable.dir {
-                DIR_UP => ICON_MINER_UP,
-                DIR_DOWN => ICON_MINER_DOWN,
-                DIR_LEFT => ICON_MINER_LEFT,
-                DIR_RIGHT => ICON_MINER_RIGHT,
-                _ => {
-                    println!("unexpected dir: {:?}", miner.movable.dir);
-                    panic!("dir is enum");
-                },
+impl Miner {
+    pub fn paint(miner: &Miner, painting: &mut Grid, symbol: char) {
+        painting[miner.movable.x][miner.movable.y] =
+            if symbol != ' ' {
+                symbol
+            } else {
+                match miner.movable.dir {
+                    DIR_UP => ICON_MINER_UP,
+                    DIR_DOWN => ICON_MINER_DOWN,
+                    DIR_LEFT => ICON_MINER_LEFT,
+                    DIR_RIGHT => ICON_MINER_RIGHT,
+                    _ => {
+                        println!("unexpected dir: {:?}", miner.movable.dir);
+                        panic!("dir is enum");
+                    },
+                }
             }
-        }
+    }
+
+
 }

@@ -55,6 +55,24 @@ impl Slottable for DroneLauncher {
     fn title(&self) -> &str { return TITLE_DRONE_LAUNCHER; }
 
     fn to_symbol(&self) -> &str { return "D"; }
+
+
+    fn get_cooldown(&self) -> f32 {
+        // TODO: relocate this field from the miner (?)
+        return 0.0;
+    }
+
+    fn set_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
+
+    fn get_max_cooldown(&self) -> f32 {
+        return 0.0;
+    }
+
+    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
 }
 
 impl fmt::Display for DroneLauncher {

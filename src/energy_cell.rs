@@ -13,22 +13,22 @@ pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
 pub struct EnergyCell {
     pub energy_bonus: i32,
     pub generated: i32,
-    pub max_cooldown: i32,
-    pub cooldown: i32,
+    pub max_cooldown: f32,
+    pub cooldown: f32,
     // Offset zero. The how manieth energy cell is this? Every extra cell is half as efficient as the previous.
     pub nth: i32,
 }
 
 impl Slottable for EnergyCell {
     fn before_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
-        self.cooldown = self.cooldown + 1;
-        if self.cooldown >= self.max_cooldown {
+        self.set_cooldown(self.get_cooldown() + 1.0);
+        if self.get_cooldown() >= self.get_max_cooldown() {
             miner_movable.energy = miner_movable.energy + self.energy_bonus;
             self.generated = self.generated + self.energy_bonus;
             if miner_movable.energy > miner_meta.max_energy {
                 miner_movable.energy = miner_meta.max_energy;
             }
-            self.cooldown = 0;
+            self.set_cooldown(0.0);
         }
     }
 
@@ -39,6 +39,30 @@ impl Slottable for EnergyCell {
     fn title(&self) -> &str { return TITLE_ENERGY_CELL; }
 
     fn to_symbol(&self) -> &str { return "E"; }
+
+    fn get_cooldown(&self) -> f32 {
+        return self.cooldown;
+    }
+
+    fn set_cooldown(&mut self, v: f32) -> f32 {
+        if v > self.get_max_cooldown() {
+            self.cooldown = self.get_max_cooldown();
+        } else if v < 0.0 {
+            self.cooldown = 0.0;
+        } else {
+            self.cooldown = v;
+        }
+        return self.cooldown;
+    }
+
+    fn get_max_cooldown(&self) -> f32 {
+        return self.max_cooldown;
+    }
+
+    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+        self.max_cooldown = v;
+        return v;
+    }
 }
 
 impl fmt::Display for EnergyCell {
@@ -47,9 +71,9 @@ impl fmt::Display for EnergyCell {
         write!(
             f,
             "{}{} {: >3}% (generated: {}) {: >100}",
-            std::iter::repeat('|').take(((self.cooldown as f32 / self.max_cooldown as f32) * 10.0) as usize).collect::<String>(),
-            std::iter::repeat('-').take(10 - ((self.cooldown as f64 / self.max_cooldown as f64) * 10.0) as usize).collect::<String>(),
-            ((self.cooldown as f64 / self.max_cooldown as f64) * 100.0) as i32,
+            std::iter::repeat('|').take(((self.get_cooldown() / self.get_max_cooldown()) * 10.0) as usize).collect::<String>(),
+            std::iter::repeat('-').take(10 - ((self.get_cooldown() as f64 / self.get_max_cooldown() as f64) * 10.0) as usize).collect::<String>(),
+            ((self.get_cooldown() / self.get_max_cooldown()) * 100.0) as i32,
             self.generated,
             ' ',
         )

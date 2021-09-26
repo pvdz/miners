@@ -98,8 +98,11 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             };
             movable.dir = nextdir;
             movable.energy = movable.energy - meta.block_bump_cost;
-            if movable.what == WHAT_MINER && meta.drills > 0 {
-                drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+            if movable.what == WHAT_MINER {
+                if meta.drills > 0 {
+                    drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+                }
+                meta.prev_move_bumped = true;
             }
         },
         ICON_BLOCK_75 => {
@@ -110,8 +113,11 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             };
             movable.dir = nextdir;
             movable.energy = movable.energy - meta.block_bump_cost;
-            if movable.what == WHAT_MINER && meta.drills > 0 {
-                drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+            if movable.what == WHAT_MINER {
+                if meta.drills > 0 {
+                    drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+                }
+                meta.prev_move_bumped = true;
             }
         },
         ICON_BLOCK_50 => {
@@ -121,16 +127,22 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, ne
             };
             movable.dir = nextdir;
             movable.energy = movable.energy - meta.block_bump_cost;
-            if movable.what == WHAT_MINER && meta.drills > 0 {
-                drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+            if movable.what == WHAT_MINER {
+                if meta.drills > 0 {
+                    drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+                }
+                meta.prev_move_bumped = true;
             }
         },
         ICON_BLOCK_25 => {
             world.tiles[nextx][nexty] = ICON_DIAMOND; // Or a different powerup?
             movable.dir = nextdir; // Or maybe not? Could be a miner property or powerup
             movable.energy = movable.energy - meta.block_bump_cost;
-            if movable.what == WHAT_MINER && meta.drills > 0 {
-                drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+            if movable.what == WHAT_MINER {
+                if meta.drills > 0 {
+                    drill_deeper(meta.drills, meta.hammers, nextx, nexty, deltax, deltay, world);
+                }
+                meta.prev_move_bumped = true;
             }
         },
         ICON_ENERGY => {

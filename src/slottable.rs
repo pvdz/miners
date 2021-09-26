@@ -12,6 +12,11 @@ pub trait Slottable: fmt::Display {
     fn after_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World);
     fn title(&self) -> &str;
     fn to_symbol(&self) -> &str;
+
+    fn get_cooldown(&self) -> f32;
+    fn set_cooldown(&mut self, v: f32) -> f32;
+    fn get_max_cooldown(&self) -> f32;
+    fn set_max_cooldown(&mut self, v: f32) -> f32;
 }
 
 #[derive(Clone, Copy)]

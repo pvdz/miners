@@ -247,6 +247,11 @@ fn main() {
           domes[m].miner.meta.drone_gen_cooldown = domes[m].miner.meta.drone_gen_cooldown - 1;
         }
         for slot in domes[m].miner.slots.iter_mut() {
+          if domes[m].miner.meta.prev_move_bumped {
+            let cooldown = slot.get_cooldown();
+            let mut new_cooldown = cooldown + (cooldown * (domes[m].miner.helix.block_bump_cost / 50000.0));
+            slot.set_cooldown(new_cooldown);
+          }
           slot.after_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
         }
       }

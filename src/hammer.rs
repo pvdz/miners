@@ -21,6 +21,23 @@ impl Slottable for Hammer {
     fn title(&self) -> &str { return TITLE_HAMMER; }
 
     fn to_symbol(&self) -> &str { return "H"; }
+
+
+    fn get_cooldown(&self) -> f32 {
+        return 0.0;
+    }
+
+    fn set_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
+
+    fn get_max_cooldown(&self) -> f32 {
+        return 0.0;
+    }
+
+    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
 }
 
 impl fmt::Display for Hammer {

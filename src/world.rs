@@ -79,9 +79,9 @@ pub fn serialize_world(world: &World, domes: &[Dome; 20], best: (Helix, i32), op
     // We could also construct an empty world with just the entities and check for non-zero instead
     let mut painting: Grid = world.tiles.clone();
     for dome in domes.iter() {
-        paint(&dome.miner, &mut painting, ICON_GHOST);
+        Miner::paint(&dome.miner, &mut painting, ICON_GHOST);
     }
-    paint(miner, &mut painting, ' ');
+    Miner::paint(&miner, &mut painting, ' ');
     for slot in miner.slots.iter() {
         slot.paint(&mut painting, world);
     }

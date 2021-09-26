@@ -21,6 +21,22 @@ impl Slottable for Emptiness {
     fn title(&self) -> &str { return TITLE_EMPTINESS; }
 
     fn to_symbol(&self) -> &str { return "e"; }
+
+    fn get_cooldown(&self) -> f32 {
+        return 0.0;
+    }
+
+    fn set_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
+
+    fn get_max_cooldown(&self) -> f32 {
+        return 0.0;
+    }
+
+    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+        return 0.0;
+    }
 }
 
 impl fmt::Display for Emptiness {
