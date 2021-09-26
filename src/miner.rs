@@ -1,16 +1,16 @@
 use super::slottable::*;
 use super::values::*;
-use super::emptiness::*;
+use super::slot_emptiness::*;
 use super::helix::*;
-use super::drone_launcher::*;
+use super::slot_drone_launcher::*;
 use super::drone::*;
-use super::energy_cell::*;
+use super::slot_energy_cell::*;
 use super::movable::*;
 use super::world::*;
-use super::hammer::*;
-use super::drill::*;
-use super::purity_scanner::*;
-use super::broken_gps::*;
+use super::slot_hammer::*;
+use super::slot_drill::*;
+use super::slot_purity_scanner::*;
+use super::slot_broken_gps::*;
 
 pub type MinerSlots = [Box<Slottable>; 32];
 
