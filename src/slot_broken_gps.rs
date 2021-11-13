@@ -1,15 +1,15 @@
 use std::fmt;
 
-use super::slottable::*;
+// use super::slottable::*;
 use super::miner::*;
 use super::world::*;
 use super::movable::*;
 use super::slottable::*;
-use super::movable::*;
-use super::miner::*;
-use super::world::*;
+// use super::movable::*;
+// use super::miner::*;
+// use super::world::*;
 use super::values::*;
-use super::drone::*;
+// use super::drone::*;
 
 pub const TITLE_BROKEN_GPS: &str = "Broken GPS";
 
@@ -26,7 +26,7 @@ pub struct BrokenGps {
 }
 
 impl Slottable for BrokenGps {
-    fn before_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
+    fn before_paint(&mut self, miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {
         self.set_cooldown(self.get_cooldown() + 1.0);
         if self.get_cooldown() >= self.get_max_cooldown() {
             miner_movable.dir = match miner_movable.dir {
@@ -41,7 +41,7 @@ impl Slottable for BrokenGps {
         }
     }
 
-    fn paint(&self, painting: &mut Grid, world: &World) {}
+    fn paint(&self, _painting: &mut Grid, _world: &World) {}
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 

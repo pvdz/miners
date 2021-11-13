@@ -32,7 +32,7 @@ impl Slottable for EnergyCell {
         }
     }
 
-    fn paint(&self, painting: &mut Grid, world: &World) {}
+    fn paint(&self, _painting: &mut Grid, _world: &World) {}
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 

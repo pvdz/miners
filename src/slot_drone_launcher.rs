@@ -20,7 +20,7 @@ impl Slottable for DroneLauncher {
         }
     }
 
-    fn paint(&self, painting: &mut Grid, world: &World) {
+    fn paint(&self, painting: &mut Grid, _world: &World) {
         if self.drone.movable.energy > 0 {
             painting[self.drone.movable.x][self.drone.movable.y] = match self.drone.movable.dir {
                 DIR_UP => ICON_DRONE_UP,
@@ -62,7 +62,7 @@ impl Slottable for DroneLauncher {
         return 0.0;
     }
 
-    fn set_cooldown(&mut self, v: f32) -> f32 {
+    fn set_cooldown(&mut self, _v: f32) -> f32 {
         return 0.0;
     }
 
@@ -70,7 +70,7 @@ impl Slottable for DroneLauncher {
         return 0.0;
     }
 
-    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+    fn set_max_cooldown(&mut self, _v: f32) -> f32 {
         return 0.0;
     }
 }

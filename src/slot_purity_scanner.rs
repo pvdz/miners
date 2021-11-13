@@ -21,7 +21,7 @@ pub struct PurityScanner {
 }
 
 impl Slottable for PurityScanner {
-    fn before_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
+    fn before_paint(&mut self, _miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
         if self.get_cooldown() < self.get_max_cooldown() {
             self.set_cooldown(self.get_cooldown() + 1.0);
         }
@@ -32,7 +32,7 @@ impl Slottable for PurityScanner {
         }
     }
 
-    fn paint(&self, painting: &mut Grid, world: &World) {}
+    fn paint(&self, _painting: &mut Grid, _world: &World) {}
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 

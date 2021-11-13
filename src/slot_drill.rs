@@ -14,7 +14,7 @@ impl Slottable for Drill {
         // Do nothing
     }
 
-    fn paint(&self, painting: &mut Grid, world: &World) {}
+    fn paint(&self, _painting: &mut Grid, _world: &World) {}
 
     fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
 
@@ -26,7 +26,7 @@ impl Slottable for Drill {
         return 0.0;
     }
 
-    fn set_cooldown(&mut self, v: f32) -> f32 {
+    fn set_cooldown(&mut self, _v: f32) -> f32 {
         return 0.0;
     }
 
@@ -34,7 +34,7 @@ impl Slottable for Drill {
         return 0.0;
     }
 
-    fn set_max_cooldown(&mut self, v: f32) -> f32 {
+    fn set_max_cooldown(&mut self, _v: f32) -> f32 {
         return 0.0;
     }
 }
