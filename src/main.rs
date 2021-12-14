@@ -15,6 +15,7 @@ pub mod slot_drill;
 pub mod async_stdin;
 pub mod slot_purity_scanner;
 pub mod slot_broken_gps;
+pub mod trie;
 
 use std::{thread, time};
 use std::sync::mpsc::TryRecvError;
@@ -50,9 +51,36 @@ use rand::distributions::{Distribution, Uniform};
 // - hook that auto-fires after cooldown, teleports you to the nearest forward facing block (provided there is one)
 // - something that prevents an endless empty path with hefty cooldown?
 
+// - Item to slowly construct paths (or ability? or auto? resource cost?) which reduce energy spent on that tile
+
 
 fn main() {
   println!("Starting....");
+  // let mut trie = trie::Trie::new();
+  // println!("da trie: {}", trie);
+  //
+  // println!("Now adding an entry...");
+  //
+  // let path = vec!(1, 3, -2000, 4);
+  // let trail = trie.path_to_trail(path);
+  // trie.write(&trail, 1);
+  // println!("Trie now A: {}", trie);
+  //
+  // let path = vec!(1, 3, -3, 4);
+  // let trail = trie.path_to_trail(path);
+  // trie.write(&trail, 1);
+  // println!("Trie now B: {}", trie);
+  //
+  // let path = vec!(1, 3, -3, 4);
+  // let trail = trie.path_to_trail(path);
+  // println!("result: {}", trie.read(&trail));
+  //
+  // let path = vec!(1, 3, -3, 5);
+  // let trail = trie.path_to_trail(path);
+  // println!("result: {}", trie.read(&trail));
+  // panic!("hard stop");
+
+
 
   let mut options = options::parse_cli_args();
 
@@ -92,82 +120,102 @@ fn main() {
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
       dome::Dome {
         world: golden_map.clone(),
         miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+        path: vec!(0, 0),
       },
     ];
 
@@ -210,7 +258,7 @@ fn main() {
           "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
           "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
           "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
-          v => (),
+          _ => (),
         }
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
@@ -220,6 +268,8 @@ fn main() {
       for m in 0..domes.len() {
         if domes[m].miner.movable.energy > 0 {
           movable::move_movable(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
+          // domes[m].path.push(domes[m].miner.movable.x);
+          // domes[m].path.push(domes[m].miner.movable.y);
           for i in 0..domes[m].miner.slots.len() {
             domes[m].miner.slots[i].before_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
           }
