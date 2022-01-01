@@ -1,22 +1,35 @@
 use std::fmt;
 
 use super::slottable::*;
-use super::miner::*;
-use super::movable::*;
-use super::world::*;
+// use super::miner::*;
+// use super::movable::*;
+// use super::world::*;
+// use super::options::*;
+// use super::cell_contents::*;
 
 pub const TITLE_HAMMER: &str = "Hammer";
 
+pub fn create_hammer(nth: i32) -> Slottable {
+    return Slottable {
+        kind: SlotKind::Hammer,
+        title: TITLE_HAMMER.to_owned(),
+        max_cooldown: 0.0,
+        cur_cooldown: 0.0,
+        nth,
+        val: 0,
+        sum: 0,
+    };
+}
+
+/*
 pub struct Hammer {}
 
 impl Slottable for Hammer {
-    fn before_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {
-        // Do nothing
-    }
+    fn tick(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {}
 
-    fn paint(&self, _painting: &mut Grid, _world: &World) {}
-
-    fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
+    fn paint_entity(&self, world: &World, options: &Options) -> (Cell, i32, i32) { return (Cell::Empty, 0, 0); }
+    fn paint_ui(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
+    fn paint_log(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
 
     fn title(&self) -> &str { return TITLE_HAMMER; }
 
@@ -45,3 +58,5 @@ impl fmt::Display for Hammer {
         write!(f, "{: >100}", ' ')
     }
 }
+
+*/

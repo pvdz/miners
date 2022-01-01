@@ -1,41 +1,47 @@
 use std::fmt;
+use crate::cell_contents::Cell;
 
 use super::slottable::*;
-use super::movable::*;
-use super::miner::*;
-use super::world::*;
-use super::values::*;
-use super::drone::*;
+// use super::movable::*;
+// use super::miner::*;
+// use super::world::*;
+// use super::values::*;
+// use super::icons::*;
+// use super::drone::*;
+// use super::options::*;
+// use super::cell_contents;
 
 pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
 
+pub fn create_drone_launcher(nth: i32, drone_id: i32) -> Slottable {
+    return Slottable {
+        kind: SlotKind::BrokenGps,
+        title: TITLE_DRONE_LAUNCHER.to_owned(),
+        max_cooldown: 0.0,
+        cur_cooldown: 0.0,
+        nth,
+        val: drone_id,
+        sum: 0,
+    };
+}
+
+/*
 pub struct DroneLauncher {
+    // Each launcher has one drone
     pub drone: Drone,
 }
 
+struct Viewport {
+    // ( min x, min y, max x, max y )
+
+    // What tile of the world is showing in the viewport?
+    world: (i32, i32, i32, i32),
+    // Where is the viewport printed in output?
+    output: (i32, i32, i32, i32),
+}
+
 impl Slottable for DroneLauncher {
-    fn before_paint(&mut self, _miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World) {
-        if self.drone.movable.energy > 0 {
-            move_movable(&mut self.drone.movable, miner_meta, world);
-        }
-    }
-
-    fn paint(&self, painting: &mut Grid, _world: &World) {
-        if self.drone.movable.energy > 0 {
-            painting[self.drone.movable.x][self.drone.movable.y] = match self.drone.movable.dir {
-                DIR_UP => ICON_DRONE_UP,
-                DIR_RIGHT => ICON_DRONE_RIGHT,
-                DIR_DOWN => ICON_DRONE_DOWN,
-                DIR_LEFT => ICON_DRONE_LEFT,
-                _ => {
-                    println!("unexpected dir: {:?}", self.drone.movable.dir);
-                    panic!("dir is enum");
-                },
-            }
-        }
-    }
-
-    fn after_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
+    fn tick(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
         if self.drone.movable.energy <= 0 && miner_meta.drone_gen_cooldown == 0 {
             self.drone.movable.energy = 100;
             self.drone.movable.x = miner_movable.x;
@@ -50,7 +56,35 @@ impl Slottable for DroneLauncher {
             miner_meta.drone_gen_cooldown = 50;
             miner_movable.energy = miner_movable.energy - 100;
         }
+
+        if self.drone.movable.energy > 0 {
+            move_movable(&mut self.drone.movable, miner_meta, world, options);
+        }
     }
+
+    fn paint_entity(&self, world: &World, options: &Options) -> (Cell, i32, i32) {
+        // Returns the tile to paint and whether it is a double width icon
+        if self.drone.movable.energy > 0 {
+            let cell = match self.drone.movable.dir {
+                DIR_UP => Cell::DroneUp,
+                DIR_RIGHT => Cell::DroneRight,
+                DIR_DOWN => Cell::DroneDown,
+                DIR_LEFT => Cell::DroneLeft,
+                _ => {
+                    println!("unexpected dir: {:?}", self.drone.movable.dir);
+                    panic!("dir is enum");
+                },
+            };
+
+            return (cell, self.drone.movable.x, self.drone.movable.y);
+        }
+
+        // Do not paint
+        return (Cell::Empty, 0, 0);
+    }
+
+    fn paint_ui(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
+    fn paint_log(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
 
     fn title(&self) -> &str { return TITLE_DRONE_LAUNCHER; }
 
@@ -84,3 +118,4 @@ impl fmt::Display for DroneLauncher {
         }
     }
 }
+*/

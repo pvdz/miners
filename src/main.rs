@@ -2,20 +2,22 @@ pub mod options;
 pub mod slottable;
 pub mod world;
 pub mod values;
+pub mod icons;
 pub mod drone;
-pub mod slot_drone_launcher;
-pub mod slot_energy_cell;
 pub mod movable;
-pub mod slot_emptiness;
 pub mod miner;
 pub mod helix;
-pub mod dome;
+pub mod biome;
 pub mod slot_hammer;
 pub mod slot_drill;
 pub mod async_stdin;
 pub mod slot_purity_scanner;
 pub mod slot_broken_gps;
-pub mod trie;
+pub mod slot_drone_launcher;
+pub mod slot_energy_cell;
+pub mod slot_emptiness;
+// pub mod trie;
+pub mod cell_contents;
 
 use std::{thread, time};
 use std::sync::mpsc::TryRecvError;
@@ -80,8 +82,6 @@ fn main() {
   // println!("result: {}", trie.read(&trail));
   // panic!("hard stop");
 
-
-
   let mut options = options::parse_cli_args();
 
   if options.seed == 0 {
@@ -96,147 +96,52 @@ fn main() {
   let mut delay = time::Duration::from_millis(options.speed);
 
   // This copy of rng is the one that is "random" for this whole run, not one epoch
-  // It's seeded so are able to repro a run (in case bugs happen) but I think we should not seed it to the map seed by default (TODO)
+  // It's seeded so are able to repro a run
   let mut instance_rng: Lcg128Xsl64  = Pcg64::seed_from_u64(options.seed);
-  // let multiplier_range = Uniform::from(0..100);
-  // let multiplier_energy_start = multiplier_range.sample(&mut init_rng);
-  // let multiplier_points = 1;
-  // let multiplier_energy_pickup = multiplier_range.sample(&mut init_rng);
 
   let mut best_miner: (helix::Helix, i32) = (
      helix::create_initial_helix(&mut instance_rng),
      0,
   );
-
-  let golden_map: world::World = world::generate_world(&options);
+  let mut best_min_x = 0;
+  let mut best_min_y = 0;
+  let mut best_max_x = 0;
+  let mut best_max_y = 0;
 
   let stdin_channel = async_stdin::spawn_stdin_channel();
 
-  let mut miner_count: i32 = 0;
+  let mut total_miner_count: i32 = 0;
   let start_time = SystemTime::now();
 
-  loop {
-    let mut domes = [
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
+  loop
+  {
+    // Generate a bunch of biomes. Create a world for them and put a miner in there.
+    // Each biome shares the same world (governed by the seed). But since the world is destructible
+    // we have to give each biome their own world state.
+    let mut biomes: Vec<biome::Biome> = vec!();
+    for _ in 0..10 {
+      let cur_miner: miner::Miner = miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)); // The helix will clone/copy. Can/should we prevent this?
+      let own_world: world::World = world::generate_world(&options);
+      let biome = biome::Biome {
+        world: own_world,
+        miner: cur_miner,
         path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-      dome::Dome {
-        world: golden_map.clone(),
-        miner: miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)), // The helix will clone/copy. Can/should we prevent this?
-        path: vec!(0, 0),
-      },
-    ];
+      };
+      biomes.push(biome);
+    }
 
-    miner_count = miner_count + (domes.len() as i32);
+    total_miner_count = total_miner_count + (biomes.len() as i32);
 
-    // Recreate the rng fresh for every new Miner
-    // let mut rng = Pcg64::seed_from_u64(options.seed);
-    // let mut drone_rng = Pcg64::seed_from_u64(options.seed);
-
-    let world: world::World = golden_map.clone();
-
-    // println!("Start {} x: {} y: {} dir: {} energy: {} {: >100}", 0, domes[0].miner.movable.x, domes[0].miner.movable.y, domes[0].miner.movable.dir, domes[0].miner.movable.energy, domes[0].miner.meta.points, ' ');
     if options.visual {
-      let table_str: String = world::serialize_world(&world, &domes, best_miner, &options);
+      let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
       println!("{}", table_str);
     }
 
     // Move it move it
-    let mut iteration = 0;
-    let mut has_energy = true;
+    let mut iteration = 0; // How many iterations for the current cycle
+    let mut has_energy = true; // As long as any miner in the current cycle has energy left...
     while has_energy {
+      // This is basically the main game loop
 
       // Handle keyboard event
       match stdin_channel.try_recv() {
@@ -265,16 +170,30 @@ fn main() {
       }
 
       has_energy = false;
-      for m in 0..domes.len() {
-        if domes[m].miner.movable.energy > 0 {
-          movable::move_movable(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
-          // domes[m].path.push(domes[m].miner.movable.x);
-          // domes[m].path.push(domes[m].miner.movable.y);
-          for i in 0..domes[m].miner.slots.len() {
-            domes[m].miner.slots[i].before_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
+      for m in 0..biomes.len() {
+        let biome = &mut biomes[m];
+        if biome.miner.movable.energy > 0.0 {
+          let mminer: &mut movable::Movable = &mut biome.miner.movable;
+          let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
+          let mworld: &mut world::World = &mut biome.world;
+          movable::move_movable(mminer, mmeta, mworld, &options);
+          for i in 0..biome.miner.slots.len() {
+            let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
+            match slot.kind {
+              slottable::SlotKind::Emptiness => (), // noop
+              slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminer, mmeta, mworld, &options),
+              slottable::SlotKind::DroneLauncher => (), // noop
+              slottable::SlotKind::Hammer => (), // noop
+              slottable::SlotKind::Drill => (), // noop
+              slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta), // noop
+              slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminer), // noop
+              _ => {
+                panic!("Fix slot range generator in helix")
+              },
+            }
           }
           // Does this miner still have energy left?
-          if domes[m].miner.movable.energy > 0 {
+          if biome.miner.movable.energy > 0.0 {
             has_energy = true;
           }
         }
@@ -283,51 +202,52 @@ fn main() {
       iteration = iteration + 1;
 
       if options.visual {
-        let table_str: String = world::serialize_world(&domes[0].world, &domes, best_miner, &options);
-        if options.visual {
-          print!("\x1b[53A\n");
-          println!("{}", table_str);
-        }
-
-        thread::sleep(delay);
+        // let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
+        // print!("\x1b[53A\n");
+        // println!("{}", table_str);
+        //
+        // thread::sleep(delay);
       }
 
-      for m in 0..domes.len() {
-        if domes[m].miner.meta.drone_gen_cooldown > 0 {
-          domes[m].miner.meta.drone_gen_cooldown = domes[m].miner.meta.drone_gen_cooldown - 1;
-        }
-        for slot in domes[m].miner.slots.iter_mut() {
-          if domes[m].miner.meta.prev_move_bumped {
-            let cooldown = slot.get_cooldown();
-            let mut new_cooldown = cooldown + (cooldown * (domes[m].miner.helix.block_bump_cost / 50000.0));
-            slot.set_cooldown(new_cooldown);
+      for m in 0..biomes.len() {
+        let biome: &mut biome::Biome = &mut biomes[m];
+        // if biome.miner.meta.drone_gen_cooldown > 0 {
+        //   biome.miner.meta.drone_gen_cooldown = biome.miner.meta.drone_gen_cooldown - 1;
+        // }
+        for slot in biome.miner.slots.iter_mut() {
+          if biome.miner.meta.prev_move_bumped {
+            let cooldown = slot.cur_cooldown;
+            slot.cur_cooldown = cooldown + (cooldown * (biome.miner.helix.block_bump_cost / 50000.0));
           }
-          slot.after_paint(&mut domes[m].miner.movable, &mut domes[m].miner.meta, &mut domes[m].world);
         }
       }
     }
 
     let mut winner = (
-      domes[0].miner.helix,
-      (domes[0].miner.meta.points as f64 * ((100.0 + domes[0].miner.helix.multiplier_points as f64) / 100.0)) as i32
+      biomes[0].miner.helix,
+      (biomes[0].miner.meta.points as f64 * ((100.0 + biomes[0].miner.helix.multiplier_points as f64) / 100.0)) as i32,
+      &biomes[0].world,
     );
-    for m in 1..domes.len() {
-      let points = (domes[m].miner.meta.points as f64 * ((100.0 + domes[m].miner.helix.multiplier_points as f64) / 100.0)) as i32;
+    for m in 1..biomes.len() {
+      let biome: &biome::Biome = &biomes[m];
+      let points = (biome.miner.meta.points as f64 * ((100.0 + biome.miner.helix.multiplier_points as f64) / 100.0)) as i32;
 
       if points > winner.1 {
         winner = (
-          domes[m].miner.helix,
-          points
+          biome.miner.helix,
+          points,
+          &biome.world,
         )
       }
     }
 
     if options.visual {
-      print!("\x1b[{}A\n", 53 + domes.len());
+      print!("\x1b[{}A\n", 53 + biomes.len());
 
-      for m in 1..domes.len() {
-        let points = (domes[m].miner.meta.points as f64 * ((100.0 + domes[m].miner.helix.multiplier_points as f64) / 100.0)) as i32;
-        println!("- Points: {} :: {}", points, domes[m].miner.helix);
+      for m in 1..biomes.len() {
+        let biome: &biome::Biome = &biomes[m];
+        let points = (biome.miner.meta.points as f64 * ((100.0 + biome.miner.helix.multiplier_points as f64) / 100.0)) as i32;
+        println!("- Points: {} :: {}", points, biome.miner.helix);
       }
     }
 
@@ -335,20 +255,27 @@ fn main() {
     helix::helix_to_string(&mut he, &winner.0);
 
     println!(
-      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}. Winner/Best/Max points: {: >5} / {: >5} / {}. Winner {} {: >50}",
+      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
       match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
       iteration,
-      miner_count,
+      total_miner_count,
 
       winner.1,
       best_miner.1,
-      golden_map.max_points,
+      best_min_x,
+      best_min_y,
+      best_max_x,
+      best_max_y,
 
       he,
       ' '
     );
     if winner.1 > best_miner.1 {
-      best_miner = winner;
+      best_miner = (winner.0, winner.1);
+      best_min_x = winner.2.min_x;
+      best_min_y = winner.2.min_y;
+      best_max_x = winner.2.max_x;
+      best_max_y = winner.2.max_y;
     }
   }
 }

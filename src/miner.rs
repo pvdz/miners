@@ -1,18 +1,19 @@
 use super::slottable::*;
 use super::values::*;
+// use super::icons::*;
 use super::slot_emptiness::*;
 use super::helix::*;
 use super::slot_drone_launcher::*;
 use super::drone::*;
 use super::slot_energy_cell::*;
 use super::movable::*;
-use super::world::*;
+// use super::world::*;
 use super::slot_hammer::*;
 use super::slot_drill::*;
 use super::slot_purity_scanner::*;
 use super::slot_broken_gps::*;
 
-pub type MinerSlots = [Box<Slottable>; 32];
+pub type MinerSlots = Vec<Slottable>;
 
 pub struct Miner {
     // The genes that generated this miner
@@ -37,15 +38,13 @@ pub struct Miner {
  */
 pub struct MinerMeta {
     // A miner may not exceed its initial energy
-    pub max_energy: i32,
+    pub max_energy: f32,
     // How many points has the miner accrued so far?
     pub points: i32,
     pub points_last_move: i32, // How many points has the miner gathered last time it moved? Does not include points from drones (or whatever else).
 
-    // Number of hammer slots (determines bump strength)
-    pub hammers: i32,
-    // Number of drill slots (determines how far back you bump)
-    pub drills: i32,
+    // Tally of number of slots per kind
+    pub kind_counts: Vec<i32>,
 
     // Increase energy cost per step per boredom level
     // The miner finds plain moves boring and the price for keep doing these will grow until something happens.
@@ -57,7 +56,7 @@ pub struct MinerMeta {
     pub drone_gen_cooldown: i32,
 
     // TODO: find a meaningful use for this cost
-    pub block_bump_cost: i32,
+    pub block_bump_cost: f32, // (i32)
     pub prev_move_bumped: bool, // Hack until I figure out how to model this better. If we bumped during a move, all slots should cool down.
 
     // Gene: How effective are pickups?
@@ -68,88 +67,92 @@ pub struct MinerMeta {
 }
 
 pub fn create_miner_from_helix(helix: Helix) -> Miner {
-    let max_energy = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0) as i32;
+    // Given a Helix ("footprint of a miner") return a Miner with those baseline properties
+    // Note: this function receives a clone of the helix since the helix will be stored in this miner. TODO: what does the version without cloning look like?
 
-    let mut slots: MinerSlots = [
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
-        Box::new(Emptiness { }),
+    let max_energy: f32 = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0);
+
+    // Start with empty slots and populate them with the slots indicated by the helix
+    let mut slots: MinerSlots = vec![
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
+        create_empty_slot(),
     ];
 
-    let mut energy_cells = 0;
-    let mut hammers = 0;
-    let mut drills = 0;
-    let mut scanners = 0;
-    let mut gpses = 0;
+    assert_eq!(slots.len(), helix.slots.len(), "miner should be initialized to the same number of slots as the helix carries...");
+
+    let mut kind_counts: Vec<i32> = create_slot_kind_counter();
+
     for i in 0..32 {
-        match helix.slots[i] {
-            SlotType::Emptiness => {
-                slots[i] = Box::new(Emptiness {})
+        let kind: SlotKind = helix.slots[i];
+        let kind_usize = kind as usize;
+        let nth: i32 = kind_counts[kind_usize];
+        match kind {
+            SlotKind::Emptiness => {
+                slots[i] = create_empty_slot();
             },
-            SlotType::EnergyCell => {
-                slots[i] = Box::new(EnergyCell { energy_bonus: 100, max_cooldown: 100.0 * 2.0_f32.powf(energy_cells as f32), cooldown: 0.0, nth: energy_cells, generated: 0 });
-                energy_cells = energy_cells + 1;
+            SlotKind::EnergyCell => {
+                slots[i] = create_slot_energy_cell(nth, 100, 100.0 * 2.0_f32.powf(nth as f32));
             },
-            SlotType::DroneLauncher => {
-                slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: WHAT_DRONE, x: 0, y: 0, dir: DIR_DOWN, energy: 0 } } });
+            SlotKind::DroneLauncher => {
+                slots[0] = create_drone_launcher(nth, nth);
+                // slots[i] = Box::new(DroneLauncher { drone: Drone { movable: Movable { what: WHAT_DRONE, x: 0, y: 0, dir: DIR_DOWN, energy: 0 } } });
             },
-            SlotType::Hammer => {
-                slots[i] = Box::new(Hammer {});
-                hammers = hammers + 1;
+            SlotKind::Hammer => {
+                slots[i] = create_hammer(nth);
             },
-            SlotType::Drill => {
-                slots[i] = Box::new(Drill {});
-                drills = drills + 1;
+            SlotKind::Drill => {
+                slots[i] = create_drill(nth);
             },
-            SlotType::PurityScanner => {
-                slots[i] = Box::new(PurityScanner { nth: scanners, max_cooldown: 100.0 * 2.0_f32.powf(scanners as f32), cooldown: 0.0, generated: 0 });
-                scanners = scanners + 1;
+            SlotKind::PurityScanner => {
+                slots[i] = create_slot_purity_scanner(nth, 100.0 * 2.0_f32.powf(nth as f32));
             },
-            SlotType::BrokenGps => {
-                slots[i] = Box::new(BrokenGps { nth: gpses, max_cooldown: 100.0 * 2.0_f32.powf(gpses as f32), cooldown: 0.0, last_degrees: 90 });
-                gpses = gpses + 1;
+            SlotKind::BrokenGps => {
+                slots[i] = create_slot_broken_gps(nth, 100.0 * 2.0_f32.powf(nth as f32));
             }
             _ => {
                 panic!("Fix slot range generator in helix")
             },
         }
+
+        kind_counts[kind_usize] = kind_counts[kind_usize] + 1;
     }
 
     return Miner {
         helix,
         movable: Movable {
             what: WHAT_MINER,
-            x: WIDTH >> 1,
-            y: HEIGHT >> 1,
+            x: 0,
+            y: 0,
             dir: DIR_UP,
             energy: max_energy,
         },
@@ -158,14 +161,13 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             points_last_move: 0,
             max_energy,
 
-            hammers,
-            drills,
+            kind_counts,
 
             boredom_level: 0,
             boredom_rate: (max_energy as f32).log(2.0),
 
             drone_gen_cooldown: helix.drone_gen_cooldown as i32,
-            block_bump_cost: helix.block_bump_cost as i32,
+            block_bump_cost: helix.block_bump_cost,
             prev_move_bumped: false,
             multiplier_energy_pickup: 1, // TODO
         },
@@ -175,24 +177,24 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
 
 }
 
-impl Miner {
-    pub fn paint(miner: &Miner, painting: &mut Grid, symbol: char) {
-        painting[miner.movable.x][miner.movable.y] =
-            if symbol != ' ' {
-                symbol
-            } else {
-                match miner.movable.dir {
-                    DIR_UP => ICON_MINER_UP,
-                    DIR_DOWN => ICON_MINER_DOWN,
-                    DIR_LEFT => ICON_MINER_LEFT,
-                    DIR_RIGHT => ICON_MINER_RIGHT,
-                    _ => {
-                        println!("unexpected dir: {:?}", miner.movable.dir);
-                        panic!("dir is enum");
-                    },
-                }
-            }
-    }
-
-
-}
+// impl Miner {
+//     pub fn paint(miner: &Miner, painting: &mut Grid, symbol: char) {
+//         painting[miner.movable.x][miner.movable.y] =
+//             if symbol != ' ' {
+//                 symbol
+//             } else {
+//                 match miner.movable.dir {
+//                     DIR_UP => ICON_MINER_UP,
+//                     DIR_DOWN => ICON_MINER_DOWN,
+//                     DIR_LEFT => ICON_MINER_LEFT,
+//                     DIR_RIGHT => ICON_MINER_RIGHT,
+//                     _ => {
+//                         println!("unexpected dir: {:?}", miner.movable.dir);
+//                         panic!("dir is enum");
+//                     },
+//                 }
+//             }
+//     }
+//
+//
+// }

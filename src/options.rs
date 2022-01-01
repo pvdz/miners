@@ -15,7 +15,7 @@ pub fn parse_cli_args() -> Options {
         speed: 10,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
-        visual: true,
+        visual: false,
     };
 
     let args: Vec<String> = env::args().collect();

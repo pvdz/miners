@@ -4,6 +4,8 @@ use super::slottable::*;
 use super::miner::*;
 use super::world::*;
 use super::movable::*;
+use super::options::*;
+// use super::cell_contents::*;
 
 pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
 
@@ -11,6 +13,30 @@ pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
  * A purity scanner gives your next gem double points. Has a cooldown that doubles with
  * each additional scanner you get.
  */
+pub fn create_slot_purity_scanner(nth: i32, max_cooldown: f32) -> Slottable {
+    return Slottable {
+        kind: SlotKind::Hammer,
+        title: TITLE_PURITY_SCANNER.to_owned(),
+        max_cooldown,
+        cur_cooldown: 0.0,
+        nth,
+        val: 0, // generated
+        sum: 0,
+    };
+}
+
+pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta) {
+    if slot.cur_cooldown < slot.max_cooldown {
+        slot.cur_cooldown = slot.cur_cooldown + 1.0;
+    }
+    if slot.cur_cooldown >= slot.max_cooldown && miner_meta.points_last_move > 0 {
+        miner_meta.points = miner_meta.points + miner_meta.points_last_move;
+        slot.val = slot.val + miner_meta.points_last_move;
+        slot.cur_cooldown = 0.0;
+    }
+}
+
+/*
 pub struct PurityScanner {
     // pub point_bonus: i32, // Do we want to make this somehow scaling rather than absolute double?
     pub max_cooldown: f32,
@@ -21,7 +47,7 @@ pub struct PurityScanner {
 }
 
 impl Slottable for PurityScanner {
-    fn before_paint(&mut self, _miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
+    fn tick(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
         if self.get_cooldown() < self.get_max_cooldown() {
             self.set_cooldown(self.get_cooldown() + 1.0);
         }
@@ -32,9 +58,9 @@ impl Slottable for PurityScanner {
         }
     }
 
-    fn paint(&self, _painting: &mut Grid, _world: &World) {}
-
-    fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
+    fn paint_entity(&self, world: &World, options: &Options) -> (Cell, i32, i32) { return (Cell::Empty, 0, 0); }
+    fn paint_ui(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
+    fn paint_log(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
 
     fn title(&self) -> &str { return TITLE_PURITY_SCANNER; }
 
@@ -79,3 +105,4 @@ impl fmt::Display for PurityScanner {
         )
     }
 }
+*/

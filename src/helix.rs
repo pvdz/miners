@@ -32,7 +32,7 @@ pub struct Helix {
     // Gene: How effective are items (slottables)?
     //  multiplier_cooldown: i32,
 
-    pub slots: [SlotType; 32],
+    pub slots: [SlotKind; 32],
 }
 
 impl fmt::Display for Helix {
@@ -41,7 +41,7 @@ impl fmt::Display for Helix {
     }
 }
 
-fn slots_string(slots: [SlotType; 32]) -> String  {
+fn slots_string(slots: [SlotKind; 32]) -> String  {
     slots.iter().map(|slot| slot_type_to_symbol(&slot)).collect()
 }
 
@@ -60,33 +60,33 @@ pub fn create_initial_helix(rng: &mut Lcg128Xsl64) -> Helix {
             get_random_slot(rng),
             get_random_slot(rng),
             get_random_slot(rng),
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
-            SlotType::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
+            SlotKind::Emptiness,
         ],
     }
 }
@@ -101,7 +101,7 @@ fn mutate_gen_maybe(current: f32, roll: f32, options: &Options) -> f32 {
     return mutated.round().max(0.0);
 }
 
-fn mutate_slot_maybe(current: SlotType, roll: f32, rng: &mut Lcg128Xsl64, options: &Options) -> SlotType {
+fn mutate_slot_maybe(current: SlotKind, roll: f32, rng: &mut Lcg128Xsl64, options: &Options) -> SlotKind {
     if roll < options.mutation_rate_slots {
         get_random_slot(rng)
     } else {

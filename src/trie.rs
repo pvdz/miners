@@ -18,7 +18,7 @@
 // Will have to see whether serializing that is feasible for distribution or not :)
 
 use std::fmt;
-use super::values::*;
+// use super::icons::*;
 
 const TRIE_PANIC: i8 = 0;
 const TRIE_OVERWRITE: i8 = 1;

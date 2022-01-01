@@ -4,12 +4,39 @@ use super::slottable::*;
 use super::miner::*;
 use super::world::*;
 use super::movable::*;
+use super::options::*;
+// use super::cell_contents::*;
 
 pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
 
 /**
  * An energy cell gives you an energy boost at a certain interval. It takes up n slots.
  */
+pub fn create_slot_energy_cell(nth: i32, energy_bonus: i32, max_energy: f32) -> Slottable {
+    return Slottable {
+        kind: SlotKind::BrokenGps,
+        title: TITLE_ENERGY_CELL.to_owned(),
+        max_cooldown: max_energy,
+        cur_cooldown: 0.0,
+        nth,
+        val: energy_bonus,
+        sum: 0,
+    };
+}
+
+pub fn tick_slot_energy_cell(slot: &mut Slottable, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
+    slot.cur_cooldown = slot.cur_cooldown + 1.0;
+    if slot.cur_cooldown >= slot.max_cooldown {
+        miner_movable.energy = miner_movable.energy + (slot.val as f32);
+        slot.sum = slot.sum + slot.val;
+        if miner_movable.energy > miner_meta.max_energy {
+            miner_movable.energy = miner_meta.max_energy;
+        }
+        slot.cur_cooldown = 0.0;
+    }
+}
+
+/*
 pub struct EnergyCell {
     pub energy_bonus: i32,
     pub generated: i32,
@@ -20,7 +47,7 @@ pub struct EnergyCell {
 }
 
 impl Slottable for EnergyCell {
-    fn before_paint(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World) {
+    fn tick(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
         self.set_cooldown(self.get_cooldown() + 1.0);
         if self.get_cooldown() >= self.get_max_cooldown() {
             miner_movable.energy = miner_movable.energy + self.energy_bonus;
@@ -32,9 +59,9 @@ impl Slottable for EnergyCell {
         }
     }
 
-    fn paint(&self, _painting: &mut Grid, _world: &World) {}
-
-    fn after_paint(&mut self, _miner_movable: &mut Movable, _miner_meta: &mut MinerMeta, _world: &mut World) {}
+    fn paint_entity(&self, world: &World, options: &Options) -> (Cell, i32, i32) { return (Cell::Empty, 0, 0); }
+    fn paint_ui(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
+    fn paint_log(&self, world: &World, options: &Options) -> Vec<char> { vec!() }
 
     fn title(&self) -> &str { return TITLE_ENERGY_CELL; }
 
@@ -79,3 +106,4 @@ impl fmt::Display for EnergyCell {
         )
     }
 }
+*/
