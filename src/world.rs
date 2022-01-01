@@ -55,13 +55,13 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
 
   // I guess start with the rarest stuff first, move to the common stuff, end with empty
 
-  // 2% of the cells should contain an energy container (arbitrary)
-  if (cell_rng.sample::<f32, Standard>(Standard)) < 0.2f32 {
+  // some % of the cells should contain an energy container (arbitrary)
+  if (cell_rng.sample::<f32, Standard>(Standard)) < 0.05f32 {
     return Cell::Energy;
   }
 
   // Roughly half the cells should be filled with walls
-  if cell_rng.sample::<f32, Standard>(Standard) < 0.5f32 {
+  if cell_rng.sample::<f32, Standard>(Standard) < 0.4f32 {
     // Roughly speaking, 10% is 3, 30% is 2, 60% is 1?
     let kind: f32 = cell_rng.sample(Standard);
 
@@ -137,112 +137,188 @@ pub fn generate_world(options: &Options) -> World {
   return world;
 }
 
-fn bound(x: i32, y: i32, min_x: i32, max_x: i32, min_y: i32, max_y: i32) -> bool {
+fn bound_ex(x: i32, y: i32, min_x: i32, max_x: i32, min_y: i32, max_y: i32) -> bool {
   return x >= min_x && x < max_x && y >= min_y && y < max_y;
+}
+fn bound_inc(x: i32, y: i32, min_x: i32, max_x: i32, min_y: i32, max_y: i32) -> bool {
+  return x >= min_x && x <= max_x && y >= min_y && y <= max_y;
 }
 
 pub fn coord_to_index(x: i32, y: i32, world: &World) -> (i32, i32) {
   return (world.min_x.abs() - x, world.min_y.abs() - y);
 }
 
+pub fn assert_world_dimensions(world: &World) {
+  assert_eq!(world.tiles.len() as i32, world.min_y.abs() + 1 + world.max_y, "World should have min_y+1+max_y rows");
+  for y in 0..world.tiles.len() {
+    assert_eq!(world.tiles[y].len() as i32, world.min_x.abs() + 1 + world.max_x, "World should have each row with min_x+1+max_x cells");
+  }
+}
+
 pub fn serialize_world(world: &World, biomes: &Vec<Biome>, best: (Helix, i32), options: &Options) -> String {
   // We assume a 150x80 terminal screen space (half my ultra wide)
   // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
+  assert_world_dimensions(world);
+
   // Start by painting the world. Give it a border too (annoying with calculations but worth it)
 
+  let wv_margin: (usize, usize, usize, usize) = (1, 1, 1, 1);
+  assert!(wv_margin.0 >= 0);
+  assert!(wv_margin.1 >= 0);
+  assert!(wv_margin.2 >= 0);
+  assert!(wv_margin.3 >= 0);
+  let wv_border: (usize, usize, usize, usize) = (1, 1, 1, 1);
+  assert!(wv_border.0 >= 0);
+  assert!(wv_border.1 >= 0);
+  assert!(wv_border.2 >= 0);
+  assert!(wv_border.3 >= 0);
+
+  // World coordinates for the viewport:
+  let viewport_offset_x: i32 = -25; // (TODO: this should make sure the character location is included in the viewport)
+  let viewport_offset_y: i32 = -25; // Same ^
+  let viewport_size_w: usize = 51;
+  let viewport_size_h: usize = 51;
+
+  let wv_width = wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1;
+  let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h * 2) + wv_border.1 + wv_margin.1;
+
+  // Create strings that form lines of margins and borders
+
+  let mut view: Vec<Vec<char>> = vec!();
+
+  // Top margin line
+  let margin_top: Vec<char> = std::iter::repeat(' ').take(wv_width).collect();
+  view.push(margin_top);
+
+  // Top border line
+  // Has to take the corners into account too
+  // Starts with the left-margin (if any)
+  let mut border_top: Vec<char> = std::iter::repeat(' ').take(wv_margin.3).collect();
+  // border; corner + horizontal line + corner
+  if wv_border.0 == 1 && wv_border.3 == 1 { border_top.push(ICON_BORDER_TL); }
+  if wv_border.1 == 1 { border_top = border_top.into_iter().chain::<Vec<char>>(std::iter::repeat(ICON_BORDER_H).take(viewport_size_w * 2).collect()).collect(); }
+  if wv_border.0 == 1 && wv_border.1 == 1 { border_top.push(ICON_BORDER_TR); }
+  // append the right margin (if any)
+  if wv_margin.1 == 1 { border_top = border_top.into_iter().chain::<Vec<char>>(std::iter::repeat(' ').take(wv_margin.1).collect()).collect(); }
+  view.push(border_top);
+
+  // The middle rows contain the real world view :)
+  for j in 0..viewport_size_h as i32 {
+    let mut line: Vec<char> = vec!();
+    // Prepend the margin and border (if any)
+    for _ in 0..wv_margin.3 { line.push(' '); }
+    for _ in 0..wv_border.3 { line.push(ICON_BORDER_V); }
+    // Paint the world background tiles
+    for i in 0..viewport_size_w as i32 {
+      match get_tile_at(&options, &world, viewport_offset_x + i, viewport_offset_y + j) {
+        Cell::Empty => {
+          line.push(' ');
+          line.push(' ');
+        }
+        Cell::Energy => line.push(ICON_ENERGY),
+        Cell::Wall1 => {
+          line.push(ICON_BLOCK_25);
+          line.push(ICON_BLOCK_25);
+        },
+        Cell::Wall2 => {
+          line.push(ICON_BLOCK_50);
+          line.push(ICON_BLOCK_50);
+        },
+        Cell::Wall3 => {
+          line.push(ICON_BLOCK_75);
+          line.push(ICON_BLOCK_75);
+        },
+        Cell::Wall4 => {
+          line.push(ICON_BLOCK_100);
+          line.push(ICON_BLOCK_100);
+        },
+        Cell::Diamond => line.push(ICON_DIAMOND),
+        Cell::DroneDown => line.push(ICON_DRONE_DOWN),
+        Cell::DroneLeft => line.push(ICON_DRONE_LEFT),
+        Cell::DroneRight => line.push(ICON_DRONE_RIGHT),
+        Cell::DroneUp => line.push(ICON_DRONE_UP),
+      }
+    }
+
+    // Append the right side margin and border (if any)
+    for _ in 0..wv_border.1 { line.push(ICON_BORDER_V); }
+    for _ in 0..wv_margin.1 { line.push(' '); }
+    // That is one line finished
+    view.push(line);
+  }
+
+  // Now add the bottom border and margin (if any)
+  // Has to take the corners into account too
+  // Starts with the left-margin (if any)
+  let mut border_bottom: Vec<char> = std::iter::repeat(' ').take(wv_margin.3).collect();
+  // border; corner + horizontal line + corner
+  if wv_border.2 == 1 && wv_border.3 == 1 { border_bottom.push(ICON_BORDER_BL); }
+  if wv_border.1 == 1 { border_bottom = border_bottom.into_iter().chain::<Vec<char>>(std::iter::repeat(ICON_BORDER_H).take(viewport_size_w * 2).collect()).collect(); }
+  if wv_border.2 == 1 && wv_border.1 == 1 { border_bottom.push(ICON_BORDER_BR); }
+  // append the right margin (if any)
+  if wv_margin.1 == 1 { border_bottom = border_bottom.into_iter().chain::<Vec<char>>(std::iter::repeat(' ').take(wv_margin.1).collect()).collect(); }
+  view.push(border_bottom);
+
+  // That should complete the world view. `view` should be wv_width x wv_height cells right now.
+  // Remaining steps are to paint the moving actors, color some tiles, and add ui elements
+
+  for biome in biomes.iter() {
+    // if the viewport offsets at <-25, -25> and the miner is at <0,0> then paint it at <25,25>
+    // <-25,-25> and <1,1> then <26,26>
+    // <0,0> and <10,20> then <10,20>
+    // <1,2> and <9,18> then <10,20>
+
+    // Convert view and the actor to the absolute coordinates (u32)
+    // Subtract the viewport coords from the actor coords
+    // That's where to paint the actor
+
+    // World position of actor
+    let mx: i32 = biome.miner.movable.x;
+    let my: i32 = biome.miner.movable.y;
+
+    let amx = if mx < 0 { (viewport_offset_x - mx).abs() } else { viewport_offset_x.abs() + 1 + mx };
+    let amy = if my < 0 { (viewport_offset_y - my).abs() } else { viewport_offset_y.abs() + 1 + my };
+
+    println!("-> {}x{} -> {}x{} -> {}", mx, my, amx, amy, bound_inc(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32));
+
+    // First confirm whether the actor is within the viewport anyways
+    // println!("check: {} {} {} {} {} {} = {}", mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32, bound(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32));
+    // if bound_ex(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
+      // Yes. Convert the coords to absolute (vec) indexes.
+
+      // If the actor coord is negative, then subtract it from the viewport. Otherwise add the
+      // absolute viewport coord plus one (for the 0,0 cell because the range is inclusive).
+      // <-10, -10> and <-7, 3>:
+      // x: (-10 - -7).abs() = -3
+      // y: (-10).abs() + 1 + 3 = 14
+      // -> <-3, 14>
+
+      view[amy as usize][amx as usize] = ICON_GHOST;
+    // }
+  }
+
+
+  // TODO: must be string, not char, because 2x cells and colors require multiple chars anyways
+
+
+  for row in view.iter() {
+    let border_top_str: String = row.into_iter().collect();
+    println!("{}", border_top_str);
+  }
+
+
+  // let foo = "hello, world!";
+  // let bar: Vec<char> = foo.chars().collect();
+  // for c in bar {
+  //   println!("{}", c);
+  // }
 
   return "fixme".to_owned();
 
-
-  // new stuff:
-
-
-  // let view_margin = (1, 1, 1, 1);
-  // assert(view_margin.0 >= 0);
-  // assert(view_margin.1 >= 0);
-  // assert(view_margin.2 >= 0);
-  // assert(view_margin.3 >= 0);
-  //
-  // // World coordinates for the viewport:
-  // let viewport_offset_x: i32 = -25; // (TODO: this should make sure the character location is included in the viewport)
-  // let viewport_offset_y: i32 = -25; // Same ^
-  // let viewport_size_w: i32 = 50;
-  // let viewport_size_h: i32 = 50;
-  //
-  // // Create strings that form lines of margins and borders
-  // let margin_top: Vec<char> = vec!().chain(std::iter::repeat(' ').take(view_margin.3 + (view_margin.0 * WIDTH * 2) + view_margin.1));
-  // let border_top: Vec<char> = vec!().chain(std::iter::repeat(' ').take(view_margin.3)).chain(vec!(ICON_BORDER_TL)).chain(std::iter::repeat(ICON_BORDER_H).take(WIDTH*2)).chain(vec!(ICON_BORDER_TR)).chain(std::iter::repeat(' ').take(view_margin.1));
-  // let border_bottom: Vec<char> = vec!().chain(std::iter::repeat(' ').take(view_margin.3)).chain(vec!(ICON_BORDER_BL)).chain(std::iter::repeat(ICON_BORDER_H).take(WIDTH*2)).chain(vec!(ICON_BORDER_BR)).chain(std::iter::repeat(' ').take(view_margin.3));
-  // let margin_bottom: Vec<char> = vec!().chain(std::iter::repeat(' ').take(view_margin.3 + (view_margin.2 * WIDTH * 2) + view_margin.1));
-  //
-  // let mut view: Vec<Vec<char>> = vec!();
-  // if view_margin.0 > 0 {
-  //     view.push(margin_top);
-  // }
-  // view.push(border_top);
-  //
-  // // First generate the map view with the actual tiles
-  //
-  // // To get to the correct vec index for given viewport offset;
-  // //    world.min.abs() + offset
-  // // Example:
-  // //    initially min is -25 and the camera is at -25, so -25.abs() + -25 = -25
-  //
-  // for line in world.tiles.slice(world.min_y.abs() + viewport_offset_y, viewport_size_h) {
-  //     let mut view_line: Vec<char> = vec!();
-  //
-  //     if view_margin.3 > 0 {
-  //         view_line.push(' ');
-  //     }
-  //     view_line.push(ICON_BORDER_V);
-  //
-  //     for tile in line.slice(world.min_x.abs() + viewport_offset_x, viewport_size_w) {
-  //         match tile.0 {
-  //             | Cell::Empty => {
-  //                 view_line.push(' ');
-  //                 view_line.push(' ');
-  //             },
-  //             | Cell::Energy => {
-  //                 view_line.push(ICON_ENERGY);
-  //             },
-  //             | Cell::Wall1
-  //             | Cell::Wall2
-  //             | Cell::Wall3 => {
-  //                 view_line.push(ICON_BLOCK_100);
-  //                 view_line.push(ICON_BLOCK_100);
-  //             },
-  //             | _tile => panic!("Unknown tile type: {:?}", _tile),
-  //         }
-  //     }
-  //
-  //     view_line.push(ICON_BORDER_V);
-  //     if view_margin.1 > 0 {
-  //         view_line.push(' ');
-  //     }
-  //
-  //     view.push(view_line);
-  // }
-  // view.push(border_bottom);
-  // if view_margin.2 > 0 {
-  //     view.push(margin_bottom);
-  // }
-  //
   // // Now we have a predictable view. Print the movable characters on top of it.
   //
-  // for biome in biomes.iter() {
-  //     // if the viewport offsets at <-25, -25> and the miner is at <0,0> then paint it at <25,25>
-  //     // <-25,-25> and <1,1> then <26,26>
-  //     // <0,0> and <10,20> then <10,20>
-  //     // <1,2> and <9,18> then <10,20>
-  //
-  //     let rx: i32 = biome.miner.movable.x - viewport_offset_x;
-  //     let ry: i32 = biome.miner.movable.y - viewport_offset_y;
-  //     if bound(rx, ry, 0, 0, viewport_size_w, viewport_size_h) {
-  //         // Miner is within range. Paint it at the relative coords <rx,ry>
-  //         view[view_margin.0 + 1 + ry][view_margin.3 + 1 + rx] = ICON_GHOST;
-  //     }
-  // }
+
   //
   // // Print the main miner. This way we know it will be visible and not covered by a ghost.
   // {
@@ -498,10 +574,23 @@ pub fn create_tile(cell_type: Cell) -> Tile {
 }
 
 pub fn get_tile_at(options: &Options, world: &World, x: i32, y: i32) -> Cell {
+  assert_world_dimensions(world);
+
   if x < world.min_x || x > world.max_x || y < world.min_y || y > world.max_y {
     // OOB. Use generated value
     return generate_cell(options, x, y);
   }
 
-  return world.tiles[(world.min_x.abs() - x) as usize][(world.min_y.abs() - y) as usize].0;
+  let ax = world.min_x.abs() + x;
+  let ay = (world.min_y.abs() + y);
+
+  // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
+  // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
+
+  assert!(y >= world.min_y);
+  assert!(ax >= 0);
+  assert!(ay >= 0);
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x));
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y));
+  return world.tiles[ay as usize][ax as usize].0;
 }

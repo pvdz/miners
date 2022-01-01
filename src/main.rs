@@ -169,6 +169,7 @@ fn main() {
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
 
+      // Tick the biomes
       has_energy = false;
       for m in 0..biomes.len() {
         let biome = &mut biomes[m];
@@ -202,11 +203,11 @@ fn main() {
       iteration = iteration + 1;
 
       if options.visual {
-        // let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
-        // print!("\x1b[53A\n");
-        // println!("{}", table_str);
-        //
-        // thread::sleep(delay);
+        let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
+        print!("\x1b[56A\n");
+        println!("{}", table_str);
+
+        thread::sleep(delay);
       }
 
       for m in 0..biomes.len() {
@@ -243,6 +244,10 @@ fn main() {
 
     if options.visual {
       print!("\x1b[{}A\n", 53 + biomes.len());
+
+      // let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
+      // println!("{}", table_str);
+
 
       for m in 1..biomes.len() {
         let biome: &biome::Biome = &biomes[m];

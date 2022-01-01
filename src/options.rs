@@ -12,10 +12,10 @@ pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
         seed: 0,
-        speed: 10,
+        speed: 100,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
-        visual: false,
+        visual: true,
     };
 
     let args: Vec<String> = env::args().collect();
