@@ -1,5 +1,3 @@
-use std::fmt;
-
 use super::slottable::*;
 // use super::miner::*;
 // use super::movable::*;
@@ -11,7 +9,7 @@ pub const TITLE_DRILL: &str = "Drill";
 
 pub fn create_drill(nth: i32) -> Slottable {
     return Slottable {
-        kind: SlotKind::BrokenGps,
+        kind: SlotKind::Drill,
         title: TITLE_DRILL.to_owned(),
         max_cooldown: 0.0,
         cur_cooldown: 0.0,

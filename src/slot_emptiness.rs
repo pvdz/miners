@@ -11,7 +11,7 @@ pub const TITLE_EMPTINESS: &str = "Empty";
 
 pub fn create_empty_slot() -> Slottable {
     return Slottable {
-        kind: SlotKind::BrokenGps,
+        kind: SlotKind::Emptiness,
         title: TITLE_EMPTINESS.to_owned(),
         max_cooldown: 0.0,
         cur_cooldown: 0.0,

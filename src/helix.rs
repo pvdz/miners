@@ -13,6 +13,9 @@ use super::slottable::*;
  */
 #[derive(Clone, Copy)]
 pub struct Helix {
+    // Seed used to randomly generate this helix. Zero if it was derived from another helix.
+    pub seed: u64,
+
     // Arguably this should be a drone launcher property
     // Gene: Generate a new drone at this interval
     pub drone_gen_cooldown: f32,
@@ -45,14 +48,15 @@ fn slots_string(slots: [SlotKind; 32]) -> String  {
     slots.iter().map(|slot| slot_type_to_symbol(&slot)).collect()
 }
 
-pub fn create_initial_helix(rng: &mut Lcg128Xsl64) -> Helix {
+pub fn create_initial_helix(rng: &mut Lcg128Xsl64, seed: u64) -> Helix {
     let multiplier_percent: Uniform<f32> = Uniform::from(0.0..100.0);
 
-    return Helix {
+    let h = Helix {
+        seed,
         drone_gen_cooldown: multiplier_percent.sample(rng).round(),
         multiplier_energy_start: multiplier_percent.sample(rng).round(),
         multiplier_points: 0f32, // multiplier_percent.sample(rng),
-        block_bump_cost: multiplier_percent.sample(rng).round(),
+        block_bump_cost: multiplier_percent.sample(rng).max(1.0).round(),
         multiplier_energy_pickup: 0.0, // multiplier_percent.sample(rng),
         slots: [
             get_random_slot(rng),
@@ -88,7 +92,9 @@ pub fn create_initial_helix(rng: &mut Lcg128Xsl64) -> Helix {
             SlotKind::Emptiness,
             SlotKind::Emptiness,
         ],
-    }
+    };
+
+    return h;
 }
 
 fn mutate_gen_maybe(current: f32, roll: f32, options: &Options) -> f32 {
@@ -114,10 +120,11 @@ pub fn mutate_helix(rng: &mut Lcg128Xsl64, helix: Helix, options: &Options) -> H
     let pct_roller: Uniform<f32> = Uniform::from(0.0..100.0);
 
     return Helix {
+        seed: 0,
         drone_gen_cooldown: mutate_gen_maybe(helix.drone_gen_cooldown, pct_roller.sample(rng), options),
         multiplier_energy_start: mutate_gen_maybe(helix.multiplier_energy_start, pct_roller.sample(rng), options),
         multiplier_points: 0.0,
-        block_bump_cost: mutate_gen_maybe(helix.block_bump_cost, pct_roller.sample(rng), options),
+        block_bump_cost: mutate_gen_maybe(helix.block_bump_cost, pct_roller.sample(rng), options).max(1.0),
         multiplier_energy_pickup: 0.0,
         slots: [
             mutate_slot_maybe(helix.slots[0], pct_roller.sample(rng), rng, options),

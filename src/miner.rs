@@ -1,13 +1,10 @@
 use super::slottable::*;
 use super::values::*;
-// use super::icons::*;
 use super::slot_emptiness::*;
 use super::helix::*;
 use super::slot_drone_launcher::*;
-use super::drone::*;
 use super::slot_energy_cell::*;
 use super::movable::*;
-// use super::world::*;
 use super::slot_hammer::*;
 use super::slot_drill::*;
 use super::slot_purity_scanner::*;
@@ -70,7 +67,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
     // Given a Helix ("footprint of a miner") return a Miner with those baseline properties
     // Note: this function receives a clone of the helix since the helix will be stored in this miner. TODO: what does the version without cloning look like?
 
-    let max_energy: f32 = ((INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0);
+    let max_energy: f32 = (INIT_ENERGY as f32) * ((100.0 + helix.multiplier_energy_start) as f32) / 100.0;
 
     // Start with empty slots and populate them with the slots indicated by the helix
     let mut slots: MinerSlots = vec![
@@ -121,7 +118,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 slots[i] = create_empty_slot();
             },
             SlotKind::EnergyCell => {
-                slots[i] = create_slot_energy_cell(nth, 100, 100.0 * 2.0_f32.powf(nth as f32));
+                slots[i] = create_slot_energy_cell(nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
             },
             SlotKind::DroneLauncher => {
                 slots[0] = create_drone_launcher(nth, nth);
@@ -134,10 +131,10 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 slots[i] = create_drill(nth);
             },
             SlotKind::PurityScanner => {
-                slots[i] = create_slot_purity_scanner(nth, 100.0 * 2.0_f32.powf(nth as f32));
+                slots[i] = create_slot_purity_scanner(nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
             },
             SlotKind::BrokenGps => {
-                slots[i] = create_slot_broken_gps(nth, 100.0 * 2.0_f32.powf(nth as f32));
+                slots[i] = create_slot_broken_gps(nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
             }
             _ => {
                 panic!("Fix slot range generator in helix")
@@ -153,8 +150,11 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             what: WHAT_MINER,
             x: 0,
             y: 0,
-            dir: DIR_UP,
-            energy: max_energy,
+            dir: Direction::Up,
+            now_energy: max_energy,
+            init_energy: max_energy,
+            history: vec!((0,0)),
+            unique: vec!((0,0)),
         },
         meta: MinerMeta {
             points: 0,

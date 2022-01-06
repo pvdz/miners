@@ -1,13 +1,9 @@
-use std::fmt;
 use rand_pcg::{Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
 
-use super::miner::*;
-use super::world::*;
-use super::movable::*;
-use super::options::*;
-use super::cell_contents::*;
+// use super::tile::*;
 
+#[derive(Debug)]
 pub struct Slottable {
     pub kind: SlotKind,
     pub title: String,
@@ -20,34 +16,7 @@ pub struct Slottable {
     pub sum: i32,
 }
 
-/*
-pub trait AsSlottable: fmt::Display {
-    fn tick(&mut self, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options);
-
-    // This is the callback to paint this entity on the map. The callback should assume to be
-    // painting itself onto one or two characters. It should return the cell to be printed and
-    // the coordinate (x,y as i32) where it exists in the world model.
-    // (Result may be discarded if out of view. We may optimize for this case in the future.)
-    fn paint_entity(&self, world: &World, options: &Options) -> (Cell, i32, i32);
-
-    // Print some UI info for this slottable. Should return the string as a vec, new new lines
-    // and an arbitrary fixed max width that will be trunced if too long. Empty vec is ignored.
-    fn paint_ui(&self, world: &World, options: &Options) -> Vec<char>;
-
-    // Print something for debugging? Empty vec is ignored.
-    fn paint_log(&self, world: &World, options: &Options) -> Vec<char>;
-
-    fn title(&self) -> &str;
-    fn to_symbol(&self) -> &str;
-
-    fn get_cooldown(&self) -> f32;
-    fn set_cooldown(&mut self, v: f32) -> f32;
-    fn get_max_cooldown(&self) -> f32;
-    fn set_max_cooldown(&mut self, v: f32) -> f32;
-}
-*/
-
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum SlotKind {
     Drill = 0,
     DroneLauncher = 1,
@@ -57,20 +26,6 @@ pub enum SlotKind {
     PurityScanner = 5,
     BrokenGps = 6,
 }
-/*
-match slot.kind {
-  slottable::SlotKind::Emptiness => (), // noop
-  slottable::SlotKind::EnergyCell => (), // noop
-  slottable::SlotKind::DroneLauncher => (), // noop
-  slottable::SlotKind::Hammer => (), // noop
-  slottable::SlotKind::Drill => (), // noop
-  slottable::SlotKind::PurityScanner => (), // noop
-  slottable::SlotKind::BrokenGps => (), // noop
-  _ => {
-    panic!("Fix slot range generator in helix")
-  },
-}
-*/
 
 pub const SLOT_COUNT: i32 = 7; // Must manually keep up to date with the enum ;(
 // This function serves as a sanity check for the size constant

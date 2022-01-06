@@ -1,5 +1,3 @@
-use std::fmt;
-
 use super::slottable::*;
 use super::miner::*;
 use super::world::*;
@@ -12,11 +10,12 @@ pub const TITLE_ENERGY_CELL: &str = "Energy Cell";
 /**
  * An energy cell gives you an energy boost at a certain interval. It takes up n slots.
  */
-pub fn create_slot_energy_cell(nth: i32, energy_bonus: i32, max_energy: f32) -> Slottable {
+pub fn create_slot_energy_cell(nth: i32, energy_bonus: i32, max_cooldown: f32) -> Slottable {
+    assert!(max_cooldown > 0.0, "slot max cooldown should be non-zero: {}", max_cooldown);
     return Slottable {
-        kind: SlotKind::BrokenGps,
+        kind: SlotKind::EnergyCell,
         title: TITLE_ENERGY_CELL.to_owned(),
-        max_cooldown: max_energy,
+        max_cooldown, // max_energy,
         cur_cooldown: 0.0,
         nth,
         val: energy_bonus,
@@ -24,13 +23,13 @@ pub fn create_slot_energy_cell(nth: i32, energy_bonus: i32, max_energy: f32) -> 
     };
 }
 
-pub fn tick_slot_energy_cell(slot: &mut Slottable, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
+pub fn tick_slot_energy_cell(slot: &mut Slottable, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, _world: &mut World, _options: &Options) {
     slot.cur_cooldown = slot.cur_cooldown + 1.0;
     if slot.cur_cooldown >= slot.max_cooldown {
-        miner_movable.energy = miner_movable.energy + (slot.val as f32);
+        miner_movable.now_energy = miner_movable.now_energy + (slot.val as f32);
         slot.sum = slot.sum + slot.val;
-        if miner_movable.energy > miner_meta.max_energy {
-            miner_movable.energy = miner_meta.max_energy;
+        if miner_movable.now_energy > miner_meta.max_energy {
+            miner_movable.now_energy = miner_meta.max_energy;
         }
         slot.cur_cooldown = 0.0;
     }

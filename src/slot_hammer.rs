@@ -1,5 +1,3 @@
-use std::fmt;
-
 use super::slottable::*;
 // use super::miner::*;
 // use super::movable::*;

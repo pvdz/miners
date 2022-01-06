@@ -16,11 +16,16 @@ pub mod slot_broken_gps;
 pub mod slot_drone_launcher;
 pub mod slot_energy_cell;
 pub mod slot_emptiness;
-// pub mod trie;
-pub mod cell_contents;
+pub mod tile;
 
 use std::{thread, time};
+use std::borrow::Borrow;
 use std::sync::mpsc::TryRecvError;
+use std::fs;
+use std::path::Path;
+
+extern crate serde_json;
+use std::collections::BTreeMap;
 
 use std::time::SystemTime;
 
@@ -58,31 +63,45 @@ use rand::distributions::{Distribution, Uniform};
 
 fn main() {
   println!("Starting....");
-  // let mut trie = trie::Trie::new();
-  // println!("da trie: {}", trie);
-  //
-  // println!("Now adding an entry...");
-  //
-  // let path = vec!(1, 3, -2000, 4);
-  // let trail = trie.path_to_trail(path);
-  // trie.write(&trail, 1);
-  // println!("Trie now A: {}", trie);
-  //
-  // let path = vec!(1, 3, -3, 4);
-  // let trail = trie.path_to_trail(path);
-  // trie.write(&trail, 1);
-  // println!("Trie now B: {}", trie);
-  //
-  // let path = vec!(1, 3, -3, 4);
-  // let trail = trie.path_to_trail(path);
-  // println!("result: {}", trie.read(&trail));
-  //
-  // let path = vec!(1, 3, -3, 5);
-  // let trail = trie.path_to_trail(path);
-  // println!("result: {}", trie.read(&trail));
-  // panic!("hard stop");
+
+  // I expected a Trie to outperform a simple list but it seems that may not be the case.
+  // Trie mode: Binary     It has    3179577 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      20372) out of       2260 total. Each node stores   2+2 x i32 so naive encoding totals (  2+2)*4*3179577   =   24842 kb
+  // Trie mode: B3         It has    2371508 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      15321) out of       2260 total. Each node stores   3+2 x i32 so naive encoding totals (  3+2)*4*2371508   =   18530 kb
+  // Trie mode: B4         It has    2087966 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      13537) out of       2260 total. Each node stores   4+2 x i32 so naive encoding totals (  4+2)*4*2087966   =   16316 kb
+  // Trie mode: B5         It has    1937885 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      12620) out of       2260 total. Each node stores   5+2 x i32 so naive encoding totals (  5+2)*4*1937885   =   15144 kb
+  // Trie mode: B6         It has    1853207 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      12094) out of       2260 total. Each node stores   6+2 x i32 so naive encoding totals (  6+2)*4*1853207   =   14484 kb
+  // Trie mode: B7         It has    1777314 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      11608) out of       2260 total. Each node stores   7+2 x i32 so naive encoding totals (  7+2)*4*1777314   =   13892 kb
+  // Trie mode: Octal      It has    3831644 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      26593) out of       2260 total. Each node stores   8+2 x i32 so naive encoding totals (  8+2)*4*3831644   =   29942 kb
+  // Trie mode: Decimal    It has    1639810 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      10765) out of       2260 total. Each node stores  10+2 x i32 so naive encoding totals ( 10+2)*4*1639810   =   12821 kb
+  // Trie mode: B15        It has    1577534 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8304) out of       2260 total. Each node stores  15+2 x i32 so naive encoding totals ( 15+2)*4*1577534   =   12339 kb
+  // Trie mode: Hex        It has    2787106 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      19544) out of       2260 total. Each node stores  16+2 x i32 so naive encoding totals ( 16+2)*4*2787106   =   21790 kb
+  // Trie mode: Alpha      It has    1488812 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       9785) out of       2260 total. Each node stores  26+2 x i32 so naive encoding totals ( 26+2)*4*1488812   =   11657 kb
+  // Trie mode: Alnum      It has    1427520 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       9416) out of       2260 total. Each node stores  36+2 x i32 so naive encoding totals ( 36+2)*4*1427520   =   11188 kb
+  // Trie mode: AlUp       It has    1311942 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8709) out of       2260 total. Each node stores  62+2 x i32 so naive encoding totals ( 62+2)*4*1311942   =   10311 kb
+  // Trie mode: B125       It has    1240957 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8304) out of       2260 total. Each node stores 125+2 x i32 so naive encoding totals (125+2)*4*1240957   =    9819 kb
+  // Trie mode: BYTE       It has    1943041 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       1593) out of       2260 total. Each node stores 256+1 x i32 so naive encoding totals (256+1)*4*1943041   = 1950631 kb
+  // Binary tree mode      It has        413 nodes. It contains        413 unique paths (avg miner steps:       1721, avg search len   :       1593) out of       2260 total. Each node stores (1+2*4*len) x i32 so naive totals      i32*4*2*413*1593  =    5139 kb
+  // Both in terms of serialization as well as search time, a balanced binary tree should outperform a Trie. One caveat: the Trie should outperform in terms of serialization as the number of paths grows. TBD.
+
+  // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html
+  // TODO: not relevant yet but when squeezing perf: does the btree on strings have amortized O(log2(n)+m) time rather than O(log2(n)*m) time? (does it remember string offset of previous step while traversing the tree?).
+  let mut btree: BTreeMap<String, usize> = BTreeMap::new();
+  let mut trail_lens: u64 = 0;
 
   let mut options = options::parse_cli_args();
+
+  let f = format!("./seed_{}.rson", options.seed);
+  let p = Path::new(&f);
+  if options.seed > 0 && p.is_file() {
+    println!("Loading from file... `{}`", f);
+    let s = fs::read_to_string(&p).expect("Unable to read file");
+    println!("Parsing {} bytes into btree", s.len());
+    btree = serde_json::from_str(&s).unwrap();
+    println!("Loaded {} miners from disk", btree.len());
+  }
+
+  // When this gets set (by user interaction) the best miner is cleared and a new miner-seed is randomly picked.
+  let mut reset = false;
 
   if options.seed == 0 {
     // Did not receive a seed from the CLI so generate one now. We'll print it so if we find
@@ -96,51 +115,54 @@ fn main() {
   let mut delay = time::Duration::from_millis(options.speed);
 
   // This copy of rng is the one that is "random" for this whole run, not one epoch
-  // It's seeded so are able to repro a run
-  let mut instance_rng: Lcg128Xsl64  = Pcg64::seed_from_u64(options.seed);
+  // It's seeded so are able to repro a run. The initial miner is based on it as well.
+  let mut instance_rng: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
 
-  let mut best_miner: (helix::Helix, i32) = (
-     helix::create_initial_helix(&mut instance_rng),
-     0,
+  let mut best_miner: (helix::Helix, i32, usize, usize) = (
+    helix::create_initial_helix(&mut instance_rng, options.seed),
+    0,
+    0,
+    0,
   );
   let mut best_min_x = 0;
   let mut best_min_y = 0;
   let mut best_max_x = 0;
   let mut best_max_y = 0;
 
+  let mut next_root_helix = best_miner.0;
+
   let stdin_channel = async_stdin::spawn_stdin_channel();
 
-  let mut total_miner_count: i32 = 0;
+  let mut total_miner_count: u32 = 0;
+  let mut current_miner_count: u32 = 0;
   let start_time = SystemTime::now();
 
-  loop
-  {
+  loop {
     // Generate a bunch of biomes. Create a world for them and put a miner in there.
     // Each biome shares the same world (governed by the seed). But since the world is destructible
     // we have to give each biome their own world state.
     let mut biomes: Vec<biome::Biome> = vec!();
-    for _ in 0..10 {
-      let cur_miner: miner::Miner = miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, best_miner.0, &options)); // The helix will clone/copy. Can/should we prevent this?
+    for _ in 0..options.batch_size {
+      let cur_miner: miner::Miner = miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, next_root_helix, &options)); // The helix will clone/copy. Can/should we prevent this?
       let own_world: world::World = world::generate_world(&options);
       let biome = biome::Biome {
         world: own_world,
         miner: cur_miner,
         path: vec!(0, 0),
       };
+      // println!("====== miner ======");
+      // println!("miner slots: {:?}", &biome.miner.slots);
+      // println!("===================");
       biomes.push(biome);
     }
 
-    total_miner_count = total_miner_count + (biomes.len() as i32);
-
-    if options.visual {
-      let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
-      println!("{}", table_str);
-    }
+    total_miner_count = total_miner_count + (biomes.len() as u32);
+    current_miner_count = current_miner_count + (biomes.len() as u32);
 
     // Move it move it
     let mut iteration = 0; // How many iterations for the current cycle
     let mut has_energy = true; // As long as any miner in the current cycle has energy left...
-    while has_energy {
+    while has_energy && !reset {
       // This is basically the main game loop
 
       // Handle keyboard event
@@ -163,17 +185,48 @@ fn main() {
           "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
           "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
           "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
+          "n\n" => options.batch_size = options.batch_size + 1,
+          "m\n" => options.batch_size = (options.batch_size - 1).max(1),
+          "r\n" => {
+            reset = true;
+            println!("Manual reset requested...");
+          },
+          "q\n" => {
+            // Save and quit.
+            println!("Serializing btree with {} entries...", btree.len());
+            let s = serde_json::to_string_pretty(&btree).unwrap();
+            let f = format!("./seed_{}.rson", options.seed);
+            println!("Storing {} bytes to `{}`", s.len(), f);
+            fs::write(f, s).expect("Unable to write file");
+            println!("Finished writing. Exiting now...");
+            panic!("Quit after request");
+          },
           _ => (),
         }
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
 
+      if !reset && current_miner_count > options.reset_rate {
+        println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
+        reset = true;
+      }
+
+      if reset {
+        let new_seet = instance_rng.next_u64();
+        next_root_helix = helix::create_initial_helix(&mut instance_rng, new_seet);
+        current_miner_count = 0;
+
+        // Do we reset other counters?
+
+        break;
+      }
+
       // Tick the biomes
       has_energy = false;
       for m in 0..biomes.len() {
         let biome = &mut biomes[m];
-        if biome.miner.movable.energy > 0.0 {
+        if biome.miner.movable.now_energy > 0.0 {
           let mminer: &mut movable::Movable = &mut biome.miner.movable;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
           let mworld: &mut world::World = &mut biome.world;
@@ -193,18 +246,60 @@ fn main() {
               },
             }
           }
+
           // Does this miner still have energy left?
-          if biome.miner.movable.energy > 0.0 {
+          if biome.miner.movable.now_energy > 0.0 {
             has_energy = true;
+          } else {
+            // This miner stopped now
+            // println!("Miner in biome {} stopped after {} steps, {} unique. Path: {:?}", m, biome.miner.movable.history.len(), biome.miner.movable.unique.len(), biome.miner.movable.unique);
+            // println!("Miner in biome {} stopped after {} steps, {} unique.", m, biome.miner.movable.history.len(), biome.miner.movable.unique.len());
+
+            // println!("da trie: {}", trie);
+            //
+            // println!("Now adding an entry...");
+            //
+            // let path = vec!(1, 3, -2000, 4);
+
+            let mut trail: String = String::new();
+
+            for (i, (x, y)) in biome.miner.movable.unique.iter().enumerate() {
+              if i == 0 {
+                let s = format!("{} {}", x, y);
+                trail.push_str(s.as_str());
+              } else {
+                let s = format!(" {} {}", x, y);
+                trail.push_str(s.as_str());
+              }
+            }
+            // TODO: ugh. get rid of the trail formats in this part... I just made it work for now.
+            let has_trail: bool = btree.contains_key(format!("{}", trail).as_str());
+            // TODO: why can't it do `.get()?` ? It refuses to do the `?` thing.
+            let cur_trail_value = btree.entry(format!("{}", trail)).or_insert(0);
+            *cur_trail_value += 1;
+            // btree.insert(format!("{}", trail), cur_trail_value + 1);
+            if has_trail {
+              // println!("This miner was already recorded...");
+            } else {
+              println!("This miner was new! trail has {} / {} steps. Tree now contains {} trails.", biome.miner.movable.unique.len(), biome.miner.movable.history.len(), btree.len());
+              trail_lens = trail_lens + biome.miner.movable.unique.len() as u64;
+            }
           }
         }
       }
 
       iteration = iteration + 1;
 
-      if options.visual {
-        let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
-        print!("\x1b[56A\n");
+      // Stop drawing the world when the main miner is out of energy. Speed things up visually.
+      if options.visual && biomes[0].miner.movable.now_energy > 0.0 {
+        let table_str: String = world::serialize_world(
+          &biomes[0].world,
+          &biomes,
+          &options,
+          format!("Best miner: Points: {}  Steps: {} ({})   Map: {}x{} ~ {}x{}  {}", best_miner.1, best_miner.2, best_miner.3, best_min_x, best_min_y, best_max_x, best_max_y, best_miner.0),
+          format!("Miner Dictionary contains {} entries. Average steps: {}.", btree.len(), trail_lens / btree.len().max(1) as u64),
+        );
+        print!("\x1b[58A\n");
         println!("{}", table_str);
 
         thread::sleep(delay);
@@ -212,22 +307,29 @@ fn main() {
 
       for m in 0..biomes.len() {
         let biome: &mut biome::Biome = &mut biomes[m];
-        // if biome.miner.meta.drone_gen_cooldown > 0 {
-        //   biome.miner.meta.drone_gen_cooldown = biome.miner.meta.drone_gen_cooldown - 1;
-        // }
-        for slot in biome.miner.slots.iter_mut() {
-          if biome.miner.meta.prev_move_bumped {
-            let cooldown = slot.cur_cooldown;
-            slot.cur_cooldown = cooldown + (cooldown * (biome.miner.helix.block_bump_cost / 50000.0));
+        if biome.miner.movable.now_energy > 0.0 {
+          for slot in biome.miner.slots.iter_mut() {
+            if biome.miner.meta.prev_move_bumped {
+              let cooldown = slot.cur_cooldown;
+              slot.cur_cooldown = cooldown + (cooldown * (biome.miner.helix.block_bump_cost / 50000.0));
+            }
           }
         }
       }
+    }
+
+    if reset {
+      reset = false;
+      println!("Resetting helix...");
+      continue;
     }
 
     let mut winner = (
       biomes[0].miner.helix,
       (biomes[0].miner.meta.points as f64 * ((100.0 + biomes[0].miner.helix.multiplier_points as f64) / 100.0)) as i32,
       &biomes[0].world,
+      biomes[0].miner.movable.history.len(),
+      biomes[0].miner.movable.unique.len(),
     );
     for m in 1..biomes.len() {
       let biome: &biome::Biome = &biomes[m];
@@ -238,17 +340,13 @@ fn main() {
           biome.miner.helix,
           points,
           &biome.world,
+          biome.miner.movable.history.len(),
+          biome.miner.movable.unique.len(),
         )
       }
     }
 
     if options.visual {
-      print!("\x1b[{}A\n", 53 + biomes.len());
-
-      // let table_str: String = world::serialize_world(&biomes[0].world, &biomes, best_miner, &options);
-      // println!("{}", table_str);
-
-
       for m in 1..biomes.len() {
         let biome: &biome::Biome = &biomes[m];
         let points = (biome.miner.meta.points as f64 * ((100.0 + biome.miner.helix.multiplier_points as f64) / 100.0)) as i32;
@@ -260,10 +358,11 @@ fn main() {
     helix::helix_to_string(&mut he, &winner.0);
 
     println!(
-      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
+      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}, batch: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
       match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
       iteration,
       total_miner_count,
+      current_miner_count,
 
       winner.1,
       best_miner.1,
@@ -276,12 +375,22 @@ fn main() {
       ' '
     );
     if winner.1 > best_miner.1 {
-      best_miner = (winner.0, winner.1);
+      best_miner = (winner.0, winner.1, winner.3, winner.4); // helix, points, steps, uniques
+      next_root_helix = winner.0;
       best_min_x = winner.2.min_x;
       best_min_y = winner.2.min_y;
       best_max_x = winner.2.max_x;
       best_max_y = winner.2.max_y;
     }
+
+    println!(
+      "Binary tree mode has {: >10} nodes with average trail len of {}.",
+      btree.len(),
+      trail_lens / btree.len() as u64
+    );
+
+    // println!("map: {}", serde_json::to_string_pretty(&btree).unwrap());
+    // panic!("halt");
   }
 }
 

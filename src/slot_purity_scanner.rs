@@ -1,10 +1,5 @@
-use std::fmt;
-
 use super::slottable::*;
 use super::miner::*;
-use super::world::*;
-use super::movable::*;
-use super::options::*;
 // use super::cell_contents::*;
 
 pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
@@ -14,8 +9,9 @@ pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
  * each additional scanner you get.
  */
 pub fn create_slot_purity_scanner(nth: i32, max_cooldown: f32) -> Slottable {
+    assert!(max_cooldown > 0.0, "slot max cooldown should be non-zero: {}", max_cooldown);
     return Slottable {
-        kind: SlotKind::Hammer,
+        kind: SlotKind::PurityScanner,
         title: TITLE_PURITY_SCANNER.to_owned(),
         max_cooldown,
         cur_cooldown: 0.0,

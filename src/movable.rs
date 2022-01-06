@@ -4,14 +4,26 @@ use super::world::*;
 use super::values::*;
 // use super::icons::*;
 use super::options::*;
-use super::cell_contents::*;
+use super::tile::*;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Up = 0,
+    Right = 1,
+    Down = 2,
+    Left = 3,
+}
+
+#[derive(Debug)]
 pub struct Movable {
     pub what: i32,
     pub x: i32,
     pub y: i32,
-    pub dir: i32,
-    pub energy: f32,
+    pub dir: Direction,
+    pub now_energy: f32,
+    pub init_energy: f32,
+    pub history: Vec<(i32, i32)>,
+    pub unique: Vec<(i32, i32)>,
 }
 
 fn drill_deeper(drills: i32, hammers: i32, x: i32, y: i32, dx: i32, dy: i32, world: &mut World, options: &Options) {
@@ -36,38 +48,38 @@ fn drill_deeper(drills: i32, hammers: i32, x: i32, y: i32, dx: i32, dy: i32, wor
 
         // Apply the drill power
         match world.tiles[unext_y][unext_x] {
-            (Cell::Wall4, _) => {
+            Cell { tile: Tile::Wall4, value, visited: _ } => {
                 world.tiles[unext_y][unext_x] = match strength {
-                    1 => create_tile(Cell::Wall3),
-                    2 => create_tile(Cell::Wall2),
-                    3 => create_tile(Cell::Wall1),
+                    1 => create_cell(Tile::Wall3, value),
+                    2 => create_cell(Tile::Wall2, value),
+                    3 => create_cell(Tile::Wall1, value),
                     _ => {
                         remaining = 1;
-                        create_tile(Cell::Diamond)
+                        create_cell(Tile::Diamond, value)
                     },
                 };
             },
-            (Cell::Wall3, _) => {
+            Cell { tile: Tile::Wall3, value, visited: _ } => {
                 world.tiles[unext_y][unext_x] = match strength {
-                    1 => create_tile(Cell::Wall2),
-                    2 => create_tile(Cell::Wall1),
+                    1 => create_cell(Tile::Wall2, value),
+                    2 => create_cell(Tile::Wall1, value),
                     _ => {
                         remaining = 1;
-                        create_tile(Cell::Diamond)
+                        create_cell(Tile::Diamond, value)
                     },
                 };
             },
-            (Cell::Wall2, _) => {
+            Cell { tile: Tile::Wall2, value, visited: _ } => {
                 world.tiles[unext_y][unext_x] = match strength {
-                    1 => create_tile(Cell::Wall1),
+                    1 => create_cell(Tile::Wall1, value),
                     _ => {
                         remaining = 1;
-                        create_tile(Cell::Diamond)
+                        create_cell(Tile::Diamond, value)
                     },
                 };
             },
-            (Cell::Wall1, _) => {
-                world.tiles[unext_y][unext_x] = create_tile(Cell::Diamond); // Or a different powerup?
+            Cell { tile: Tile::Wall1, value, visited: _ } => {
+                world.tiles[unext_y][unext_x] = create_cell(Tile::Diamond, value); // Or a different powerup?
                 remaining = 1;
             },
             _ => {
@@ -84,7 +96,7 @@ fn drill_deeper(drills: i32, hammers: i32, x: i32, y: i32, dx: i32, dy: i32, wor
 
 }
 
-fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, options: &Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, nextdir: i32) {
+fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, options: &Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, nextdir: Direction) {
     let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
     if movable.what == WHAT_MINER {
         meta.points_last_move = 0;
@@ -113,17 +125,16 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
 
     let drills = meta.kind_counts[SlotKind::Drill as usize];
     let hammers = meta.kind_counts[SlotKind::Hammer as usize];
-
     match world.tiles[unexty][unextx] {
-        (Cell::Wall4, _) => {
+        Cell { tile: Tile::Wall4, value, visited: _ } => {
             world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-                0 => create_tile(Cell::Wall3),
-                1 => create_tile( Cell::Wall2 ),
-                2 => create_tile( Cell::Wall1 ),
-                _ => create_tile( Cell::Diamond ),
+                0 => create_cell(Tile::Wall3, value),
+                1 => create_cell( Tile::Wall2, value ),
+                2 => create_cell( Tile::Wall1, value ),
+                _ => create_cell( Tile::Diamond, value ),
             };
             movable.dir = nextdir;
-            movable.energy = movable.energy - meta.block_bump_cost;
+            movable.now_energy = movable.now_energy - meta.block_bump_cost;
             if movable.what == WHAT_MINER {
                 if drills > 0 {
                     drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
@@ -131,14 +142,14 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
                 meta.prev_move_bumped = true;
             }
         },
-        (Cell::Wall3, _) => {
+        Cell { tile: Tile::Wall3, value, visited: _ } => {
             world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-                0 => create_tile( Cell::Wall2 ),
-                1 => create_tile( Cell::Wall1 ),
-                _ => create_tile( Cell::Diamond ),
+                0 => create_cell( Tile::Wall2, value ),
+                1 => create_cell( Tile::Wall1, value ),
+                _ => create_cell( Tile::Diamond, value ),
             };
             movable.dir = nextdir;
-            movable.energy = movable.energy - meta.block_bump_cost;
+            movable.now_energy = movable.now_energy - meta.block_bump_cost;
             if movable.what == WHAT_MINER {
                 if drills > 0 {
                     drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
@@ -146,13 +157,13 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
                 meta.prev_move_bumped = true;
             }
         },
-        (Cell::Wall2, _) => {
+        Cell { tile: Tile::Wall2, value, visited: _ } => {
             world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-                0 => create_tile( Cell::Wall1 ),
-                _ => create_tile( Cell::Diamond ),
+                0 => create_cell( Tile::Wall1, value ),
+                _ => create_cell( Tile::Diamond, value ),
             };
             movable.dir = nextdir;
-            movable.energy = movable.energy - meta.block_bump_cost;
+            movable.now_energy = movable.now_energy - meta.block_bump_cost;
             if movable.what == WHAT_MINER {
                 if drills > 0 {
                     drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
@@ -160,10 +171,10 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
                 meta.prev_move_bumped = true;
             }
         },
-        (Cell::Wall1, _) => {
-            world.tiles[unexty][unextx] = create_tile( Cell::Diamond ); // Or a different powerup?
+        Cell { tile: Tile::Wall1, value, visited: _ } => {
+            world.tiles[unexty][unextx] = create_cell( Tile::Diamond, value ); // Or a different powerup?
             movable.dir = nextdir; // Or maybe not? Could be a miner property or powerup
-            movable.energy = movable.energy - meta.block_bump_cost;
+            movable.now_energy = movable.now_energy - meta.block_bump_cost;
             if movable.what == WHAT_MINER {
                 if drills > 0 {
                     drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
@@ -171,16 +182,21 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
                 meta.prev_move_bumped = true;
             }
         },
-        (Cell::Energy, _) => {
-            movable.energy = movable.energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
-            if movable.energy > meta.max_energy {
-                movable.energy = meta.max_energy;
+        Cell { tile: Tile::Energy, value, visited: _ } => {
+            movable.now_energy = movable.now_energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
+            if movable.now_energy > meta.max_energy {
+                movable.now_energy = meta.max_energy;
             }
-            world.tiles[unexty][unextx] = create_tile( Cell::Empty );
+            world.tiles[unexty][unextx] = create_cell( Tile::Empty, value );
             movable.x = nextx;
             movable.y = nexty;
+            movable.history.push((nextx, nexty));
+            if world.tiles[unexty][unextx].visited == 0 {
+                world.tiles[unexty][unextx].visited = 1;
+                movable.unique.push((nextx, nexty));
+            }
         },
-        (Cell::Diamond, value) => {
+        Cell { tile: Tile::Diamond, value , visited: _ } => {
             // Different gems with different points. Miners could have properties or powerups to affect this, too.
             let gem_value = match value {
                 0 => 1, // TODO: currently every tile has zero here :)
@@ -193,21 +209,31 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
             if movable.what == WHAT_MINER {
                 meta.points_last_move = gem_value;
             }
-            world.tiles[unexty][unextx] = create_tile( Cell::Empty );
+            world.tiles[unexty][unextx] = create_cell( Tile::Empty, 0 );
             movable.x = nextx;
             movable.y = nexty;
+            movable.history.push((nextx, nexty));
+            if world.tiles[unexty][unextx].visited == 0 {
+                world.tiles[unexty][unextx].visited = 1;
+                movable.unique.push((nextx, nexty));
+            }
         },
         _ => {
             movable.x = nextx;
             movable.y = nexty;
             was_boring = true;
+            movable.history.push((nextx, nexty));
+            if world.tiles[unexty][unextx].visited == 0 {
+                world.tiles[unexty][unextx].visited = 1;
+                movable.unique.push((nextx, nexty));
+            }
         },
     }
 
     if movable.what == WHAT_MINER {
         if was_boring {
             // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
-            movable.energy = movable.energy - meta.boredom_level as f32;
+            movable.now_energy = movable.now_energy - meta.boredom_level as f32;
             // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
             meta.boredom_level = meta.boredom_level + 1;
         } else {
@@ -215,33 +241,33 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
         }
     }
 
-    if movable.energy < 0.0 {
-        movable.energy = 0.0;
+    if movable.now_energy < 0.0 {
+        movable.now_energy = 0.0;
     }
 }
 
 pub fn move_movable(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, options: &Options) {
     // println!("moving from {}x{}", movable.x, movable.y);
     match movable.dir {
-        DIR_UP => {
+        Direction::Up => {
             let nexty = movable.y - 1;
-            move_it_xy(movable, meta, world, options, movable.x, nexty, 0, -1,DIR_LEFT);
+            move_it_xy(movable, meta, world, options, movable.x, nexty, 0, -1,Direction::Left);
         },
-        DIR_LEFT => {
+        Direction::Left => {
             let nextx = movable.x - 1;
-            move_it_xy(movable, meta, world, options, nextx, movable.y, -1, 0, DIR_DOWN);
+            move_it_xy(movable, meta, world, options, nextx, movable.y, -1, 0, Direction::Down);
         },
-        DIR_DOWN => {
+        Direction::Down => {
             let nexty = movable.y + 1;
-            move_it_xy(movable, meta, world, options, movable.x, nexty, 0, 1, DIR_RIGHT);
+            move_it_xy(movable, meta, world, options, movable.x, nexty, 0, 1, Direction::Right);
         },
-        DIR_RIGHT => {
+        Direction::Right => {
             let nextx = movable.x + 1;
-            move_it_xy(movable, meta, world, options, nextx, movable.y, 1, 0, DIR_UP);
+            move_it_xy(movable, meta, world, options, nextx, movable.y, 1, 0, Direction::Up);
         },
 
         _ => {
-            println!("unexpected dir is: {}", movable.dir);
+            println!("unexpected dir is: {:?}", movable.dir);
             panic!("dir is enum");
         },
     }

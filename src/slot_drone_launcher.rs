@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::cell_contents::Cell;
+use crate::tile::Tile;
 
 use super::slottable::*;
 // use super::movable::*;
@@ -15,7 +15,7 @@ pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
 
 pub fn create_drone_launcher(nth: i32, drone_id: i32) -> Slottable {
     return Slottable {
-        kind: SlotKind::BrokenGps,
+        kind: SlotKind::DroneLauncher,
         title: TITLE_DRONE_LAUNCHER.to_owned(),
         max_cooldown: 0.0,
         cur_cooldown: 0.0,

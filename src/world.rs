@@ -4,15 +4,12 @@ use std::collections::VecDeque;
 use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rand::distributions::{Distribution, /*Uniform,*/ Standard};
-use crate::cell_contents::Cell::Empty;
 
-// use super::miner::*;
-use super::values::*;
+use super::movable::*;
 use super::icons::*;
 use super::options::*;
-use super::helix::*;
 use super::biome::*;
-use super::cell_contents::*;
+use super::tile::*;
 
 // The world is procedurally generated and has no theoretical bounds.
 // The map retained in memory is only has big as has been visited. Any unvisited cell (or well, any
@@ -23,12 +20,14 @@ use super::cell_contents::*;
 // moving potentially many bytes. A simple vec has the same problem in one direction.
 // So we use a vec deque which supports exactly this.
 
-pub type Tile = (
-  Cell, // Immovable type of this tile
-  u32, // Movable object on this tile
-);
-pub type Grid = VecDeque<VecDeque<Tile>>;
+#[derive(Debug)]
+pub struct Cell {
+  pub tile: Tile, // Immovable type of this cell
+  pub value: u32, // For certain kinds of cells this indicates its value
+  pub visited: u32, // How often has the miner visited this coord?
+}
 
+pub type Grid = VecDeque<VecDeque<Cell>>;
 
 #[derive(Debug)]
 pub struct World {
@@ -45,6 +44,15 @@ pub struct World {
 }
 
 pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
+  // For debugging: actually burn the grid into the world itself. Screws up the game but makes it less dependent on view printing logic.
+  // if x == 0 && y == 0 {
+  //   return Cell::ZeroZero;
+  // }
+  // if x % 10 == 0 || y % 10 == 0 {
+  //   // Draw debug lines
+  //   return Cell::TenLine;
+  // }
+
   // println!("  generate_cell({}, {})", x, y);
   // Take the world seed and add the x as a <<32 value and y as is to the seed
   // If either x or y are negative they should subtract that value from the world seed
@@ -57,26 +65,29 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
 
   // some % of the cells should contain an energy container (arbitrary)
   if (cell_rng.sample::<f32, Standard>(Standard)) < 0.05f32 {
-    return Cell::Energy;
+    return Cell { tile: Tile::Energy, value: 0, visited: 0 };
   }
 
   // Roughly half the cells should be filled with walls
   if cell_rng.sample::<f32, Standard>(Standard) < 0.4f32 {
     // Roughly speaking, 10% is 3, 30% is 2, 60% is 1?
-    let kind: f32 = cell_rng.sample(Standard);
+    let kind_roll: f32 = cell_rng.sample(Standard);
+    let value_roll: f32 = cell_rng.sample(Standard);
+    // 60% chance for wall to be common, 30% to be uncommon, 10% to be rare :shrug:
+    let wall_value = if value_roll < 0.6 { 1 } else if value_roll < 0.9 { 2 } else { 3 };
 
-    if kind < 0.1 {
-      return Cell::Wall3;
+    if kind_roll < 0.1 {
+      return Cell { tile: Tile::Wall3, value: wall_value, visited: 0 };
     }
 
-    if kind < 0.4 {
-      return Cell::Wall2;
+    if kind_roll < 0.4 {
+      return Cell { tile: Tile::Wall2, value: wall_value, visited: 0 };
     }
 
-    return Cell::Wall1;
+    return Cell { tile: Tile::Wall1, value: wall_value, visited: 0 };
   }
 
-  return Cell::Empty;
+  return Cell { tile: Tile::Empty, value: 0, visited: 0 };
 }
 
 pub fn world_width(world: &World) -> i32 {
@@ -107,12 +118,9 @@ pub fn generate_world(options: &Options) -> World {
   // seed and then generate the series of odds from that. This would give us rng (world seed),
   // consistency (coord as seed) and still an unpredictable odds (consistent procedure).
 
-  // Generate the initial state so we can paint it.
-  // Square spanning 25 blocks in all four directions from origin.
-
-  let mut ygrid: VecDeque<VecDeque<Tile>> = VecDeque::new();
-  let mut xgrid: VecDeque<Tile> = VecDeque::new();
-  xgrid.push_back((Cell::Empty, 0u32));
+  let mut ygrid: VecDeque<VecDeque<Cell>> = VecDeque::new();
+  let mut xgrid: VecDeque<Cell> = VecDeque::new();
+  xgrid.push_back(Cell { tile: Tile::Empty, value: 0u32, visited: 0 });
   ygrid.push_back(xgrid);
 
   let mut world = World {
@@ -123,24 +131,17 @@ pub fn generate_world(options: &Options) -> World {
     tiles: ygrid,
   };
 
-  let min_x = -3;
-  let min_y = -3;
-  let max_x = 3;
-  let max_y = 3;
-
-  // Explicitly spawn the 51x51 grid (25 cells in each direction plus the 0x0 cell)
-  ensure_cell_in_world(&mut world, options, min_x, min_y);
-  ensure_cell_in_world(&mut world, options, max_x, max_y);
-
-  // println!("World now: {} {}", world.tiles.len(), world.tiles[0].len());
+  // Use this to prerender part of the world for inspection reasons
+  ensure_cell_in_world(&mut world, options, -5, -5);
+  ensure_cell_in_world(&mut world, options, 5, 5);
 
   return world;
 }
 
-fn bound_ex(x: i32, y: i32, min_x: i32, max_x: i32, min_y: i32, max_y: i32) -> bool {
+fn bound_ex(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
   return x >= min_x && x < max_x && y >= min_y && y < max_y;
 }
-fn bound_inc(x: i32, y: i32, min_x: i32, max_x: i32, min_y: i32, max_y: i32) -> bool {
+fn bound_inc(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
   return x >= min_x && x <= max_x && y >= min_y && y <= max_y;
 }
 
@@ -155,15 +156,110 @@ pub fn assert_world_dimensions(world: &World) {
   }
 }
 
-pub fn serialize_world(world: &World, biomes: &Vec<Biome>, best: (Helix, i32), options: &Options) -> String {
+fn paint_biome_actors(biome: &Biome, i: usize, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
+  // if i > 0 { continue; }
+  // if the viewport offsets at <-25, -25> and the miner is at <0,0> then paint it at <25,25>
+  // <-25,-25> and <1,1> then <26,26>
+  // <0,0> and <10,20> then <10,20>
+  // <1,2> and <9,18> then <10,20>
+
+  // Convert view and the actor to the absolute coordinates (u32)
+  // Subtract the viewport coords from the actor coords
+  // That's where to paint the actor
+
+  // "miner world x/y"
+  let mwx: i32 = biome.miner.movable.x;
+  let mwy: i32 = biome.miner.movable.y;
+
+  // "miner view abs x/y", or "where are we painting this miner in the output data"
+  let mvax = vox + if mwx < 0 { (viewport_offset_x - mwx).abs() } else { viewport_offset_x.abs() + mwx };
+  let mvay = voy + if mwy < 0 { (viewport_offset_y - mwy).abs() } else { viewport_offset_y.abs() + mwy };
+
+  // println!("-> w: {}x{}|{}x{}, lens: {}x{}, miner: {}x{} -> {}x{}, view: {}x{}|{}x{} -> {}, miner: {} {: >10}",
+  //   biome.world.min_x, biome.world.min_y,
+  //   biome.world.max_x, biome.world.max_y,
+  //   biome.world.tiles[0].len(), biome.world.tiles.len(),
+  //   mwx, mwy, mvax, mvay,
+  //   viewport_offset_x, viewport_offset_y,
+  //   viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32,
+  //   bound_inc(mwx, mwy, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32),
+  //   biome.miner.movable.dir,
+  //   " "
+  // );
+
+  // First confirm whether the actor is within the viewport anyways
+  if bound_inc(mwx, mwy, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
+    // Yes. Convert the coords to absolute (vec) indexes.
+
+    // If the actor coord is negative, then subtract it from the viewport. Otherwise add the
+    // absolute viewport coord plus one (for the 0,0 cell because the range is inclusive).
+    // <-10, -10> and <-7, 3>:
+    // x: (-10 - -7).abs() = -3
+    // y: (-10).abs() + 1 + 3 = 14
+    // -> <-3, 14>
+
+    view[mvay as usize][mvax as usize] =
+      if options.paint_miner_ids {
+        match i {
+          0 => "00".to_string(),
+          1 => "11".to_string(),
+          2 => "22".to_string(),
+          3 => "33".to_string(),
+          4 => "44".to_string(),
+          5 => "55".to_string(),
+          6 => "66".to_string(),
+          7 => "77".to_string(),
+          8 => "88".to_string(),
+          9 => "99".to_string(),
+          _ => "@@".to_string(),
+        }
+      } else {
+        if i == 0 {
+          format!("\x1b[;1;1m\x1b[31m{} \x1b[0m",
+            match biome.miner.movable.dir {
+              Direction::Up => ICON_MINER_UP,
+              Direction::Down => ICON_MINER_DOWN,
+              Direction::Left => ICON_MINER_LEFT,
+              Direction::Right => ICON_MINER_RIGHT,
+              _dir => panic!("unexpected dir: {:?}", _dir),
+            }
+          ).to_string()
+        } else {
+          ICON_GHOST.to_string()
+        }
+        // format!("{}{}", mwx.abs(), mwy.abs())
+      };
+  }
+}
+
+fn progress_bar(bar_max_width: usize, cur_cooldown: f32, max_cooldown: f32, lte: bool) -> String {
+  if max_cooldown == 0.0 {
+    return "".to_string();
+  }
+
+  assert!(cur_cooldown >= 0.0, "cooldown should not be negative {:?} {:?}", cur_cooldown, max_cooldown);
+  assert!(!lte || cur_cooldown <= max_cooldown, "cooldown should not exceed the max unless explicitly allowed to do so... {:?} {:?} {}", cur_cooldown, max_cooldown, lte);
+
+  let progress = ((cur_cooldown / max_cooldown) * bar_max_width as f32).min(bar_max_width as f32) as usize;
+  let remaining = bar_max_width - progress;
+  return format!(
+    "[{}{}] ({: >3}%)",
+    std::iter::repeat('|').take(progress).collect::<String>(),
+    std::iter::repeat('-').take(remaining).collect::<String>(),
+    ((cur_cooldown / max_cooldown) * 100.0) as i32,
+  )
+}
+
+pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, best_miner_str: String, btree_str: String) -> String {
   // We assume a 150x80 terminal screen space (half my ultra wide)
   // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
-  assert_world_dimensions(world);
+  assert_world_dimensions(world0);
 
   // Start by painting the world. Give it a border too (annoying with calculations but worth it)
 
-  let wv_margin: (usize, usize, usize, usize) = (1, 1, 1, 1);
+  // Note: top has a forced empty line.
+  let wv_margin: (usize, usize, usize, usize) = (2, 1, 1, 1);
   assert!(wv_margin.0 >= 0);
   assert!(wv_margin.1 >= 0);
   assert!(wv_margin.2 >= 0);
@@ -181,69 +277,77 @@ pub fn serialize_world(world: &World, biomes: &Vec<Biome>, best: (Helix, i32), o
   let viewport_size_h: usize = 51;
 
   let wv_width = wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1;
-  let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h * 2) + wv_border.1 + wv_margin.1;
+  // let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h * 2) + wv_border.1 + wv_margin.1;
 
   // Create strings that form lines of margins and borders
 
-  let mut view: Vec<Vec<char>> = vec!();
+  let mut view: Vec<Vec<String>> = vec!();
+
+  // Forced empty line at the top
+  let empty_top_line: Vec<String> = std::iter::repeat("  ".to_string()).take(wv_width + 50).collect();
+  view.push(empty_top_line);
 
   // Top margin line
-  let margin_top: Vec<char> = std::iter::repeat(' ').take(wv_width).collect();
-  view.push(margin_top);
+  for _ in 1..wv_margin.0 {
+    let margin_top: Vec<String> = std::iter::repeat(format!("{}{}", ICON_MARGIN, ICON_MARGIN)).take(wv_width).collect();
+    view.push(margin_top);
+  }
 
   // Top border line
   // Has to take the corners into account too
+  let mut border_top: Vec<String> = vec!();
   // Starts with the left-margin (if any)
-  let mut border_top: Vec<char> = std::iter::repeat(' ').take(wv_margin.3).collect();
+  if wv_margin.3 == 1 { for _ in 0..wv_margin.3 { border_top.push(format!("{}{}", ICON_MARGIN, ICON_MARGIN)); } }
   // border; corner + horizontal line + corner
-  if wv_border.0 == 1 && wv_border.3 == 1 { border_top.push(ICON_BORDER_TL); }
-  if wv_border.1 == 1 { border_top = border_top.into_iter().chain::<Vec<char>>(std::iter::repeat(ICON_BORDER_H).take(viewport_size_w * 2).collect()).collect(); }
-  if wv_border.0 == 1 && wv_border.1 == 1 { border_top.push(ICON_BORDER_TR); }
+  if wv_border.0 == 1 && wv_border.3 == 1 { border_top.push(format!(" {}", ICON_BORDER_TL)); }
+  if wv_border.0 == 1 { for _ in 0..viewport_size_w { border_top.push(format!("{}{}", ICON_BORDER_H, ICON_BORDER_H)); } }
+  if wv_border.0 == 1 && wv_border.1 == 1 { border_top.push(format!("{} ", ICON_BORDER_TR)); }
   // append the right margin (if any)
-  if wv_margin.1 == 1 { border_top = border_top.into_iter().chain::<Vec<char>>(std::iter::repeat(' ').take(wv_margin.1).collect()).collect(); }
+  if wv_margin.1 == 1 { for _ in 0..wv_margin.1 { border_top.push(format!("{}{}", ICON_MARGIN, ICON_MARGIN)); } }
   view.push(border_top);
 
   // The middle rows contain the real world view :)
   for j in 0..viewport_size_h as i32 {
-    let mut line: Vec<char> = vec!();
+    let wy = viewport_offset_y + j;
+    let mut line: Vec<String> = vec!();
     // Prepend the margin and border (if any)
-    for _ in 0..wv_margin.3 { line.push(' '); }
-    for _ in 0..wv_border.3 { line.push(ICON_BORDER_V); }
+    for _ in 0..wv_margin.3 { line.push(format!("{}{}", ICON_MARGIN, ICON_MARGIN)); }
+    for _ in 0..wv_border.3 { line.push(format!(" {}", ICON_BORDER_V)); }
     // Paint the world background tiles
     for i in 0..viewport_size_w as i32 {
-      match get_tile_at(&options, &world, viewport_offset_x + i, viewport_offset_y + j) {
-        Cell::Empty => {
-          line.push(' ');
-          line.push(' ');
+      let wx = viewport_offset_x + i;
+
+      if options.paint_zero_zero && wx == 0 && wy == 0 { line.push(ICON_DEBUG_ORIGIN.to_string()); } // Force-paint the origin (0,0), regardless of the game world state
+      if options.paint_ten_lines && (wx % 10 == 0 || wy % 10 == 0) { line.push(ten_line_cell(wx, wy)); } // Force-paint grid over world, regardless of the game world state
+      else if options.paint_empty_world { line.push(format!("{}{}", ICON_DEBUG_BLANK, ICON_DEBUG_BLANK)); } // Force-paint an empty block instead of the actual world (game world is not changed)
+      else {
+        let tile = get_cell_tile_at(&options, &world0, wx, wy);
+        let mut str = tile_to_string(tile, wx, wy);
+        // Give certain tiles a color
+        match tile {
+          | Tile::Wall1
+          | Tile::Wall2
+          | Tile::Wall3
+          | Tile::Diamond =>
+            str = format!(
+              "{}{}\x1b[0m",
+              match get_cell_value_at(&options, &world0, wx, wy) {
+                1 => "\x1b[;1;1m",
+                2 => "\x1b[;1;1m\x1b[32m",
+                3 => "\x1b[;1;1m\x1b[34m",
+                _ => panic!("wat"),
+              },
+              str
+            ),
+          _ => (),
         }
-        Cell::Energy => line.push(ICON_ENERGY),
-        Cell::Wall1 => {
-          line.push(ICON_BLOCK_25);
-          line.push(ICON_BLOCK_25);
-        },
-        Cell::Wall2 => {
-          line.push(ICON_BLOCK_50);
-          line.push(ICON_BLOCK_50);
-        },
-        Cell::Wall3 => {
-          line.push(ICON_BLOCK_75);
-          line.push(ICON_BLOCK_75);
-        },
-        Cell::Wall4 => {
-          line.push(ICON_BLOCK_100);
-          line.push(ICON_BLOCK_100);
-        },
-        Cell::Diamond => line.push(ICON_DIAMOND),
-        Cell::DroneDown => line.push(ICON_DRONE_DOWN),
-        Cell::DroneLeft => line.push(ICON_DRONE_LEFT),
-        Cell::DroneRight => line.push(ICON_DRONE_RIGHT),
-        Cell::DroneUp => line.push(ICON_DRONE_UP),
+        line.push(str);
       }
     }
 
     // Append the right side margin and border (if any)
-    for _ in 0..wv_border.1 { line.push(ICON_BORDER_V); }
-    for _ in 0..wv_margin.1 { line.push(' '); }
+    for _ in 0..wv_border.1 { line.push(format!("{} ", ICON_BORDER_V)); }
+    for _ in 0..wv_margin.1 { line.push(format!("{}{}", ICON_MARGIN, ICON_MARGIN)); }
     // That is one line finished
     view.push(line);
   }
@@ -251,240 +355,96 @@ pub fn serialize_world(world: &World, biomes: &Vec<Biome>, best: (Helix, i32), o
   // Now add the bottom border and margin (if any)
   // Has to take the corners into account too
   // Starts with the left-margin (if any)
-  let mut border_bottom: Vec<char> = std::iter::repeat(' ').take(wv_margin.3).collect();
+  let mut border_bottom: Vec<String> = std::iter::repeat(format!("{}{}", ICON_MARGIN, ICON_MARGIN)).take(wv_margin.3).collect();
   // border; corner + horizontal line + corner
-  if wv_border.2 == 1 && wv_border.3 == 1 { border_bottom.push(ICON_BORDER_BL); }
-  if wv_border.1 == 1 { border_bottom = border_bottom.into_iter().chain::<Vec<char>>(std::iter::repeat(ICON_BORDER_H).take(viewport_size_w * 2).collect()).collect(); }
-  if wv_border.2 == 1 && wv_border.1 == 1 { border_bottom.push(ICON_BORDER_BR); }
+  if wv_border.2 == 1 && wv_border.3 == 1 { border_bottom.push(format!(" {}", ICON_BORDER_BL)); }
+  if wv_border.2 == 1 { for _ in 0..viewport_size_w { border_bottom.push(format!("{}{}", ICON_BORDER_H, ICON_BORDER_H)); } }
+  if wv_border.2 == 1 && wv_border.1 == 1 { border_bottom.push(format!("{} ", ICON_BORDER_BR)); }
   // append the right margin (if any)
-  if wv_margin.1 == 1 { border_bottom = border_bottom.into_iter().chain::<Vec<char>>(std::iter::repeat(' ').take(wv_margin.1).collect()).collect(); }
+  if wv_border.2 == 1 { for _ in 0..wv_margin.1 { border_bottom.push(format!("{}{}", ICON_MARGIN, ICON_MARGIN)); } }
+
   view.push(border_bottom);
+
+  // Bottom margin line
+  for _ in 0..wv_margin.2 {
+    let margin_bottom: Vec<String> = std::iter::repeat(format!("{}{}", ICON_MARGIN, ICON_MARGIN)).take(wv_width).collect();
+    view.push(margin_bottom);
+  }
 
   // That should complete the world view. `view` should be wv_width x wv_height cells right now.
   // Remaining steps are to paint the moving actors, color some tiles, and add ui elements
 
-  for biome in biomes.iter() {
-    // if the viewport offsets at <-25, -25> and the miner is at <0,0> then paint it at <25,25>
-    // <-25,-25> and <1,1> then <26,26>
-    // <0,0> and <10,20> then <10,20>
-    // <1,2> and <9,18> then <10,20>
+  // Where is the top-left most cell that the viewport actually shows? (skip margin+border)
+  let vox = (wv_margin.3 + wv_border.3) as i32;
+  let voy = (wv_margin.0 + wv_border.0) as i32;
 
-    // Convert view and the actor to the absolute coordinates (u32)
-    // Subtract the viewport coords from the actor coords
-    // That's where to paint the actor
+  assert!(biomes.len() >= 1, "there should be at least one biome");
+  for (i, biome) in biomes.iter().enumerate() {
+    if i == 0 { continue; }
+    paint_biome_actors(biome, i, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+  }
+  paint_biome_actors(&biomes[0], 0, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 
-    // World position of actor
-    let mx: i32 = biome.miner.movable.x;
-    let my: i32 = biome.miner.movable.y;
 
-    let amx = if mx < 0 { (viewport_offset_x - mx).abs() } else { viewport_offset_x.abs() + 1 + mx };
-    let amy = if my < 0 { (viewport_offset_y - my).abs() } else { viewport_offset_y.abs() + 1 + my };
+  // Draw UI
 
-    println!("-> {}x{} -> {}x{} -> {}", mx, my, amx, amy, bound_inc(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32));
+  // Offsets for the UI. Start at the top of the map to the right of it.
+  // let uox = (wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1 + 1) as i32;
+  // let uoy = 0; // Just the top.
 
-    // First confirm whether the actor is within the viewport anyways
-    // println!("check: {} {} {} {} {} {} = {}", mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32, bound(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32));
-    // if bound_ex(mx, my, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
-      // Yes. Convert the coords to absolute (vec) indexes.
+  // Miner pos:    x, y     Miner points: 0       Miner steps: 0
+  // Miner energy: ||||||||||||                 Miner pickups: 0
+  //
+  // Slot 1
+  // Slot 2
+  // Slot 3
+  // Slot 4
+  // Slot 5
+  // Slot 6
+  // Slot 7
+  // Slot 8
+  // Slot 9
+  // Slot 10
+  //
+  // UI: toggle UI: v⏎  faster: +⏎   slower: -⏎
 
-      // If the actor coord is negative, then subtract it from the viewport. Otherwise add the
-      // absolute viewport coord plus one (for the 0,0 cell because the range is inclusive).
-      // <-10, -10> and <-7, 3>:
-      // x: (-10 - -7).abs() = -3
-      // y: (-10).abs() + 1 + 3 = 14
-      // -> <-3, 14>
+  let vlen = view.len();
 
-      view[amy as usize][amx as usize] = ICON_GHOST;
-    // }
+  // Append each line to the map
+  view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
+  view[2].push(format!(" {}", best_miner_str));
+  view[3].push(format!(" {}", btree_str));
+  view[4].push(std::iter::repeat(' ').take(100).collect::<String>());
+  view[5].push(" Miner;".to_string());
+  view[6].push(std::iter::repeat(' ').take(93).collect::<String>());
+  view[7].push(format!("   {}", biomes[0].miner.helix));
+
+  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), biomes[0].miner.meta.points, biomes[0].miner.movable.history.len()).to_string());
+  view[9].push(std::iter::repeat(' ').take(100).collect::<String>());
+
+  let mut so = 10;
+  for n in 0..biomes[0].miner.slots.len() {
+    view[so + n].push(format!(" {: <20} {: >25} {: >70}", format!("{:?}", biomes[0].miner.slots[n].kind), progress_bar(20, biomes[0].miner.slots[n].cur_cooldown, biomes[0].miner.slots[n].max_cooldown, false), " ").to_string());
   }
 
+  for y in so+biomes[0].miner.slots.len()..vlen-4 {
+    view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
+  }
 
-  // TODO: must be string, not char, because 2x cells and colors require multiple chars anyways
-
+  view[vlen -4].push(" Keys: toggle visual: v⏎  faster: +⏎   slower: -⏎".to_string());
+  view[vlen -3].push("       gene mutation rate up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎".to_string());
+  view[vlen -2].push("       slot mutation rate up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ ".to_string());
+  view[vlen -1].push("       reset helix: r⏎   batch size up: m⏎   batch size down: n⏎".to_string());
 
   for row in view.iter() {
-    let border_top_str: String = row.into_iter().collect();
+    let border_top_str: String = row.join("");
     println!("{}", border_top_str);
   }
 
 
-  // let foo = "hello, world!";
-  // let bar: Vec<char> = foo.chars().collect();
-  // for c in bar {
-  //   println!("{}", c);
-  // }
-
-  return "fixme".to_owned();
-
-  // // Now we have a predictable view. Print the movable characters on top of it.
-  //
-
-  //
-  // // Print the main miner. This way we know it will be visible and not covered by a ghost.
-  // {
-  //     let rx: i32 = biomes[0].miner.movable.x - viewport_offset_x;
-  //     let ry: i32 = biomes[0].miner.movable.y - viewport_offset_y;
-  //     if bound(rx, ry, 0, 0, viewport_size_w, viewport_size_h) {
-  //         // Miner is within range. Paint it at the relative coords <rx,ry>
-  //         view[view_margin.0 + 1 + ry][view_margin.3 + 1 + rx] = match biomes[0].miner.movable.dir {
-  //             DIR_UP => ICON_MINER_UP,
-  //             DIR_DOWN => ICON_MINER_DOWN,
-  //             DIR_LEFT => ICON_MINER_LEFT,
-  //             DIR_RIGHT => ICON_MINER_RIGHT,
-  //             _dir => panic!("unexpected dir: {:?}", _dir),
-  //         };
-  //     }
-  // }
-  //
-  // // The map is finished. Append the "UI" to the right of the map by pushing the characters there.
-  // // Each vec should already have been padded with a margin at this point.
-  // // Definitely a hack but why not :)
-  //
-  // view[view_margin.0 as usize + 1].chain("UI stuff goes here".chars());
-  //
-  // // Join the characters of each line into a string then join those lines with a newline
-  //
-  // let mut out: Iter<char> = vec!().iter();
-  // for y in 0..view.len() {
-  //     let v = &view[y];
-  //     out.chain(v).chain(vec!("\n"));
-  // }
-  //
-  // return out.into_iter().collect();
 
 
-  // old stuff:
-
-
-  // for y in 0..HEIGHT {
-  //     write!(buf, "{}", ICON_BORDER_V).unwrap_or_else(|err| panic!("{:?}", err));
-  //     for x in 0..WIDTH {
-  //         let c: char = painting[x][y];
-  //         match c {
-  //             | ICON_ENERGY
-  //             => write!(buf, "\x1b[33;1m{}\x1b[0m", c),
-  //             | ICON_DIAMOND
-  //             => match world.values[x][y] {
-  //                 '1' => write!(buf, "\x1b[;1;1m{0}\x1b[0m", c),
-  //                 '2' => write!(buf, "\x1b[;1;1m\x1b[32m{0}\x1b[0m", c),
-  //                 '3' => write!(buf, "\x1b[;1;1m\x1b[34m{0}\x1b[0m", c),
-  //                 _ => panic!("Unexpected world value: {}", c),
-  //             },
-  //             | ICON_TURN_RIGHT
-  //             | ICON_INDEX_UP
-  //             | ICON_INDEX_RIGHT
-  //             | ICON_INDEX_LEFT
-  //             | ICON_INDEX_DOWN
-  //             | ICON_GHOST
-  //             => write!(buf, "{}", c),
-  //
-  //             | ICON_MINER_UP
-  //             | ICON_MINER_RIGHT
-  //             | ICON_MINER_DOWN
-  //             | ICON_MINER_LEFT
-  //             => write!(buf, "\x1b[;1;1m\x1b[31m{} \x1b[0m", c),
-  //
-  //             | ICON_BLOCK_100
-  //             | ICON_BLOCK_75
-  //             | ICON_BLOCK_50
-  //             | ICON_BLOCK_25
-  //             => match world.values[x][y] {
-  //                 '1' => write!(buf, "{0}{0}\x1b[0m", c),
-  //                 '2' => write!(buf, "\x1b[32m{0}{0}\x1b[0m", c),
-  //                 '3' => write!(buf, "\x1b[34m{0}{0}\x1b[0m", c),
-  //                 _ => write!(buf, "\x1b[34m{0}{0}\x1b[0m", c),
-  //             },
-  //
-  //             v => write!(buf, "{0}{0}", v),
-  //         }.unwrap_or_else(|err| panic!("{:?}", err));
-  //     }
-  //     write!(buf, "{}", ICON_BORDER_V).unwrap_or_else(|err| panic!("{:?}", err));
-  //
-  //     const HEADER: usize = 13;
-  //     match if y < HEADER { y } else { y - HEADER + 100 } {
-  //         // Miner meta information
-  //          0  => write!(buf, "  Miner:  {: <2}  x  {: <2} {: >60}\n", miner.movable.x, miner.movable.y, ' ').unwrap(),
-  //          1  => write!(buf, "  Energy: {}{} ({: >3}%) {} / {} {: >60}\n",
-  //                      std::iter::repeat('|').take(((miner.movable.energy as f32 / miner.meta.max_energy as f32) * 20.0) as usize).collect::<String>(),
-  //                      std::iter::repeat('-').take(20 - ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 20.0) as usize).collect::<String>(),
-  //                      ((miner.movable.energy as f64 / miner.meta.max_energy as f64) * 100.0) as i32,
-  //                      miner.movable.energy,
-  //                      miner.meta.max_energy,
-  //                      ' '
-  //          ).unwrap(),
-  //          2  => write!(buf, "  Boredom: Rate: {: <2} per level. Level: {: <3}. Cost per step: {} {: >60}\n", miner.meta.boredom_rate as i32, miner.meta.boredom_level, (miner.meta.boredom_rate * miner.meta.boredom_level as f32) as i32, ' ').unwrap(),
-  //          3  => write!(buf, "  Points: {} {: >60}\n", miner.meta.points, ' ').unwrap(),
-  //          4  => write!(buf, "  Block bump cost: {} {: >60}\n", miner.meta.block_bump_cost, ' ').unwrap(),
-  //
-  //          6  => write!(buf, "  Helix:                         Current:                Best:{: >60}\n", ' ').unwrap(),
-  //          7  => write!(buf, "  Max energy:               {: >20} {: >20} {: >60}\n", miner.helix.multiplier_energy_start, best.0.multiplier_energy_start, ' ').unwrap(),
-  //          8  => write!(buf, "  Multiplier points:        {: >20} {: >20} {: >60}\n", miner.helix.multiplier_points, best.0.multiplier_points, ' ').unwrap(),
-  //          9  => write!(buf, "  Multiplier energy pickup: {: >20} {: >20} {: >60}\n", miner.meta.multiplier_energy_pickup, 0.0, ' ').unwrap(),
-  //         10  => write!(buf, "  Block bump cost:          {: >20} {: >20} {: >60}\n", miner.helix.block_bump_cost, best.0.block_bump_cost, ' ').unwrap(),
-  //         11  => write!(buf, "  Drone gen cooldown:       {: >20} {: >20} {: >60}\n", miner.helix.drone_gen_cooldown, best.0.drone_gen_cooldown, ' ').unwrap(),
-  //
-  //         // The slots
-  //         100  => write!(buf, "  Slots: {: >120}\n", ' ').unwrap(),
-  //         101  => write!(buf, "    - {: <20} {}\n", miner.slots[0].title(), miner.slots[0]).unwrap(),
-  //         102  => write!(buf, "    - {: <20} {}\n", miner.slots[1].title(), miner.slots[1]).unwrap(),
-  //         103  => write!(buf, "    - {: <20} {}\n", miner.slots[2].title(), miner.slots[2]).unwrap(),
-  //         104  => write!(buf, "    - {: <20} {}\n", miner.slots[3].title(), miner.slots[3]).unwrap(),
-  //         105  => write!(buf, "    - {: <20} {}\n", miner.slots[4].title(), miner.slots[4]).unwrap(),
-  //         106  => write!(buf, "    - {: <20} {}\n", miner.slots[5].title(), miner.slots[5]).unwrap(),
-  //         107  => write!(buf, "    - {: <20} {}\n", miner.slots[6].title(), miner.slots[6]).unwrap(),
-  //         108  => write!(buf, "    - {: <20} {}\n", miner.slots[7].title(), miner.slots[7]).unwrap(),
-  //         109  => write!(buf, "    - {: <20} {}\n", miner.slots[8].title(), miner.slots[8]).unwrap(),
-  //         110  => write!(buf, "    - {: <20} {}\n", miner.slots[9].title(), miner.slots[9]).unwrap(),
-  //         111  => write!(buf, "    - {: <20} {}\n", miner.slots[10].title(), miner.slots[10]).unwrap(),
-  //         112  => write!(buf, "    - {: <20} {}\n", miner.slots[11].title(), miner.slots[11]).unwrap(),
-  //         113  => write!(buf, "    - {: <20} {}\n", miner.slots[12].title(), miner.slots[12]).unwrap(),
-  //         114  => write!(buf, "    - {: <20} {}\n", miner.slots[13].title(), miner.slots[13]).unwrap(),
-  //         115  => write!(buf, "    - {: <20} {}\n", miner.slots[14].title(), miner.slots[14]).unwrap(),
-  //         116  => write!(buf, "    - {: <20} {}\n", miner.slots[15].title(), miner.slots[15]).unwrap(),
-  //         117  => write!(buf, "    - {: <20} {}\n", miner.slots[16].title(), miner.slots[16]).unwrap(),
-  //         118  => write!(buf, "    - {: <20} {}\n", miner.slots[17].title(), miner.slots[17]).unwrap(),
-  //         119  => write!(buf, "    - {: <20} {}\n", miner.slots[18].title(), miner.slots[18]).unwrap(),
-  //         120  => write!(buf, "    - {: <20} {}\n", miner.slots[19].title(), miner.slots[19]).unwrap(),
-  //         121  => write!(buf, "    - {: <20} {}\n", miner.slots[20].title(), miner.slots[20]).unwrap(),
-  //         122  => write!(buf, "    - {: <20} {}\n", miner.slots[21].title(), miner.slots[21]).unwrap(),
-  //         123  => write!(buf, "    - {: <20} {}\n", miner.slots[22].title(), miner.slots[22]).unwrap(),
-  //         124  => write!(buf, "    - {: <20} {}\n", miner.slots[23].title(), miner.slots[23]).unwrap(),
-  //         125  => write!(buf, "    - {: <20} {}\n", miner.slots[24].title(), miner.slots[24]).unwrap(),
-  //         126  => write!(buf, "    - {: <20} {}\n", miner.slots[25].title(), miner.slots[25]).unwrap(),
-  //         127  => write!(buf, "    - {: <20} {}\n", miner.slots[26].title(), miner.slots[26]).unwrap(),
-  //         128  => write!(buf, "    - {: <20} {}\n", miner.slots[27].title(), miner.slots[27]).unwrap(),
-  //         129  => write!(buf, "    - {: <20} {}\n", miner.slots[28].title(), miner.slots[28]).unwrap(),
-  //         130  => write!(buf, "    - {: <20} {}\n", miner.slots[29].title(), miner.slots[29]).unwrap(),
-  //         131  => write!(buf, "    - {: <20} {}\n", miner.slots[30].title(), miner.slots[30]).unwrap(),
-  //         132  => write!(buf, "    - {: <20} {}\n", miner.slots[31].title(), miner.slots[31]).unwrap(),
-  //
-  //
-  //         133  => write!(buf, "{: <100}\n", ' ').unwrap(),
-  //         134  => write!(buf, "{: <100}\n", ' ').unwrap(),
-  //         135  => {
-  //             let mut he : String = "".to_string();
-  //             helix_to_string(&mut he, &best.0);
-  //             write!(buf, "    Best {}{: <40}\n", he, ' ').unwrap();
-  //         },
-  //         136  => write!(buf, "    Seed: {} Speed: {} Gene rate: {} Slot rate: {} (+⏎/-⏎ to change speed, v⏎ to toggle visual mode) {: <100}\n", options.seed, options.speed, options.mutation_rate_genes, options.mutation_rate_slots, ' ').unwrap(),
-  //
-  //
-  //         _ => {
-  //             if y <= HEADER {
-  //                 write!(buf, " {: >120}", ' ').unwrap();
-  //             }
-  //             write!(buf, "\n").unwrap()
-  //         }
-  //     }
-  // }
-
-  // std::iter::repeat("X").take(10).collect::<String>()
-  //
-  // write!(buf, "{}", ICON_BORDER_BL).unwrap();
-  // write!(buf, "{}", std::iter::repeat(ICON_BORDER_H).take(WIDTH*2).collect::<String>()).unwrap();
-  // write!(buf, "{}", ICON_BORDER_BR).unwrap();
-  //
-  // buf
+  return "".to_owned();
 }
 
 pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32) {
@@ -496,33 +456,35 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
 
   if x < world.min_x {
     // OOB. We have to prepend a cell to each row
-    let world_height = (world.min_y.abs() + world.max_y + 1);
+    let world_height = world.min_y.abs() + world.max_y + 1;
+    assert!(x < 0, "x must be negative ({}) because its smaller than min_x ({}) which must always be <=0", x, world.min_x);
     let to_prepend = x.abs() - world.min_x.abs();
     // println!("Expanding -x (left), prepending {} cols to {} rows", to_prepend, world_height);
 
     for j in 0..world_height {
       let mut row = &mut world.tiles[j as usize];
-      for i in 0..to_prepend {
-        let gx = (world.min_x - i) - 1;
-        let gy = (world.min_y - (world_height - j)) + 1;
+      for i in 1..=to_prepend {
+        let gx = world.min_x - i;
+        let gy = world.min_y + j;
         let cell = generate_cell(&options, gx, gy);
-        row.push_front((cell, 0));
+        row.push_front( cell);
       }
     }
     world.min_x = world.min_x - to_prepend;
   } else if x > world.max_x {
     // OOB. We have to append a cell to each row
     let world_height = world.min_y.abs() + world.max_y + 1;
+    assert!(x > 0, "y must be positive ({}) because its bigger than max_x ({}) which must always be >=0", x, world.max_x);
     let to_append = x - world.max_x;
     // println!("Expanding +x (right), appending {} cols to {} rows", to_append, world_height);
 
     for j in 0..world_height {
       let mut row = &mut world.tiles[j as usize];
-      for i in 0..to_append {
-        let gx = (world.min_x - i) - 1;
-        let gy = (world.min_y - (world_height - j)) + 1;
+      for i in 1..=to_append {
+        let gx = world.max_x + i;
+        let gy = world.min_y + j;
         let cell = generate_cell(&options, gx, gy);
-        row.push_front((cell, 0));
+        row.push_back(cell);
       }
     }
     world.max_x = world.max_x + to_append;
@@ -535,13 +497,13 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
     // println!("Expanding -y (up), creating {} rows with {} cells", to_prepend, world_width);
 
     // Create n rows and fill them up, then prepend them to the world tiles
-    for j in 0..to_prepend {
-      let mut new_row: VecDeque<Tile> = VecDeque::new();
+    for j in 1..=to_prepend {
+      let mut new_row: VecDeque<Cell> = VecDeque::new();
       for i in 0..world_width {
         let gx = world.min_x + i;
-        let gy = (world.min_y - j) - 1;
+        let gy = world.min_y - j;
         let cell = generate_cell(&options, gx, gy);
-        new_row.push_back((cell, 0));
+        new_row.push_back(cell);
       }
       world.tiles.push_front(new_row);
     }
@@ -554,43 +516,102 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
     // println!("Expanding +y (down), creating {} rows with {} cells {} {}", to_append, world_width, world.min_x.abs(), world.max_x);
 
     // Create n rows and fill them up, then append them to the world tiles
-    for j in 0..to_append {
-      let mut new_row: VecDeque<Tile> = VecDeque::new();
+    for j in 1..=to_append {
+      let mut new_row: VecDeque<Cell> = VecDeque::new();
       for i in 0..world_width {
         let gx = world.min_x + i;
-        let gy = (world.max_y + j);
+        let gy = world.max_y + j;
         let cell = generate_cell(&options, gx, gy);
-        new_row.push_back((cell, 0));
+        new_row.push_back(cell);
       }
       world.tiles.push_back(new_row);
     }
 
     world.max_y = world.max_y + to_append;
   }
+
+  assert_world_dimensions(world);
 }
 
-pub fn create_tile(cell_type: Cell) -> Tile {
-  return (cell_type, 0);
+pub fn create_cell(tile: Tile, value: u32) -> Cell {
+  return Cell { tile, value, visited: 0 };
 }
 
-pub fn get_tile_at(options: &Options, world: &World, x: i32, y: i32) -> Cell {
+pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> Tile {
+  // wx/wy should be world coordinates
   assert_world_dimensions(world);
 
-  if x < world.min_x || x > world.max_x || y < world.min_y || y > world.max_y {
+  // Is the cell explicitly stored in the world right now? If not then use the procedure.
+  if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
+    if options.hide_world_oob {
+      return Tile::HideWorld;
+    }
+
     // OOB. Use generated value
-    return generate_cell(options, x, y);
+    return generate_cell(options, wx, wy).tile;
   }
 
-  let ax = world.min_x.abs() + x;
-  let ay = (world.min_y.abs() + y);
+  if options.hide_world_ib {
+    return Tile::HideWorld;
+  }
+
+  // If x is negative then the coord is `min_x.abs() + x` (ex: `abs(-10) + -5` or `10 - 5` = 5)
+  // If x is positive then the coord is `min_x.abs() + x` (ex: `abs(-10) + 5` or `10 + 5` = 15)
+  // If x is zero then the coord is `min_x.abs()`
+  // So in all cases, the absolute coord of x is `min_x.abs() + x`
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
 
   // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
   // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
 
-  assert!(y >= world.min_y);
+  assert!(wx >= world.min_x);
+  assert!(wy >= world.min_y);
+  assert!(wx <= world.max_x);
+  assert!(wy <= world.max_y);
   assert!(ax >= 0);
   assert!(ay >= 0);
   assert!(ax < (world.min_x.abs() + 1 + world.max_x));
   assert!(ay < (world.min_y.abs() + 1 + world.max_y));
-  return world.tiles[ay as usize][ax as usize].0;
+
+  return world.tiles[ay as usize][ax as usize].tile;
+}
+pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> u32 {
+  // wx/wy should be world coordinates
+  assert_world_dimensions(world);
+
+  // Is the cell explicitly stored in the world right now? If not then use the procedure.
+  if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
+    if options.hide_world_oob {
+      return 0;
+    }
+
+    // OOB. Use generated value
+    return generate_cell(options, wx, wy).value;
+  }
+
+  if options.hide_world_ib {
+    return 0;
+  }
+
+  // If x is negative then the coord is `min_x.abs() + x` (ex: `abs(-10) + -5` or `10 - 5` = 5)
+  // If x is positive then the coord is `min_x.abs() + x` (ex: `abs(-10) + 5` or `10 + 5` = 15)
+  // If x is zero then the coord is `min_x.abs()`
+  // So in all cases, the absolute coord of x is `min_x.abs() + x`
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
+  // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
+
+  assert!(wx >= world.min_x);
+  assert!(wy >= world.min_y);
+  assert!(wx <= world.max_x);
+  assert!(wy <= world.max_y);
+  assert!(ax >= 0);
+  assert!(ay >= 0);
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x));
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y));
+
+  return world.tiles[ay as usize][ax as usize].value;
 }

@@ -20,6 +20,7 @@ pub const ICON_INDEX_UP: char = '👆';
 pub const ICON_INDEX_RIGHT: char = '👉';
 pub const ICON_INDEX_DOWN: char = '👇';
 pub const ICON_INDEX_LEFT: char = '👈';
+pub const ICON_MARGIN: char = '░';
 
 pub const ICON_MINER_UP: char = ICON_HEAVY_UP;
 pub const ICON_MINER_RIGHT: char = ICON_HEAVY_RIGHT;
@@ -30,3 +31,6 @@ pub const ICON_DRONE_UP: char = ICON_INDEX_UP;
 pub const ICON_DRONE_RIGHT: char = ICON_INDEX_RIGHT;
 pub const ICON_DRONE_DOWN: char = ICON_INDEX_DOWN;
 pub const ICON_DRONE_LEFT: char = ICON_INDEX_LEFT;
+
+pub const ICON_DEBUG_ORIGIN: char = '⚽';
+pub const ICON_DEBUG_BLANK: char = '░';
