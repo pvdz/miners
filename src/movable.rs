@@ -6,6 +6,8 @@ use super::values::*;
 use super::options::*;
 use super::tile::*;
 
+// use rand::distributions::Uniform;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Up = 0,
@@ -49,12 +51,16 @@ fn drill_deeper(drills: i32, hammers: i32, x: i32, y: i32, dx: i32, dy: i32, wor
         // Apply the drill power
         match world.tiles[unext_y][unext_x] {
             Cell { tile: Tile::Wall4, value, visited: _ } => {
+                // let multiplier_percent: Uniform<f32> = Uniform::from(0.0..100.0);
+                // let r = multiplier_percent.sample(.rng).round();
+
                 world.tiles[unext_y][unext_x] = match strength {
                     1 => create_cell(Tile::Wall3, value),
                     2 => create_cell(Tile::Wall2, value),
                     3 => create_cell(Tile::Wall1, value),
                     _ => {
                         remaining = 1;
+
                         create_cell(Tile::Diamond, value)
                     },
                 };
@@ -239,6 +245,8 @@ fn move_it_xy(movable: &mut Movable, meta: &mut MinerMeta, world: &mut World, op
         } else {
             meta.boredom_level = 0;
         }
+    } else {
+        movable.now_energy -= 1.0;
     }
 
     if movable.now_energy < 0.0 {

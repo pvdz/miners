@@ -1,3 +1,4 @@
+use super::utils::*;
 use super::slottable::*;
 // use super::miner::*;
 // use super::movable::*;
@@ -7,16 +8,25 @@ use super::slottable::*;
 
 pub const TITLE_HAMMER: &str = "Hammer";
 
-pub fn create_hammer(nth: i32) -> Slottable {
+pub fn create_hammer(slot_index: usize, nth: i32) -> Slottable {
     return Slottable {
         kind: SlotKind::Hammer,
+        slot: slot_index,
         title: TITLE_HAMMER.to_owned(),
         max_cooldown: 0.0,
         cur_cooldown: 0.0,
         nth,
-        val: 0,
-        sum: 0,
+        val: 0.0,
+        sum: 0.0,
     };
+}
+
+pub fn ui_slot_hammer(slot: &Slottable) -> (String, String, String) {
+    return (
+        TITLE_HAMMER.to_string(),
+        "".to_string(),
+        "".to_string()
+    );
 }
 
 /*

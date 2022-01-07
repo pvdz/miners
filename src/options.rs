@@ -22,11 +22,11 @@ pub struct Options {
 pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
-        batch_size: 10,
+        batch_size: 1,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
         seed: 210114, // 0 is random
-        speed: 1,
+        speed: 100,
         reset_rate: 2000,
         visual: true,
 

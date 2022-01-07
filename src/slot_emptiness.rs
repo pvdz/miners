@@ -1,5 +1,6 @@
 use std::fmt;
 
+use super::utils::*;
 use super::slottable::*;
 // use super::miner::*;
 // use super::movable::*;
@@ -9,17 +10,27 @@ use super::slottable::*;
 
 pub const TITLE_EMPTINESS: &str = "Empty";
 
-pub fn create_empty_slot() -> Slottable {
+pub fn create_empty_slot(slot_index: usize) -> Slottable {
     return Slottable {
         kind: SlotKind::Emptiness,
+        slot: slot_index,
         title: TITLE_EMPTINESS.to_owned(),
         max_cooldown: 0.0,
         cur_cooldown: 0.0,
         nth: 0,
-        val: 0,
-        sum: 0,
+        val: 0.0,
+        sum: 0.0,
     };
 }
+
+pub fn ui_slot_emptiness(slot: &Slottable) -> (String, String, String) {
+    return (
+        TITLE_EMPTINESS.to_string(),
+        "".to_string(),
+        "".to_string()
+    );
+}
+
 
 /*
 pub struct Emptiness {}

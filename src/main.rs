@@ -7,6 +7,7 @@ pub mod drone;
 pub mod movable;
 pub mod miner;
 pub mod helix;
+pub mod inventory;
 pub mod biome;
 pub mod slot_hammer;
 pub mod slot_drill;
@@ -17,6 +18,7 @@ pub mod slot_drone_launcher;
 pub mod slot_energy_cell;
 pub mod slot_emptiness;
 pub mod tile;
+pub mod utils;
 
 use std::{thread, time};
 use std::borrow::Borrow;
@@ -225,22 +227,24 @@ fn main() {
       // Tick the biomes
       has_energy = false;
       for m in 0..biomes.len() {
+        let first_miner = m == 0;
         let biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
           let mminer: &mut movable::Movable = &mut biome.miner.movable;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
+          let mdrones: &mut Vec<drone::Drone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
           movable::move_movable(mminer, mmeta, mworld, &options);
           for i in 0..biome.miner.slots.len() {
             let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
             match slot.kind {
               slottable::SlotKind::Emptiness => (), // noop
-              slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminer, mmeta, mworld, &options),
-              slottable::SlotKind::DroneLauncher => (), // noop
+              slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminer, mmeta, mworld, &options, first_miner),
+              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminer, mdrones, mmeta, mworld, &options, first_miner),
               slottable::SlotKind::Hammer => (), // noop
               slottable::SlotKind::Drill => (), // noop
-              slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta), // noop
-              slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminer), // noop
+              slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
+              slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminer, first_miner),
               _ => {
                 panic!("Fix slot range generator in helix")
               },
@@ -252,14 +256,6 @@ fn main() {
             has_energy = true;
           } else {
             // This miner stopped now
-            // println!("Miner in biome {} stopped after {} steps, {} unique. Path: {:?}", m, biome.miner.movable.history.len(), biome.miner.movable.unique.len(), biome.miner.movable.unique);
-            // println!("Miner in biome {} stopped after {} steps, {} unique.", m, biome.miner.movable.history.len(), biome.miner.movable.unique.len());
-
-            // println!("da trie: {}", trie);
-            //
-            // println!("Now adding an entry...");
-            //
-            // let path = vec!(1, 3, -2000, 4);
 
             let mut trail: String = String::new();
 
@@ -305,13 +301,15 @@ fn main() {
         thread::sleep(delay);
       }
 
+      // As a way to balance the block_bump_cost value; the higher that penalty is, the faster
+      // your slots cool down. The markup should not be major but probably if block_bump_cost is
+      // close to zero, the slots cooldowns should not get any boosts.
       for m in 0..biomes.len() {
         let biome: &mut biome::Biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
           for slot in biome.miner.slots.iter_mut() {
             if biome.miner.meta.prev_move_bumped {
-              let cooldown = slot.cur_cooldown;
-              slot.cur_cooldown = cooldown + (cooldown * (biome.miner.helix.block_bump_cost / 50000.0));
+              slot.cur_cooldown *= 1.0 + (biome.miner.helix.block_bump_cost / 50000.0);
             }
           }
         }

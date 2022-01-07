@@ -1,3 +1,4 @@
+use super::utils::*;
 use super::slottable::*;
 use super::miner::*;
 // use super::cell_contents::*;
@@ -8,28 +9,45 @@ pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
  * A purity scanner gives your next gem double points. Has a cooldown that doubles with
  * each additional scanner you get.
  */
-pub fn create_slot_purity_scanner(nth: i32, max_cooldown: f32) -> Slottable {
+pub fn create_slot_purity_scanner(slot_index: usize, nth: i32, max_cooldown: f32) -> Slottable {
     assert!(max_cooldown > 0.0, "slot max cooldown should be non-zero: {}", max_cooldown);
     return Slottable {
         kind: SlotKind::PurityScanner,
+        slot: slot_index,
         title: TITLE_PURITY_SCANNER.to_owned(),
         max_cooldown,
         cur_cooldown: 0.0,
         nth,
-        val: 0, // generated
-        sum: 0,
+        val: 0.0, // generated
+        sum: 0.0,
     };
 }
 
-pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta) {
+pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta, _first_miner: bool) {
     if slot.cur_cooldown < slot.max_cooldown {
-        slot.cur_cooldown = slot.cur_cooldown + 1.0;
+        slot.cur_cooldown += 1.0;
+    } else {
+        slot.cur_cooldown = slot.max_cooldown;
     }
+
+    // This item improves the quality of certain discovered items
+    // We translate to "any such item that was acquired in this tick gets its quality bumped by one"
+
+    // todo: points_last_move moet laatste item(s) weergeven. vec?
     if slot.cur_cooldown >= slot.max_cooldown && miner_meta.points_last_move > 0 {
         miner_meta.points = miner_meta.points + miner_meta.points_last_move;
-        slot.val = slot.val + miner_meta.points_last_move;
+        slot.val += miner_meta.points_last_move as f32;
+        slot.sum += 1.0;
         slot.cur_cooldown = 0.0;
     }
+}
+
+pub fn ui_slot_purity_scanner(slot: &Slottable) -> (String, String, String) {
+    return (
+        TITLE_PURITY_SCANNER.to_string(),
+        progress_bar(20, slot.cur_cooldown, slot.max_cooldown, false),
+        format!("Improved {} gems. Added value: {}", slot.sum, slot.val)
+    );
 }
 
 /*

@@ -6,10 +6,19 @@ use rand_pcg::Pcg64;
 use rand::distributions::{Distribution, /*Uniform,*/ Standard};
 
 use super::movable::*;
+use super::slottable::*;
 use super::icons::*;
 use super::options::*;
 use super::biome::*;
 use super::tile::*;
+use super::utils::*;
+use super::slot_drone_launcher::*;
+use super::slot_broken_gps::*;
+use super::slot_drill::*;
+use super::slot_hammer::*;
+use super::slot_purity_scanner::*;
+use super::slot_energy_cell::*;
+use super::slot_emptiness::*;
 
 // The world is procedurally generated and has no theoretical bounds.
 // The map retained in memory is only has big as has been visited. Any unvisited cell (or well, any
@@ -156,8 +165,7 @@ pub fn assert_world_dimensions(world: &World) {
   }
 }
 
-fn paint_biome_actors(biome: &Biome, i: usize, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
-  // if i > 0 { continue; }
+fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
   // if the viewport offsets at <-25, -25> and the miner is at <0,0> then paint it at <25,25>
   // <-25,-25> and <1,1> then <26,26>
   // <0,0> and <10,20> then <10,20>
@@ -167,29 +175,13 @@ fn paint_biome_actors(biome: &Biome, i: usize, options: &Options, view: &mut Vec
   // Subtract the viewport coords from the actor coords
   // That's where to paint the actor
 
-  // "miner world x/y"
-  let mwx: i32 = biome.miner.movable.x;
-  let mwy: i32 = biome.miner.movable.y;
-
-  // "miner view abs x/y", or "where are we painting this miner in the output data"
-  let mvax = vox + if mwx < 0 { (viewport_offset_x - mwx).abs() } else { viewport_offset_x.abs() + mwx };
-  let mvay = voy + if mwy < 0 { (viewport_offset_y - mwy).abs() } else { viewport_offset_y.abs() + mwy };
-
-  // println!("-> w: {}x{}|{}x{}, lens: {}x{}, miner: {}x{} -> {}x{}, view: {}x{}|{}x{} -> {}, miner: {} {: >10}",
-  //   biome.world.min_x, biome.world.min_y,
-  //   biome.world.max_x, biome.world.max_y,
-  //   biome.world.tiles[0].len(), biome.world.tiles.len(),
-  //   mwx, mwy, mvax, mvay,
-  //   viewport_offset_x, viewport_offset_y,
-  //   viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32,
-  //   bound_inc(mwx, mwy, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32),
-  //   biome.miner.movable.dir,
-  //   " "
-  // );
-
   // First confirm whether the actor is within the viewport anyways
-  if bound_inc(mwx, mwy, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
+  if bound_inc(x, y, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
     // Yes. Convert the coords to absolute (vec) indexes.
+
+    // "actor view abs x/y", or "where are we painting this miner in the output data"
+    let avax = vox + if x < 0 { (viewport_offset_x - x).abs() } else { viewport_offset_x.abs() + x };
+    let avay = voy + if y < 0 { (viewport_offset_y - y).abs() } else { viewport_offset_y.abs() + y };
 
     // If the actor coord is negative, then subtract it from the viewport. Otherwise add the
     // absolute viewport coord plus one (for the 0,0 cell because the range is inclusive).
@@ -198,56 +190,67 @@ fn paint_biome_actors(biome: &Biome, i: usize, options: &Options, view: &mut Vec
     // y: (-10).abs() + 1 + 3 = 14
     // -> <-3, 14>
 
-    view[mvay as usize][mvax as usize] =
-      if options.paint_miner_ids {
-        match i {
-          0 => "00".to_string(),
-          1 => "11".to_string(),
-          2 => "22".to_string(),
-          3 => "33".to_string(),
-          4 => "44".to_string(),
-          5 => "55".to_string(),
-          6 => "66".to_string(),
-          7 => "77".to_string(),
-          8 => "88".to_string(),
-          9 => "99".to_string(),
-          _ => "@@".to_string(),
-        }
-      } else {
-        if i == 0 {
-          format!("\x1b[;1;1m\x1b[31m{} \x1b[0m",
-            match biome.miner.movable.dir {
-              Direction::Up => ICON_MINER_UP,
-              Direction::Down => ICON_MINER_DOWN,
-              Direction::Left => ICON_MINER_LEFT,
-              Direction::Right => ICON_MINER_RIGHT,
-              _dir => panic!("unexpected dir: {:?}", _dir),
-            }
-          ).to_string()
-        } else {
-          ICON_GHOST.to_string()
-        }
-        // format!("{}{}", mwx.abs(), mwy.abs())
-      };
+    view[avay as usize][avax as usize] = what;
   }
 }
 
-fn progress_bar(bar_max_width: usize, cur_cooldown: f32, max_cooldown: f32, lte: bool) -> String {
-  if max_cooldown == 0.0 {
-    return "".to_string();
+fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
+  if biome_index == 0 {
+    // Paint the drones first. This way the miner goes on top in case of overlap.
+    for drone in &biome.miner.drones {
+
+      if drone.movable.now_energy == 0.0 {
+        // Do not paint idle drones
+        continue;
+      }
+
+      let drone_visual =
+        format!("\x1b[31;2m{} \x1b[8m",
+          match drone.movable.dir {
+            Direction::Up => ICON_DRONE_UP,
+            Direction::Down => ICON_DRONE_DOWN,
+            Direction::Left => ICON_DRONE_LEFT,
+            Direction::Right => ICON_DRONE_RIGHT,
+            _dir => panic!("unexpected dir: {:?}", _dir),
+          }
+        ).to_string();
+
+      paint_maybe(drone.movable.x, drone.movable.y, drone_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+    }
   }
 
-  assert!(cur_cooldown >= 0.0, "cooldown should not be negative {:?} {:?}", cur_cooldown, max_cooldown);
-  assert!(!lte || cur_cooldown <= max_cooldown, "cooldown should not exceed the max unless explicitly allowed to do so... {:?} {:?} {}", cur_cooldown, max_cooldown, lte);
+  let miner_visual =
+    if options.paint_miner_ids {
+      match biome_index {
+        0 => "00".to_string(),
+        1 => "11".to_string(),
+        2 => "22".to_string(),
+        3 => "33".to_string(),
+        4 => "44".to_string(),
+        5 => "55".to_string(),
+        6 => "66".to_string(),
+        7 => "77".to_string(),
+        8 => "88".to_string(),
+        9 => "99".to_string(),
+        _ => "@@".to_string(),
+      }
+    } else {
+      if biome_index == 0 {
+        format!("\x1b[;1;1m\x1b[31m{} \x1b[0m",
+          match biome.miner.movable.dir {
+            Direction::Up => ICON_MINER_UP,
+            Direction::Down => ICON_MINER_DOWN,
+            Direction::Left => ICON_MINER_LEFT,
+            Direction::Right => ICON_MINER_RIGHT,
+            _dir => panic!("unexpected dir: {:?}", _dir),
+          }
+        ).to_string()
+      } else {
+        ICON_GHOST.to_string()
+      }
+    };
 
-  let progress = ((cur_cooldown / max_cooldown) * bar_max_width as f32).min(bar_max_width as f32) as usize;
-  let remaining = bar_max_width - progress;
-  return format!(
-    "[{}{}] ({: >3}%)",
-    std::iter::repeat('|').take(progress).collect::<String>(),
-    std::iter::repeat('-').take(remaining).collect::<String>(),
-    ((cur_cooldown / max_cooldown) * 100.0) as i32,
-  )
+  paint_maybe(biome.miner.movable.x, biome.miner.movable.y, miner_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 }
 
 pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, best_miner_str: String, btree_str: String) -> String {
@@ -411,20 +414,30 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   let vlen = view.len();
 
   // Append each line to the map
-  view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
-  view[2].push(format!(" {}", best_miner_str));
-  view[3].push(format!(" {}", btree_str));
+  view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {: <100}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
+  view[2].push(format!(" {: <100}", best_miner_str));
+  view[3].push(format!(" {: <100}", btree_str));
   view[4].push(std::iter::repeat(' ').take(100).collect::<String>());
-  view[5].push(" Miner;".to_string());
+  view[5].push(format!(" Miner; {: <100}", ' '));
   view[6].push(std::iter::repeat(' ').take(93).collect::<String>());
-  view[7].push(format!("   {}", biomes[0].miner.helix));
+  view[7].push(format!("   {: <100}", biomes[0].miner.helix));
 
-  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), biomes[0].miner.meta.points, biomes[0].miner.movable.history.len()).to_string());
+  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <10} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), biomes[0].miner.meta.points, biomes[0].miner.movable.history.len(), biomes[0].miner.movable.now_energy.round()).to_string());
   view[9].push(std::iter::repeat(' ').take(100).collect::<String>());
 
   let mut so = 10;
   for n in 0..biomes[0].miner.slots.len() {
-    view[so + n].push(format!(" {: <20} {: >25} {: >70}", format!("{:?}", biomes[0].miner.slots[n].kind), progress_bar(20, biomes[0].miner.slots[n].cur_cooldown, biomes[0].miner.slots[n].max_cooldown, false), " ").to_string());
+    let slot: &Slottable = &biomes[0].miner.slots[n];
+    let (head, progress, tail) = match slot.kind {
+      SlotKind::Drill => ui_slot_drill(slot),
+      SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
+      SlotKind::Hammer => ui_slot_hammer(slot),
+      SlotKind::Emptiness => ui_slot_emptiness(slot),
+      SlotKind::EnergyCell => ui_slot_energy_cell(slot),
+      SlotKind::PurityScanner => ui_slot_purity_scanner(slot),
+      SlotKind::BrokenGps => ui_slot_broken_gps(slot),
+    };
+    view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
   for y in so+biomes[0].miner.slots.len()..vlen-4 {
@@ -435,6 +448,12 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   view[vlen -3].push("       gene mutation rate up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎".to_string());
   view[vlen -2].push("       slot mutation rate up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ ".to_string());
   view[vlen -1].push("       reset helix: r⏎   batch size up: m⏎   batch size down: n⏎".to_string());
+
+
+
+
+
+
 
   for row in view.iter() {
     let border_top_str: String = row.join("");

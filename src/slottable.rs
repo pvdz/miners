@@ -6,14 +6,15 @@ use rand::distributions::{Distribution, Uniform};
 #[derive(Debug)]
 pub struct Slottable {
     pub kind: SlotKind,
+    pub slot: usize,
     pub title: String,
     pub max_cooldown: f32,
     pub cur_cooldown: f32,
     // Offset zero. This is the nth slottable of this kind
     pub nth: i32,
     // Generic scratch value / sum for this slottable
-    pub val: i32,
-    pub sum: i32,
+    pub val: f32,
+    pub sum: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
