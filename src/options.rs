@@ -9,7 +9,6 @@ pub struct Options {
     pub speed: u64,
     pub visual: bool,
 
-
     // Debugging
     pub paint_ten_lines: bool, // Draw grids at every 10th line/col
     pub paint_zero_zero: bool, // Draw hash for the 0,0 coord
@@ -22,11 +21,11 @@ pub struct Options {
 pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
-        batch_size: 1,
+        batch_size: 10,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
         seed: 210114, // 0 is random
-        speed: 100,
+        speed: 1,
         reset_rate: 2000,
         visual: true,
 

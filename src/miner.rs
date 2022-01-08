@@ -42,10 +42,10 @@ pub struct MinerMeta {
     pub max_energy: f32,
 
     // Inventory of this miner
-    inventory: Inventory,
+    pub inventory: Inventory,
 
     // How many points has the miner accrued so far?
-    pub points: i32,
+    // pub points: i32,
     pub points_last_move: i32, // How many points has the miner gathered last time it moved? Does not include points from drones (or whatever else).
 
     // Tally of number of slots per kind
@@ -131,7 +131,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
                 slots[i] = create_slot_energy_cell(i, nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
             },
             SlotKind::DroneLauncher => {
-                slots[i] = create_drone_launcher(i, nth, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+                slots[i] = create_drone_launcher(i, nth, nth, helix.drone_gen_cooldown * 2.0_f32.powf(((nth as f32/2.0) + 1.0) as f32));
                 drones.push(Drone {
                     movable: Movable {
                         what: WHAT_DRONE,
@@ -179,7 +179,6 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             unique: vec!((0,0)),
         },
         meta: MinerMeta {
-            points: 0,
             points_last_move: 0,
             max_energy,
 

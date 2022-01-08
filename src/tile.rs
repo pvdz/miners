@@ -1,15 +1,13 @@
 use super::icons::*;
+use super::pickup::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Tile {
-  Diamond,
   DroneDown,
   DroneLeft,
   DroneRight,
   DroneUp,
   Empty,
-  Energy,
-  Stone,
   Wall1,
   Wall2,
   Wall3,
@@ -23,16 +21,12 @@ pub enum Tile {
   Test3,
 }
 
-pub fn tile_to_string(tile: Tile, wx: i32, wy: i32) -> String {
+pub fn cell_to_uncolored_string(tile: Tile, pickup: Pickup, wx: i32, wy: i32) -> String {
   return match tile {
-    Tile::Diamond => ICON_DIAMOND.to_string(),
     Tile::DroneDown => ICON_DRONE_DOWN.to_string(),
     Tile::DroneLeft => ICON_DRONE_LEFT.to_string(),
     Tile::DroneRight => ICON_DRONE_RIGHT.to_string(),
     Tile::DroneUp => ICON_DRONE_UP.to_string(),
-    Tile::Empty => "  ".to_string(),
-    Tile::Energy => ICON_ENERGY.to_string(),
-    Tile::Stone => ICON_ROCK.to_string(),
     Tile::Wall1 => format!("{}{}", ICON_BLOCK_25, ICON_BLOCK_25),
     Tile::Wall2 => format!("{}{}", ICON_BLOCK_50, ICON_BLOCK_50),
     Tile::Wall3 => format!("{}{}", ICON_BLOCK_75, ICON_BLOCK_75),
@@ -47,6 +41,9 @@ pub fn tile_to_string(tile: Tile, wx: i32, wy: i32) -> String {
     }, // ⚽ :ball:
     Tile::Test2 => panic!("Enable me 2"),
     Tile::Test3 => panic!("Enable me 3"),
+
+    // Pickups (only when cell is empty)
+    Tile::Empty => pickup_to_string(pickup, wx, wy),
   }
 }
 

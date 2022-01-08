@@ -5,10 +5,13 @@ use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rand::distributions::{Distribution, /*Uniform,*/ Standard};
 
+use super::cell::*;
 use super::movable::*;
 use super::slottable::*;
+use super::inventory::*;
 use super::icons::*;
 use super::options::*;
+use super::pickup::*;
 use super::biome::*;
 use super::tile::*;
 use super::utils::*;
@@ -28,13 +31,6 @@ use super::slot_emptiness::*;
 // Transposing the 2d world on a 1d array is therefor infeasible because extending one axis means
 // moving potentially many bytes. A simple vec has the same problem in one direction.
 // So we use a vec deque which supports exactly this.
-
-#[derive(Debug)]
-pub struct Cell {
-  pub tile: Tile, // Immovable type of this cell
-  pub value: u32, // For certain kinds of cells this indicates its value
-  pub visited: u32, // How often has the miner visited this coord?
-}
 
 pub type Grid = VecDeque<VecDeque<Cell>>;
 
@@ -74,29 +70,31 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
 
   // some % of the cells should contain an energy container (arbitrary)
   if (cell_rng.sample::<f32, Standard>(Standard)) < 0.05f32 {
-    return Cell { tile: Tile::Energy, value: 0, visited: 0 };
+    return Cell { tile: Tile::Empty, pickup: Pickup::Energy, value: 0, visited: 0 };
   }
 
   // Roughly half the cells should be filled with walls
   if cell_rng.sample::<f32, Standard>(Standard) < 0.4f32 {
     // Roughly speaking, 10% is 3, 30% is 2, 60% is 1?
-    let kind_roll: f32 = cell_rng.sample(Standard);
-    let value_roll: f32 = cell_rng.sample(Standard);
+    let kind_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
+    let value_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
+    let reward_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
     // 60% chance for wall to be common, 30% to be uncommon, 10% to be rare :shrug:
-    let wall_value = if value_roll < 0.6 { 1 } else if value_roll < 0.9 { 2 } else { 3 };
+    let wall_value = if value_roll < 0.1 { 2 } else if value_roll < 0.4 { 1 } else { 0 };
+    let reward_value = if reward_roll < 0.1 { Pickup::Diamond } else { Pickup::Stone };
 
     if kind_roll < 0.1 {
-      return Cell { tile: Tile::Wall3, value: wall_value, visited: 0 };
+      return Cell { tile: Tile::Wall3, pickup: reward_value, value: wall_value, visited: 0 };
     }
 
     if kind_roll < 0.4 {
-      return Cell { tile: Tile::Wall2, value: wall_value, visited: 0 };
+      return Cell { tile: Tile::Wall2, pickup: reward_value, value: wall_value, visited: 0 };
     }
 
-    return Cell { tile: Tile::Wall1, value: wall_value, visited: 0 };
+    return Cell { tile: Tile::Wall1, pickup: reward_value, value: wall_value, visited: 0 };
   }
 
-  return Cell { tile: Tile::Empty, value: 0, visited: 0 };
+  return Cell { tile: Tile::Empty, pickup: Pickup::Nothing, value: 0, visited: 0 };
 }
 
 pub fn world_width(world: &World) -> i32 {
@@ -129,7 +127,7 @@ pub fn generate_world(options: &Options) -> World {
 
   let mut ygrid: VecDeque<VecDeque<Cell>> = VecDeque::new();
   let mut xgrid: VecDeque<Cell> = VecDeque::new();
-  xgrid.push_back(Cell { tile: Tile::Empty, value: 0u32, visited: 0 });
+  xgrid.push_back(Cell { tile: Tile::Empty, pickup: Pickup::Nothing, value: 0u32, visited: 0 });
   ygrid.push_back(xgrid);
 
   let mut world = World {
@@ -150,6 +148,7 @@ pub fn generate_world(options: &Options) -> World {
 fn bound_ex(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
   return x >= min_x && x < max_x && y >= min_y && y < max_y;
 }
+
 fn bound_inc(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
   return x >= min_x && x <= max_x && y >= min_y && y <= max_y;
 }
@@ -198,14 +197,13 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
   if biome_index == 0 {
     // Paint the drones first. This way the miner goes on top in case of overlap.
     for drone in &biome.miner.drones {
-
       if drone.movable.now_energy == 0.0 {
         // Do not paint idle drones
         continue;
       }
 
       let drone_visual =
-        format!("\x1b[31;2m{} \x1b[8m",
+        format!("\x1b[31;2m{} \x1b[0m",
           match drone.movable.dir {
             Direction::Up => ICON_DRONE_UP,
             Direction::Down => ICON_DRONE_DOWN,
@@ -236,7 +234,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
       }
     } else {
       if biome_index == 0 {
-        format!("\x1b[;1;1m\x1b[31m{} \x1b[0m",
+        format!("\x1b[31m{} \x1b[0m",
           match biome.miner.movable.dir {
             Direction::Up => ICON_MINER_UP,
             Direction::Down => ICON_MINER_DOWN,
@@ -246,7 +244,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
           }
         ).to_string()
       } else {
-        ICON_GHOST.to_string()
+        format!("\x1b[30;1m{}\x1b[0m", ICON_GHOST).to_string()
       }
     };
 
@@ -324,24 +322,40 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
       if options.paint_ten_lines && (wx % 10 == 0 || wy % 10 == 0) { line.push(ten_line_cell(wx, wy)); } // Force-paint grid over world, regardless of the game world state
       else if options.paint_empty_world { line.push(format!("{}{}", ICON_DEBUG_BLANK, ICON_DEBUG_BLANK)); } // Force-paint an empty block instead of the actual world (game world is not changed)
       else {
-        let tile = get_cell_tile_at(&options, &world0, wx, wy);
-        let mut str = tile_to_string(tile, wx, wy);
+        let (tile, pickup, value) = get_cell_stuff_at(&options, &world0, wx, wy);
+        let mut str = cell_to_uncolored_string(tile, pickup, wx, wy);
         // Give certain tiles a color
         match tile {
           | Tile::Wall1
           | Tile::Wall2
           | Tile::Wall3
-          | Tile::Diamond =>
+          =>
             str = format!(
               "{}{}\x1b[0m",
-              match get_cell_value_at(&options, &world0, wx, wy) {
-                1 => "\x1b[;1;1m",
-                2 => "\x1b[;1;1m\x1b[32m",
-                3 => "\x1b[;1;1m\x1b[34m",
+              match value {
+                0 => "\x1b[30;0m",
+                1 => "\x1b[32;1m",
+                2 => "\x1b[34;1m",
                 _ => panic!("wat"),
               },
               str
             ),
+          | Tile::Empty => match pickup {
+            Pickup::Nothing => {}
+            Pickup::Energy => {}
+            | Pickup::Stone
+            | Pickup::Diamond
+            => str = format!(
+              "{}{}\x1b[0m",
+              match value {
+                0 => "\x1b[30;0m",
+                1 => "\x1b[32;1m",
+                2 => "\x1b[34;1m",
+                _ => panic!("wat"),
+              },
+              str
+            ),
+          }
           _ => (),
         }
         line.push(str);
@@ -414,18 +428,18 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   let vlen = view.len();
 
   // Append each line to the map
-  view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {: <100}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
-  view[2].push(format!(" {: <100}", best_miner_str));
-  view[3].push(format!(" {: <100}", btree_str));
-  view[4].push(std::iter::repeat(' ').take(100).collect::<String>());
-  view[5].push(format!(" Miner; {: <100}", ' '));
-  view[6].push(std::iter::repeat(' ').take(93).collect::<String>());
-  view[7].push(format!("   {: <100}", biomes[0].miner.helix));
+  view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {: <120}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
+  view[2].push(format!(" {: <150}", best_miner_str));
+  view[3].push(format!(" {: <150}", btree_str));
+  view[4].push(std::iter::repeat(' ').take(150).collect::<String>());
+  view[5].push(format!(" Miner; {: <150}", ' '));
+  view[6].push(std::iter::repeat(' ').take(143).collect::<String>());
+  view[7].push(format!("   {: <150}", biomes[0].miner.helix));
+  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <15} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), get_points(&biomes[0].miner.meta.inventory), format!("{} ({})", biomes[0].miner.movable.history.len(), biomes[0].miner.movable.unique.len()), biomes[0].miner.movable.now_energy.round()).to_string());
+  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory)));
+  view[10].push(std::iter::repeat(' ').take(100).collect::<String>());
 
-  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <10} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), biomes[0].miner.meta.points, biomes[0].miner.movable.history.len(), biomes[0].miner.movable.now_energy.round()).to_string());
-  view[9].push(std::iter::repeat(' ').take(100).collect::<String>());
-
-  let mut so = 10;
+  let mut so = 11;
   for n in 0..biomes[0].miner.slots.len() {
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
@@ -440,27 +454,20 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
-  for y in so+biomes[0].miner.slots.len()..vlen-4 {
+  for y in so + biomes[0].miner.slots.len()..vlen - 4 {
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
   }
 
-  view[vlen -4].push(" Keys: toggle visual: v⏎  faster: +⏎   slower: -⏎".to_string());
-  view[vlen -3].push("       gene mutation rate up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎".to_string());
-  view[vlen -2].push("       slot mutation rate up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ ".to_string());
-  view[vlen -1].push("       reset helix: r⏎   batch size up: m⏎   batch size down: n⏎".to_string());
-
-
-
-
-
+  view[vlen - 4].push(format!(" Keys: toggle visual: v⏎  speed [{}]  faster: +⏎   slower: -⏎", options.speed));
+  view[vlen - 3].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎", options.mutation_rate_genes));
+  view[vlen - 2].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎", options.mutation_rate_slots));
+  view[vlen - 1].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎", options.batch_size));
 
 
   for row in view.iter() {
     let border_top_str: String = row.join("");
     println!("{}", border_top_str);
   }
-
-
 
 
   return "".to_owned();
@@ -486,7 +493,7 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
         let gx = world.min_x - i;
         let gy = world.min_y + j;
         let cell = generate_cell(&options, gx, gy);
-        row.push_front( cell);
+        row.push_front(cell);
       }
     }
     world.min_x = world.min_x - to_prepend;
@@ -552,8 +559,50 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
   assert_world_dimensions(world);
 }
 
-pub fn create_cell(tile: Tile, value: u32) -> Cell {
-  return Cell { tile, value, visited: 0 };
+pub fn create_cell(tile: Tile, pickup: Pickup, value: u32) -> Cell {
+  return Cell { tile, pickup, value, visited: 0 };
+}
+
+pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> (Tile, Pickup, u32) {
+  // wx/wy should be world coordinates
+  assert_world_dimensions(world);
+
+  // Is the cell explicitly stored in the world right now? If not then use the procedure.
+  if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
+    if options.hide_world_oob {
+      return (Tile::HideWorld, Pickup::Nothing, 0);
+    }
+
+    // OOB. Use generated value
+    let cell = generate_cell(options, wx, wy);
+    return (cell.tile, cell.pickup, cell.value);
+  }
+
+  if options.hide_world_ib {
+    return (Tile::HideWorld, Pickup::Nothing, 0);
+  }
+
+  // If x is negative then the coord is `min_x.abs() + x` (ex: `abs(-10) + -5` or `10 - 5` = 5)
+  // If x is positive then the coord is `min_x.abs() + x` (ex: `abs(-10) + 5` or `10 + 5` = 15)
+  // If x is zero then the coord is `min_x.abs()`
+  // So in all cases, the absolute coord of x is `min_x.abs() + x`
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
+  // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
+
+  assert!(wx >= world.min_x);
+  assert!(wy >= world.min_y);
+  assert!(wx <= world.max_x);
+  assert!(wy <= world.max_y);
+  assert!(ax >= 0);
+  assert!(ay >= 0);
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x));
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y));
+
+  let cell = &world.tiles[ay as usize][ax as usize];
+  return (cell.tile, cell.pickup, cell.value);
 }
 
 pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> Tile {
@@ -595,6 +644,7 @@ pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> T
 
   return world.tiles[ay as usize][ax as usize].tile;
 }
+
 pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> u32 {
   // wx/wy should be world coordinates
   assert_world_dimensions(world);

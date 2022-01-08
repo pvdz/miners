@@ -21,7 +21,7 @@ pub const ICON_INDEX_RIGHT: char = '⭆';
 pub const ICON_INDEX_DOWN: char = '⟱';
 pub const ICON_INDEX_LEFT: char = '⭅';
 pub const ICON_MARGIN: char = '░';
-pub const ICON_ROCK: char = '🪨';
+pub const ICON_STONE: char = '🥌'; // curling, stone, get it?
 
 pub const ICON_MINER_UP: char = ICON_HEAVY_UP;
 pub const ICON_MINER_RIGHT: char = ICON_HEAVY_RIGHT;

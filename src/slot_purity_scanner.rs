@@ -35,8 +35,6 @@ pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta
 
     // todo: points_last_move moet laatste item(s) weergeven. vec?
     if slot.cur_cooldown >= slot.max_cooldown && miner_meta.points_last_move > 0 {
-        miner_meta.points = miner_meta.points + miner_meta.points_last_move;
-        slot.val += miner_meta.points_last_move as f32;
         slot.sum += 1.0;
         slot.cur_cooldown = 0.0;
     }
@@ -46,7 +44,7 @@ pub fn ui_slot_purity_scanner(slot: &Slottable) -> (String, String, String) {
     return (
         TITLE_PURITY_SCANNER.to_string(),
         progress_bar(20, slot.cur_cooldown, slot.max_cooldown, false),
-        format!("Improved {} gems. Added value: {}", slot.sum, slot.val)
+        format!("Improved {} gems", slot.sum)
     );
 }
 

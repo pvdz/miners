@@ -5,10 +5,12 @@ pub mod values;
 pub mod icons;
 pub mod drone;
 pub mod movable;
+pub mod cell;
 pub mod miner;
 pub mod helix;
 pub mod inventory;
 pub mod biome;
+pub mod pickup;
 pub mod slot_hammer;
 pub mod slot_drill;
 pub mod async_stdin;
@@ -34,6 +36,7 @@ use std::time::SystemTime;
 use rand::prelude::*;
 use rand_pcg::{Pcg64, Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
+use crate::helix::create_initial_helix;
 
 // Unique character ideas ("powerups with massive impact of which you should only need one")
 // - random starting position
@@ -87,19 +90,36 @@ fn main() {
 
   // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html
   // TODO: not relevant yet but when squeezing perf: does the btree on strings have amortized O(log2(n)+m) time rather than O(log2(n)*m) time? (does it remember string offset of previous step while traversing the tree?).
-  let mut btree: BTreeMap<String, usize> = BTreeMap::new();
+  let mut btree: BTreeMap<String, (u64, usize, helix::SerializedHelix)> = BTreeMap::new();
   let mut trail_lens: u64 = 0;
 
   let mut options = options::parse_cli_args();
 
-  let f = format!("./seed_{}.rson", options.seed);
-  let p = Path::new(&f);
-  if options.seed > 0 && p.is_file() {
-    println!("Loading from file... `{}`", f);
-    let s = fs::read_to_string(&p).expect("Unable to read file");
+  let mut best_points_from_file: u64 = 0;
+  let mut best_steps_from_file: usize = 0;
+  let mut best_helix_from_file: helix::Helix = helix::create_null_helix();
+  let seed_btree_file = format!("./seed_{}.rson", options.seed);
+  let seed_btree_path = Path::new(&seed_btree_file);
+  let mut load_best_as_miner_zero = false;
+  if options.seed > 0 && seed_btree_path.is_file() {
+    println!("Loading from file... `{}`", seed_btree_file);
+    let s = fs::read_to_string(&seed_btree_path).expect("Unable to read file");
     println!("Parsing {} bytes into btree", s.len());
     btree = serde_json::from_str(&s).unwrap();
-    println!("Loaded {} miners from disk", btree.len());
+
+    let len = btree.len();
+
+    for (_key, (points, unique_steps, serialized_helix)) in btree.iter() {
+      trail_lens += unique_steps.to_owned() as u64;
+      if points.to_owned() > best_points_from_file {
+        best_points_from_file = points.to_owned();
+        best_steps_from_file = unique_steps.to_owned() as usize;
+        best_helix_from_file = helix::helix_deserialize(serialized_helix);
+        load_best_as_miner_zero = true;
+      }
+    }
+
+    println!("Loaded {} miners from disk. Average unique path len: {}. Most points: {}, with {} unique steps. Best helix: {}", len, trail_lens / len as u64, best_points_from_file, best_steps_from_file, best_helix_from_file);
   }
 
   // When this gets set (by user interaction) the best miner is cleared and a new miner-seed is randomly picked.
@@ -112,7 +132,7 @@ fn main() {
     let seed_range = Uniform::from(0..1000000);
     options.seed = seed_range.sample(&mut seed_rng);
   }
-  println!("Seed: {}", options.seed);
+  println!("World seed: {}", options.seed);
 
   let mut delay = time::Duration::from_millis(options.speed);
 
@@ -120,12 +140,23 @@ fn main() {
   // It's seeded so are able to repro a run. The initial miner is based on it as well.
   let mut instance_rng: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
 
-  let mut best_miner: (helix::Helix, i32, usize, usize) = (
-    helix::create_initial_helix(&mut instance_rng, options.seed),
-    0,
-    0,
-    0,
-  );
+  println!("Miner seed: {}", options.seed);
+  let mut best_miner: (helix::Helix, u64, usize, usize) =
+    if load_best_as_miner_zero {
+      (
+        best_helix_from_file,
+        best_points_from_file,
+        0,
+        best_steps_from_file,
+      )
+    } else {
+      (
+        helix::create_initial_helix(&mut instance_rng, options.seed),
+        best_points_from_file,
+        0,
+        best_steps_from_file,
+      )
+    };
   let mut best_min_x = 0;
   let mut best_min_y = 0;
   let mut best_max_x = 0;
@@ -139,13 +170,23 @@ fn main() {
   let mut current_miner_count: u32 = 0;
   let start_time = SystemTime::now();
 
+  let mut batches = 0;
   loop {
+    batches += 1;
+
     // Generate a bunch of biomes. Create a world for them and put a miner in there.
     // Each biome shares the same world (governed by the seed). But since the world is destructible
     // we have to give each biome their own world state.
     let mut biomes: Vec<biome::Biome> = vec!();
-    for _ in 0..options.batch_size {
-      let cur_miner: miner::Miner = miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, next_root_helix, &options)); // The helix will clone/copy. Can/should we prevent this?
+    for i in 0..options.batch_size {
+      let cur_miner: miner::Miner =
+        if load_best_as_miner_zero {
+          println!("loading best miner into biome {}... {}", i, next_root_helix);
+          miner::create_miner_from_helix(next_root_helix)
+        } else {
+          miner::create_miner_from_helix(helix::mutate_helix(&mut instance_rng, next_root_helix, &options)) // The helix will clone/copy. Can/should we prevent this?
+      };
+      load_best_as_miner_zero = false;
       let own_world: world::World = world::generate_world(&options);
       let biome = biome::Biome {
         world: own_world,
@@ -193,6 +234,10 @@ fn main() {
             reset = true;
             println!("Manual reset requested...");
           },
+          "b\n" => {
+            load_best_as_miner_zero = true;
+            println!("Aborting current run and loading best as miner now...");
+          }
           "q\n" => {
             // Save and quit.
             println!("Serializing btree with {} entries...", btree.len());
@@ -209,14 +254,19 @@ fn main() {
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
 
+      if load_best_as_miner_zero {
+        break;
+      }
+
       if !reset && current_miner_count > options.reset_rate {
         println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
         reset = true;
       }
 
       if reset {
-        let new_seet = instance_rng.next_u64();
-        next_root_helix = helix::create_initial_helix(&mut instance_rng, new_seet);
+        let new_seed = instance_rng.next_u64();
+        println!("New miner seed: {}", new_seed);
+        next_root_helix = helix::create_initial_helix(&mut instance_rng, new_seed);
         current_miner_count = 0;
 
         // Do we reset other counters?
@@ -231,11 +281,12 @@ fn main() {
         let biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
           let mminer: &mut movable::Movable = &mut biome.miner.movable;
+          let mslots: &miner::MinerSlots = &mut biome.miner.slots;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
           let mdrones: &mut Vec<drone::Drone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
-          movable::move_movable(mminer, mmeta, mworld, &options);
-          for i in 0..biome.miner.slots.len() {
+          movable::move_movable(mminer, mslots, mmeta, mworld, &options);
+          for i in 0..mslots.len() {
             let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
             match slot.kind {
               slottable::SlotKind::Emptiness => (), // noop
@@ -257,6 +308,8 @@ fn main() {
           } else {
             // This miner stopped now
 
+            // Note: this generates super verbose strings (every pair is an array, every array is spread over four lines). Something to optimize later.
+            // let trail: String = serde_json::to_string_pretty(&biome.miner.movable.unique).unwrap();
             let mut trail: String = String::new();
 
             for (i, (x, y)) in biome.miner.movable.unique.iter().enumerate() {
@@ -268,17 +321,23 @@ fn main() {
                 trail.push_str(s.as_str());
               }
             }
+
             // TODO: ugh. get rid of the trail formats in this part... I just made it work for now.
             let has_trail: bool = btree.contains_key(format!("{}", trail).as_str());
             // TODO: why can't it do `.get()?` ? It refuses to do the `?` thing.
-            let cur_trail_value = btree.entry(format!("{}", trail)).or_insert(0);
-            *cur_trail_value += 1;
-            // btree.insert(format!("{}", trail), cur_trail_value + 1);
+            let cur_points = inventory::get_points(&biome.miner.meta.inventory);
+            let ok = btree.entry(format!("{}", trail)).or_insert((cur_points, biome.miner.movable.unique.len(), helix::helix_serialize(&biome.miner.helix)));
+            if cur_points > ok.0 {
+              println!("Helix improved a path, from {} to {}. Helix: {}", ok.0, cur_points, biome.miner.helix);
+              ok.0 = cur_points;
+              ok.1 = biome.miner.movable.unique.len();
+              ok.2 = helix::helix_serialize(&biome.miner.helix);
+            }
             if has_trail {
               // println!("This miner was already recorded...");
             } else {
-              println!("This miner was new! trail has {} / {} steps. Tree now contains {} trails.", biome.miner.movable.unique.len(), biome.miner.movable.history.len(), btree.len());
-              trail_lens = trail_lens + biome.miner.movable.unique.len() as u64;
+              println!("This miner was new! trail has {} / {} steps and results in {} points. Tree now contains {} trails.", biome.miner.movable.unique.len(), biome.miner.movable.history.len(), cur_points, btree.len());
+              trail_lens += biome.miner.movable.unique.len() as u64;
             }
           }
         }
@@ -316,6 +375,10 @@ fn main() {
       }
     }
 
+    if load_best_as_miner_zero {
+      continue;
+    }
+
     if reset {
       reset = false;
       println!("Resetting helix...");
@@ -324,14 +387,15 @@ fn main() {
 
     let mut winner = (
       biomes[0].miner.helix,
-      (biomes[0].miner.meta.points as f64 * ((100.0 + biomes[0].miner.helix.multiplier_points as f64) / 100.0)) as i32,
+      inventory::get_points(&biomes[0].miner.meta.inventory) as u64,
       &biomes[0].world,
       biomes[0].miner.movable.history.len(),
       biomes[0].miner.movable.unique.len(),
     );
-    for m in 1..biomes.len() {
+
+    for m in 1..biomes.len() { // 1 because zero is used as init above
       let biome: &biome::Biome = &biomes[m];
-      let points = (biome.miner.meta.points as f64 * ((100.0 + biome.miner.helix.multiplier_points as f64) / 100.0)) as i32;
+      let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
 
       if points > winner.1 {
         winner = (
@@ -345,10 +409,16 @@ fn main() {
     }
 
     if options.visual {
-      for m in 1..biomes.len() {
+      for m in 0..biomes.len() {
         let biome: &biome::Biome = &biomes[m];
-        let points = (biome.miner.meta.points as f64 * ((100.0 + biome.miner.helix.multiplier_points as f64) / 100.0)) as i32;
-        println!("- Points: {} :: {}", points, biome.miner.helix);
+        let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
+        println!(
+          "- Biome {: <2}: Points: {: <6} Steps: {: <5} Unique: {: <5} [{: >4}x{: <4} , {: >4}x{: <4}] :: {}{: <100}",
+          m, points, biome.miner.movable.history.len(), biome.miner.movable.unique.len(),
+          biome.world.min_x, biome.world.min_y, biome.world.max_x, biome.world.max_y,
+          biome.miner.helix,
+          ' '
+        );
       }
     }
 
@@ -356,8 +426,9 @@ fn main() {
     helix::helix_to_string(&mut he, &winner.0);
 
     println!(
-      "Out of energy! Time: {} s, iterations: {: >5}, miners: {}, batch: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
+      "Time: {} s, batches: {: <5} iterations: {: <5} miners: {}, in current seed: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
       match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
+      batches,
       iteration,
       total_miner_count,
       current_miner_count,
@@ -372,7 +443,9 @@ fn main() {
       he,
       ' '
     );
+
     if winner.1 > best_miner.1 {
+      println!("\x1b[32;1mFound a new best!\x1b[0m: From {} to {}", best_miner.1, winner.1);
       best_miner = (winner.0, winner.1, winner.3, winner.4); // helix, points, steps, uniques
       next_root_helix = winner.0;
       best_min_x = winner.2.min_x;
@@ -382,7 +455,7 @@ fn main() {
     }
 
     println!(
-      "Binary tree mode has {: >10} nodes with average trail len of {}.",
+      "Binary tree mode has {} nodes with average trail len of {}.",
       btree.len(),
       trail_lens / btree.len() as u64
     );

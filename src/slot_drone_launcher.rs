@@ -47,7 +47,7 @@ pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movabl
     if slot.cur_cooldown >= slot.max_cooldown {
       if miner_movable.now_energy > 2.0 * DRONE_INITIAL_ENERGY {
         drone.movable.now_energy = DRONE_INITIAL_ENERGY;
-        miner_movable.now_energy -= DRONE_INITIAL_ENERGY;
+        miner_movable.now_energy -= DRONE_INITIAL_ENERGY / 2.0; // TODO: this ratio can be a tool to act as penalty for a helix property
         // Position the drone on your location, facing perpendicular from your current direction
         drone.movable.x = miner_movable.x;
         drone.movable.y = miner_movable.y;
@@ -75,7 +75,7 @@ pub fn ui_slot_drone_launcher(slot: &Slottable, drone: &Drone) -> (String, Strin
     return (
       TITLE_DRONE_LAUNCHER.to_string(),
       progress_bar(20, drone.movable.now_energy, DRONE_INITIAL_ENERGY, false),
-      format!("Drone is flying...")
+      format!("Drone is flying at {}x{}", drone.movable.x, drone.movable.y)
     );
   }
 
