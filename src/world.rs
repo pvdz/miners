@@ -324,40 +324,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
       else {
         let (tile, pickup, value) = get_cell_stuff_at(&options, &world0, wx, wy);
         let mut str = cell_to_uncolored_string(tile, pickup, wx, wy);
-        // Give certain tiles a color
-        match tile {
-          | Tile::Wall1
-          | Tile::Wall2
-          | Tile::Wall3
-          =>
-            str = format!(
-              "{}{}\x1b[0m",
-              match value {
-                0 => "\x1b[30;0m",
-                1 => "\x1b[32;1m",
-                2 => "\x1b[34;1m",
-                _ => panic!("wat"),
-              },
-              str
-            ),
-          | Tile::Empty => match pickup {
-            Pickup::Nothing => {}
-            Pickup::Energy => {}
-            | Pickup::Stone
-            | Pickup::Diamond
-            => str = format!(
-              "{}{}\x1b[0m",
-              match value {
-                0 => "\x1b[30;0m",
-                1 => "\x1b[32;1m",
-                2 => "\x1b[34;1m",
-                _ => panic!("wat"),
-              },
-              str
-            ),
-          }
-          _ => (),
-        }
+        str = cell_add_color(&str, tile, value, pickup);
         line.push(str);
       }
     }
@@ -454,14 +421,15 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
-  for y in so + biomes[0].miner.slots.len()..vlen - 4 {
+  for y in so + biomes[0].miner.slots.len()..vlen - 5 {
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
   }
 
-  view[vlen - 4].push(format!(" Keys: toggle visual: v⏎  speed [{}]  faster: +⏎   slower: -⏎", options.speed));
-  view[vlen - 3].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎", options.mutation_rate_genes));
-  view[vlen - 2].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎", options.mutation_rate_slots));
-  view[vlen - 1].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎", options.batch_size));
+  view[vlen - 5].push(format!(" Keys: toggle visual: v⏎   save and quite: q⏎  speed [{}]  faster: +⏎   slower: -⏎ {: <50}", options.speed, ' '));
+  view[vlen - 4].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎ {: <50}", options.mutation_rate_genes, ' '));
+  view[vlen - 3].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ {: <50}", options.mutation_rate_slots, ' '));
+  view[vlen - 2].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎ {: <50}", options.batch_size, ' '));
+  view[vlen - 1].push(format!("       mutate [{}]: g⏎   auto reset [{}] after [{}] miners: t⏎ {: <50}", if options.mutate_from_best { "overall best" } else { "last winner" }, if options.reset_after_noop { "after noop" } else { "regardless" }, options.reset_rate, ' '));
 
 
   for row in view.iter() {

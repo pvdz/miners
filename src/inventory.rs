@@ -10,6 +10,15 @@
 // Do I want any kind of interactable npcs? Active or passively interact.
 // Passive interaction could be a preset of "when this do this" or smth. Or maybe item driven.
 
+// Factorio belts? Running towards factories which convert mined stuff into other stuffs?
+
+// Edibles (doesn't have to be real, eh) which affects hunger, which is non-lethal (unlike energy)
+// but which affects other stats and effects?
+
+// Fluid dynamics? Exploring water wells, toxic/oil spills, gas clouds, etc?
+
+// Is fossils something to toy with?
+
 
 
 use std::fmt::Write;
@@ -51,6 +60,22 @@ pub fn create_inventory() -> Inventory {
     diamond_yellow: 0,
 
     energy: 0,
+  };
+}
+
+pub fn clone_inventory(inventory: &Inventory) -> Inventory {
+  return Inventory {
+    stone_white: inventory.stone_white,
+    stone_green: inventory.stone_green,
+    stone_blue: inventory.stone_blue,
+    stone_yellow: inventory.stone_yellow,
+
+    diamond_white: inventory.diamond_white,
+    diamond_green: inventory.diamond_green,
+    diamond_blue: inventory.diamond_blue,
+    diamond_yellow: inventory.diamond_yellow,
+
+    energy: inventory.energy,
   };
 }
 

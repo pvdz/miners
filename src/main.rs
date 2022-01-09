@@ -141,13 +141,15 @@ fn main() {
   let mut instance_rng: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
 
   println!("Miner seed: {}", options.seed);
-  let mut best_miner: (helix::Helix, u64, usize, usize) =
+  let new_inv = inventory::create_inventory();
+  let mut best_miner: (helix::Helix, u64, usize, usize, inventory::Inventory) =
     if load_best_as_miner_zero {
       (
         best_helix_from_file,
         best_points_from_file,
         0,
         best_steps_from_file,
+        new_inv,
       )
     } else {
       (
@@ -155,6 +157,7 @@ fn main() {
         best_points_from_file,
         0,
         best_steps_from_file,
+        new_inv
       )
     };
   let mut best_min_x = 0;
@@ -168,6 +171,7 @@ fn main() {
 
   let mut total_miner_count: u32 = 0;
   let mut current_miner_count: u32 = 0;
+  let mut miner_count_since_last_best: u32 = 0;
   let start_time = SystemTime::now();
 
   let mut batches = 0;
@@ -199,8 +203,9 @@ fn main() {
       biomes.push(biome);
     }
 
-    total_miner_count = total_miner_count + (biomes.len() as u32);
-    current_miner_count = current_miner_count + (biomes.len() as u32);
+    total_miner_count += (biomes.len() as u32);
+    current_miner_count += (biomes.len() as u32);
+    miner_count_since_last_best += (biomes.len() as u32);
 
     // Move it move it
     let mut iteration = 0; // How many iterations for the current cycle
@@ -238,6 +243,14 @@ fn main() {
             load_best_as_miner_zero = true;
             println!("Aborting current run and loading best as miner now...");
           }
+          "g\n" => {
+            options.mutate_from_best = !options.mutate_from_best;
+            println!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best);
+          }
+          "t\n" => {
+            options.reset_after_noop = !options.reset_after_noop;
+            println!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop);
+          }
           "q\n" => {
             // Save and quit.
             println!("Serializing btree with {} entries...", btree.len());
@@ -258,8 +271,12 @@ fn main() {
         break;
       }
 
-      if !reset && current_miner_count > options.reset_rate {
-        println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
+      if !reset && (if options.reset_after_noop { miner_count_since_last_best } else { current_miner_count } > options.reset_rate) {
+        if options.reset_after_noop {
+          println!("Auto reset after no new best in {} iterations", miner_count_since_last_best);
+        } else {
+          println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
+        }
         reset = true;
       }
 
@@ -385,18 +402,21 @@ fn main() {
       continue;
     }
 
-    let mut winner = (
+    let points = inventory::get_points(&biomes[0].miner.meta.inventory);
+    let inv = inventory::clone_inventory(&biomes[0].miner.meta.inventory);
+    let mut winner: (helix::Helix, u64, &world::World, usize, usize, inventory::Inventory) = (
       biomes[0].miner.helix,
-      inventory::get_points(&biomes[0].miner.meta.inventory) as u64,
+      points as u64,
       &biomes[0].world,
       biomes[0].miner.movable.history.len(),
       biomes[0].miner.movable.unique.len(),
+      inv,
     );
 
     for m in 1..biomes.len() { // 1 because zero is used as init above
       let biome: &biome::Biome = &biomes[m];
       let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
-
+      let inv = inventory::clone_inventory(&biome.miner.meta.inventory);
       if points > winner.1 {
         winner = (
           biome.miner.helix,
@@ -404,6 +424,7 @@ fn main() {
           &biome.world,
           biome.miner.movable.history.len(),
           biome.miner.movable.unique.len(),
+          inv,
         )
       }
     }
@@ -445,13 +466,18 @@ fn main() {
     );
 
     if winner.1 > best_miner.1 {
-      println!("\x1b[32;1mFound a new best!\x1b[0m: From {} to {}", best_miner.1, winner.1);
-      best_miner = (winner.0, winner.1, winner.3, winner.4); // helix, points, steps, uniques
+      println!("\x1b[32;1mFound a new best!\x1b[0m: From {} to {}. Inventory: {}", best_miner.1, winner.1, inventory::ui_inventory(&winner.5));
+      best_miner = (winner.0, winner.1, winner.3, winner.4, winner.5); // helix, points, steps, uniques, inventory
       next_root_helix = winner.0;
       best_min_x = winner.2.min_x;
       best_min_y = winner.2.min_y;
       best_max_x = winner.2.max_x;
       best_max_y = winner.2.max_y;
+      miner_count_since_last_best = 0;
+    }
+    if !options.mutate_from_best {
+      // Mutate from last winner regardless of whether it was a new best
+      next_root_helix = winner.0;
     }
 
     println!(

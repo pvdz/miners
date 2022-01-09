@@ -4,7 +4,9 @@ pub struct Options {
     pub batch_size: u8,
     pub mutation_rate_genes: f32,
     pub mutation_rate_slots: f32,
-    pub reset_rate: u32,
+    pub mutate_from_best: bool, // Mutate a new batch from the overall best or the last winner?
+    pub reset_rate: u32,        // Reset every this many generated miners
+    pub reset_after_noop: bool, // Only reset after that many miners did not yield a new best?
     pub seed: u64,
     pub speed: u64,
     pub visual: bool,
@@ -24,9 +26,11 @@ pub fn parse_cli_args() -> Options {
         batch_size: 10,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
+        mutate_from_best: false,
         seed: 210114, // 0 is random
         speed: 1,
-        reset_rate: 2000,
+        reset_rate: 500,
+        reset_after_noop: true,
         visual: true,
 
         // Debug
