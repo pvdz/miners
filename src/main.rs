@@ -1,5 +1,7 @@
 pub mod options;
 pub mod slottable;
+pub mod color;
+pub mod slot_builder;
 pub mod world;
 pub mod values;
 pub mod icons;
@@ -21,6 +23,7 @@ pub mod slot_energy_cell;
 pub mod slot_emptiness;
 pub mod tile;
 pub mod utils;
+pub mod expando;
 
 use std::{thread, time};
 use std::borrow::Borrow;
@@ -174,9 +177,18 @@ fn main() {
   let mut miner_count_since_last_best: u32 = 0;
   let start_time = SystemTime::now();
 
-  let mut batches = 0;
+  let mut stats_last_second = 0;
+  let mut stats_last_batches = 0;
+  let mut stats_last_batch_loops = 0;
+  let mut stats_last_biome_ticks = 0;
+  let mut stats_last_ticks_sec = 0;
+
+  let mut stats_total_batches = 0;
+  let mut stats_total_batch_loops = 0;
+  let mut stats_total_biome_ticks = 0;
+
   loop {
-    batches += 1;
+    stats_total_batches += 1;
 
     // Generate a bunch of biomes. Create a world for them and put a miner in there.
     // Each biome shares the same world (governed by the seed). But since the world is destructible
@@ -208,7 +220,7 @@ fn main() {
     miner_count_since_last_best += (biomes.len() as u32);
 
     // Move it move it
-    let mut iteration = 0; // How many iterations for the current cycle
+    let mut batch_loops = 0; // How many iterations for the current batch
     let mut has_energy = true; // As long as any miner in the current cycle has energy left...
     while has_energy && !reset {
       // This is basically the main game loop
@@ -267,55 +279,43 @@ fn main() {
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
 
-      if load_best_as_miner_zero {
+      if load_best_as_miner_zero || reset {
         break;
       }
 
-      if !reset && (if options.reset_after_noop { miner_count_since_last_best } else { current_miner_count } > options.reset_rate) {
-        if options.reset_after_noop {
-          println!("Auto reset after no new best in {} iterations", miner_count_since_last_best);
-        } else {
-          println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
-        }
-        reset = true;
-      }
-
-      if reset {
-        let new_seed = instance_rng.next_u64();
-        println!("New miner seed: {}", new_seed);
-        next_root_helix = helix::create_initial_helix(&mut instance_rng, new_seed);
-        current_miner_count = 0;
-
-        // Do we reset other counters?
-
-        break;
-      }
+      stats_total_batch_loops += 1;
+      batch_loops += 1;
 
       // Tick the biomes
       has_energy = false;
       for m in 0..biomes.len() {
-        let first_miner = m == 0;
         let biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
-          let mminer: &mut movable::Movable = &mut biome.miner.movable;
-          let mslots: &miner::MinerSlots = &mut biome.miner.slots;
+          stats_total_biome_ticks += 1;
+
+          let first_miner = m == 0;
+
+          let mminermovable: &mut movable::Movable = &mut biome.miner.movable;
+          let mslots: &mut miner::MinerSlots = &mut biome.miner.slots;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
           let mdrones: &mut Vec<drone::Drone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
-          movable::move_movable(mminer, mslots, mmeta, mworld, &options);
+
+          world::tick_world(mworld, &options);
+          miner::tick_miner(mmeta, mslots);
+
+          movable::move_movable(mminermovable, mslots, mmeta, mworld, &options);
           for i in 0..mslots.len() {
             let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
             match slot.kind {
               slottable::SlotKind::Emptiness => (), // noop
-              slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminer, mmeta, mworld, &options, first_miner),
-              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminer, mdrones, mmeta, mworld, &options, first_miner),
+              slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminermovable, mmeta, mworld, &options, first_miner),
+              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminermovable, mdrones, mmeta, mworld, &options, first_miner),
               slottable::SlotKind::Hammer => (), // noop
               slottable::SlotKind::Drill => (), // noop
               slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
-              slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminer, first_miner),
-              _ => {
-                panic!("Fix slot range generator in helix")
-              },
+              slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminermovable, first_miner),
+              slottable::SlotKind::Builder => slot_builder::tick_builder(slot),
             }
           }
 
@@ -360,21 +360,30 @@ fn main() {
         }
       }
 
-      iteration = iteration + 1;
-
       // Stop drawing the world when the main miner is out of energy. Speed things up visually.
+      let dur_sec = match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 };
       if options.visual && biomes[0].miner.movable.now_energy > 0.0 {
         let table_str: String = world::serialize_world(
           &biomes[0].world,
           &biomes,
           &options,
           format!("Best miner: Points: {}  Steps: {} ({})   Map: {}x{} ~ {}x{}  {}", best_miner.1, best_miner.2, best_miner.3, best_min_x, best_min_y, best_max_x, best_max_y, best_miner.0),
-          format!("Miner Dictionary contains {} entries. Average steps: {}.", btree.len(), trail_lens / btree.len().max(1) as u64),
+          format!("Miner Dictionary contains {} entries. Average steps: {}. Total time: {} s, batches: {}, batch loops: {}, biome ticks: {}, ticks/s: {}", btree.len(), trail_lens / btree.len().max(1) as u64, dur_sec, stats_total_batches, stats_total_batch_loops, stats_total_biome_ticks, stats_last_ticks_sec),
         );
         print!("\x1b[58A\n");
         println!("{}", table_str);
 
+        // TODO: if we're trying to match a certain fps then we have to deduct the frame time from this delay. Not that it really matters here.
+        // TODO: delay is currently 1:1 bound with tick time. We should detach that ;) Maybe. Yes for sure. The sleep is an artificial delay.
         thread::sleep(delay);
+      }
+
+      if dur_sec > stats_last_second {
+        stats_last_second = dur_sec;
+        stats_last_batches = stats_total_batches;
+        stats_last_batch_loops = stats_total_batch_loops;
+        stats_last_ticks_sec = stats_total_biome_ticks - stats_last_biome_ticks;
+        stats_last_biome_ticks = stats_total_biome_ticks;
       }
 
       // As a way to balance the block_bump_cost value; the higher that penalty is, the faster
@@ -396,95 +405,116 @@ fn main() {
       continue;
     }
 
+    if !reset {
+      let points = inventory::get_points(&biomes[0].miner.meta.inventory);
+      let inv = inventory::clone_inventory(&biomes[0].miner.meta.inventory);
+      let mut winner: (helix::Helix, u64, &world::World, usize, usize, inventory::Inventory) = (
+        biomes[0].miner.helix,
+        points as u64,
+        &biomes[0].world,
+        biomes[0].miner.movable.history.len(),
+        biomes[0].miner.movable.unique.len(),
+        inv,
+      );
+
+      for m in 1..biomes.len() { // 1 because zero is used as init above
+        let biome: &biome::Biome = &biomes[m];
+        let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
+        let inv = inventory::clone_inventory(&biome.miner.meta.inventory);
+        if points > winner.1 {
+          winner = (
+            biome.miner.helix,
+            points,
+            &biome.world,
+            biome.miner.movable.history.len(),
+            biome.miner.movable.unique.len(),
+            inv,
+          )
+        }
+      }
+
+      if options.visual {
+        for m in 0..biomes.len() {
+          let biome: &biome::Biome = &biomes[m];
+          let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
+          println!(
+            "- Biome {: <2}: Points: {: <6} Steps: {: <5} Unique: {: <5} [{: >4}x{: <4} , {: >4}x{: <4}] :: {}{: <100}",
+            m, points, biome.miner.movable.history.len(), biome.miner.movable.unique.len(),
+            biome.world.min_x, biome.world.min_y, biome.world.max_x, biome.world.max_y,
+            biome.miner.helix,
+            ' '
+          );
+        }
+      }
+
+      let mut he : String = "".to_string();
+      helix::helix_to_string(&mut he, &winner.0);
+
+
+
+      println!(
+        "Time: {} s, batches: {: <5} bath loops: {: <5} miners: {}, in current seed: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
+        match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
+        stats_total_batches,
+        batch_loops,
+        total_miner_count,
+        current_miner_count,
+
+        winner.1,
+        best_miner.1,
+        best_min_x,
+        best_min_y,
+        best_max_x,
+        best_max_y,
+
+        he,
+        ' '
+      );
+
+      if winner.1 > best_miner.1 {
+        println!("\x1b[32;1mFound a new best!\x1b[0m: From {} to {}. Inventory: {}", best_miner.1, winner.1, inventory::ui_inventory(&winner.5));
+        best_miner = (winner.0, winner.1, winner.3, winner.4, winner.5); // helix, points, steps, uniques, inventory
+        next_root_helix = winner.0;
+        best_min_x = winner.2.min_x;
+        best_min_y = winner.2.min_y;
+        best_max_x = winner.2.max_x;
+        best_max_y = winner.2.max_y;
+        miner_count_since_last_best = 0;
+      }
+      if !options.mutate_from_best {
+        // Mutate from last winner regardless of whether it was a new best
+        next_root_helix = winner.0;
+      }
+
+      println!(
+        "Binary tree mode has {} nodes with average trail len of {}. Ticks/s: {}",
+        btree.len(),
+        trail_lens / btree.len() as u64,
+        stats_last_ticks_sec
+      );
+    }
+
+    if !reset && (if options.reset_after_noop { miner_count_since_last_best } else { current_miner_count } > options.reset_rate) {
+      if options.reset_after_noop {
+        println!("Auto reset after no new best in {} iterations", miner_count_since_last_best);
+      } else {
+        println!("Auto reset after {} iterations, auto resets after {}", options.reset_rate, current_miner_count);
+      }
+      reset = true;
+    }
+
     if reset {
+      let new_seed = instance_rng.next_u64();
+      println!("New miner seed: {}", new_seed);
+      next_root_helix = helix::create_initial_helix(&mut instance_rng, new_seed);
+      current_miner_count = 0;
+
+      // Do we reset other counters?
+
       reset = false;
       println!("Resetting helix...");
       continue;
     }
-
-    let points = inventory::get_points(&biomes[0].miner.meta.inventory);
-    let inv = inventory::clone_inventory(&biomes[0].miner.meta.inventory);
-    let mut winner: (helix::Helix, u64, &world::World, usize, usize, inventory::Inventory) = (
-      biomes[0].miner.helix,
-      points as u64,
-      &biomes[0].world,
-      biomes[0].miner.movable.history.len(),
-      biomes[0].miner.movable.unique.len(),
-      inv,
-    );
-
-    for m in 1..biomes.len() { // 1 because zero is used as init above
-      let biome: &biome::Biome = &biomes[m];
-      let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
-      let inv = inventory::clone_inventory(&biome.miner.meta.inventory);
-      if points > winner.1 {
-        winner = (
-          biome.miner.helix,
-          points,
-          &biome.world,
-          biome.miner.movable.history.len(),
-          biome.miner.movable.unique.len(),
-          inv,
-        )
-      }
-    }
-
-    if options.visual {
-      for m in 0..biomes.len() {
-        let biome: &biome::Biome = &biomes[m];
-        let points = inventory::get_points(&biome.miner.meta.inventory) as u64;
-        println!(
-          "- Biome {: <2}: Points: {: <6} Steps: {: <5} Unique: {: <5} [{: >4}x{: <4} , {: >4}x{: <4}] :: {}{: <100}",
-          m, points, biome.miner.movable.history.len(), biome.miner.movable.unique.len(),
-          biome.world.min_x, biome.world.min_y, biome.world.max_x, biome.world.max_y,
-          biome.miner.helix,
-          ' '
-        );
-      }
-    }
-
-    let mut he : String = "".to_string();
-    helix::helix_to_string(&mut he, &winner.0);
-
-    println!(
-      "Time: {} s, batches: {: <5} iterations: {: <5} miners: {}, in current seed: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
-      match start_time.elapsed() { Ok(t) => t.as_secs(), _ => 99999 },
-      batches,
-      iteration,
-      total_miner_count,
-      current_miner_count,
-
-      winner.1,
-      best_miner.1,
-      best_min_x,
-      best_min_y,
-      best_max_x,
-      best_max_y,
-
-      he,
-      ' '
-    );
-
-    if winner.1 > best_miner.1 {
-      println!("\x1b[32;1mFound a new best!\x1b[0m: From {} to {}. Inventory: {}", best_miner.1, winner.1, inventory::ui_inventory(&winner.5));
-      best_miner = (winner.0, winner.1, winner.3, winner.4, winner.5); // helix, points, steps, uniques, inventory
-      next_root_helix = winner.0;
-      best_min_x = winner.2.min_x;
-      best_min_y = winner.2.min_y;
-      best_max_x = winner.2.max_x;
-      best_max_y = winner.2.max_y;
-      miner_count_since_last_best = 0;
-    }
-    if !options.mutate_from_best {
-      // Mutate from last winner regardless of whether it was a new best
-      next_root_helix = winner.0;
-    }
-
-    println!(
-      "Binary tree mode has {} nodes with average trail len of {}.",
-      btree.len(),
-      trail_lens / btree.len() as u64
-    );
 
     // println!("map: {}", serde_json::to_string_pretty(&btree).unwrap());
     // panic!("halt");

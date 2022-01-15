@@ -26,9 +26,10 @@ use std::fmt::Write;
 use std::fmt;
 use rand_pcg::{Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
-use crate::icons::{ICON_DIAMOND, ICON_ENERGY, ICON_STONE};
 
+use super::icons::*;
 use super::miner::*;
+use super::color::*;
 use super::options::*;
 use super::slottable::*;
 
@@ -45,6 +46,8 @@ pub struct Inventory {
   pub diamond_yellow: u32,
 
   pub energy: u32,
+  pub wind: u32,
+  pub wood: u32,
 }
 
 pub fn create_inventory() -> Inventory {
@@ -60,6 +63,8 @@ pub fn create_inventory() -> Inventory {
     diamond_yellow: 0,
 
     energy: 0,
+    wind: 0,
+    wood: 0,
   };
 }
 
@@ -76,21 +81,28 @@ pub fn clone_inventory(inventory: &Inventory) -> Inventory {
     diamond_yellow: inventory.diamond_yellow,
 
     energy: inventory.energy,
+    wind: inventory.wind,
+    wood: inventory.wood,
   };
 }
 
 pub fn ui_inventory(inventory: &Inventory) -> String {
   return format!(
-    "\x1b[30;0m{}\x1b[0m: {: <5} \x1b[32;1m{}\x1b[0m: {: <5} \x1b[34;1m{}\x1b[0m: {: <5} \x1b[93;40m{}\x1b[0m: {: <5} \x1b[30;0m{}\x1b[0m: {: <5} \x1b[32;1m{}\x1b[0m: {: <5} \x1b[34;1m{}\x1b[0m: {: <5} \x1b[93;40m{}\x1b[0m: {: <5} \x1b[93;40m{}\x1b[0m: {: <5}",
-    ICON_STONE, inventory.stone_white,
-    ICON_STONE, inventory.stone_green,
-    ICON_STONE, inventory.stone_blue,
-    ICON_STONE, inventory.stone_yellow,
-    ICON_DIAMOND, inventory.diamond_white,
-    ICON_DIAMOND, inventory.diamond_green,
-    ICON_DIAMOND, inventory.diamond_blue,
-    ICON_DIAMOND, inventory.diamond_yellow,
-    ICON_ENERGY, inventory.energy,
+    "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {} : {: <5}  {}: {: <5} {: <50}",
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_1), inventory.stone_white,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_2), inventory.stone_green,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_3), inventory.stone_blue,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_4), inventory.stone_yellow,
+
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_1), inventory.diamond_white,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_2), inventory.diamond_green,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_3), inventory.diamond_blue,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_4), inventory.diamond_yellow,
+
+    add_fg_color_with_reset(&ICON_ENERGY.to_string(), COLOR_ENERGY), inventory.energy,
+    add_fg_color_with_reset(&ICON_BUILDER_POWER.to_string(), COLOR_WIND), inventory.wind,
+    add_fg_color_with_reset(&ICON_WOOD.to_string(), COLOR_WOOD), inventory.wood,
+    ' '
   );
 }
 

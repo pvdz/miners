@@ -6,6 +6,7 @@ use rand_pcg::Pcg64;
 use rand::distributions::{Distribution, /*Uniform,*/ Standard};
 
 use super::cell::*;
+use super::color::*;
 use super::movable::*;
 use super::slottable::*;
 use super::inventory::*;
@@ -22,6 +23,8 @@ use super::slot_hammer::*;
 use super::slot_purity_scanner::*;
 use super::slot_energy_cell::*;
 use super::slot_emptiness::*;
+use super::slot_builder::*;
+use super::expando::*;
 
 // The world is procedurally generated and has no theoretical bounds.
 // The map retained in memory is only has big as has been visited. Any unvisited cell (or well, any
@@ -46,6 +49,7 @@ pub struct World {
   // Every vec should have `abs(min)+max+1` tiles. Assuming only `min` can be negative
   // should be safe because the world always starts at 0,0 and does not shrink.
   pub tiles: Grid,
+  pub expandos: Vec<Expando>,
 }
 
 pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
@@ -69,7 +73,12 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
   // I guess start with the rarest stuff first, move to the common stuff, end with empty
 
   // some % of the cells should contain an energy container (arbitrary)
-  if (cell_rng.sample::<f32, Standard>(Standard)) < 0.05f32 {
+  let energy_roll = cell_rng.sample::<f32, Standard>(Standard);
+  if energy_roll < 0.05 {
+    if energy_roll < 0.01 {
+      // For builder drones. Don't need as much (but some)
+      return Cell { tile: Tile::Empty, pickup: Pickup::Wind, value: 0, visited: 0 };
+    }
     return Cell { tile: Tile::Empty, pickup: Pickup::Energy, value: 0, visited: 0 };
   }
 
@@ -81,7 +90,11 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
     let reward_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
     // 60% chance for wall to be common, 30% to be uncommon, 10% to be rare :shrug:
     let wall_value = if value_roll < 0.1 { 2 } else if value_roll < 0.4 { 1 } else { 0 };
-    let reward_value = if reward_roll < 0.1 { Pickup::Diamond } else { Pickup::Stone };
+    let reward_value =
+      if reward_roll < 0.1 { Pickup::Diamond }
+      else if reward_roll < 0.1105 { Pickup::Expando } // Fake pickup. Causes water/gas/etc fluids.
+      else if reward_roll < 0.4 { Pickup::Wood }
+      else { Pickup::Stone };
 
     if kind_roll < 0.1 {
       return Cell { tile: Tile::Wall3, pickup: reward_value, value: wall_value, visited: 0 };
@@ -136,6 +149,7 @@ pub fn generate_world(options: &Options) -> World {
     max_x: 0,
     max_y: 0,
     tiles: ygrid,
+    expandos: vec!(),
   };
 
   // Use this to prerender part of the world for inspection reasons
@@ -143,6 +157,13 @@ pub fn generate_world(options: &Options) -> World {
   ensure_cell_in_world(&mut world, options, 5, 5);
 
   return world;
+}
+
+pub fn tick_world(world: &mut World, options: &Options) {
+  // Walk backwards because they may be removed when they become depleted
+  for n in (0..world.expandos.len()).rev() {
+    tick_expando(n, world, options);
+  }
 }
 
 fn bound_ex(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
@@ -203,14 +224,14 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
       }
 
       let drone_visual =
-        format!("\x1b[31;2m{} \x1b[0m",
-          match drone.movable.dir {
+        add_fg_color_with_reset(
+          &format!("{} ", match drone.movable.dir {
             Direction::Up => ICON_DRONE_UP,
             Direction::Down => ICON_DRONE_DOWN,
             Direction::Left => ICON_DRONE_LEFT,
             Direction::Right => ICON_DRONE_RIGHT,
-            _dir => panic!("unexpected dir: {:?}", _dir),
-          }
+          }),
+          COLOR_DRONE
         ).to_string();
 
       paint_maybe(drone.movable.x, drone.movable.y, drone_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
@@ -234,17 +255,17 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
       }
     } else {
       if biome_index == 0 {
-        format!("\x1b[31m{} \x1b[0m",
-          match biome.miner.movable.dir {
+        add_fg_color_with_reset(
+          &format!("{} ", match biome.miner.movable.dir {
             Direction::Up => ICON_MINER_UP,
             Direction::Down => ICON_MINER_DOWN,
             Direction::Left => ICON_MINER_LEFT,
             Direction::Right => ICON_MINER_RIGHT,
-            _dir => panic!("unexpected dir: {:?}", _dir),
-          }
-        ).to_string()
+          }),
+          COLOR_MINER
+        )
       } else {
-        format!("\x1b[30;1m{}\x1b[0m", ICON_GHOST).to_string()
+        add_fg_color_with_reset(&ICON_GHOST.to_string(), COLOR_GHOST)
       }
     };
 
@@ -322,8 +343,39 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
       if options.paint_ten_lines && (wx % 10 == 0 || wy % 10 == 0) { line.push(ten_line_cell(wx, wy)); } // Force-paint grid over world, regardless of the game world state
       else if options.paint_empty_world { line.push(format!("{}{}", ICON_DEBUG_BLANK, ICON_DEBUG_BLANK)); } // Force-paint an empty block instead of the actual world (game world is not changed)
       else {
-        let (tile, pickup, value) = get_cell_stuff_at(&options, &world0, wx, wy);
+        let (tile, pickup, value, visited) = get_cell_stuff_at(&options, &world0, wx, wy);
         let mut str = cell_to_uncolored_string(tile, pickup, wx, wy);
+        if options.paint_visited && visited > 0 && matches!(tile, Tile::Empty) && matches!(pickup, Pickup::Nothing) {
+          if options.paint_visited_bool {
+            str = format!("⣿⣿");
+          } else {
+            // Increase the intensity of the dots in a "circle" from the center
+            // There is a 4x4 grid of braille dots (a cell is two chars)
+            // start with 1,1 to 2,1 to 2,2, to 1,2, to 0,2, 0,1 etc, clockwise
+            // Braille chars are exhaustive in the 2x4 pattern so we can do this.
+            // ⠐ |⠐⠂|⠐⠆|⠰⠆|⠴⠆|⠶⠆|⠷⠆|⠿⠆|⠿⠇|⠿⠏|⠿⠟|⠿⠿|⠿⢿|⠿⣿|⢿⣿|⣿⣿
+            // https://en.wikipedia.org/wiki/Braille_Patterns
+            str = match visited {
+              0 => "".to_string(),
+              1 => "⠐ ".to_string(),
+              2 => "⠐⠂".to_string(),
+              3 => "⠐⠆".to_string(),
+              4 => "⠰⠆".to_string(),
+              5 => "⠴⠆".to_string(),
+              6 => "⠶⠆".to_string(),
+              7 => "⠷⠆".to_string(),
+              8 => "⠿⠆".to_string(),
+              9 => "⠿⠇".to_string(),
+              10 => "⠿⠏".to_string(),
+              11 => "⠿⠟".to_string(),
+              12 => "⠿⠿".to_string(),
+              13 => "⠿⢿".to_string(),
+              14 => "⠿⣿".to_string(),
+              15 => "⢿⣿".to_string(),
+              _ => "⣿⣿".to_string(),
+            }
+          }
+        }
         str = cell_add_color(&str, tile, value, pickup);
         line.push(str);
       }
@@ -410,6 +462,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   for n in 0..biomes[0].miner.slots.len() {
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
+      SlotKind::Builder => ui_slot_builder(slot, biomes[0].miner.meta.inventory.wind),
       SlotKind::Drill => ui_slot_drill(slot),
       SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
       SlotKind::Hammer => ui_slot_hammer(slot),
@@ -531,23 +584,29 @@ pub fn create_cell(tile: Tile, pickup: Pickup, value: u32) -> Cell {
   return Cell { tile, pickup, value, visited: 0 };
 }
 
-pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> (Tile, Pickup, u32) {
+pub fn create_visited_cell(tile: Tile, pickup: Pickup, value: u32, visited: u32) -> Cell {
+  return Cell { tile, pickup, value, visited };
+}
+
+pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> (Tile, Pickup, u32, u32) {
+  // Return tile, pickup, value, visited.
+
   // wx/wy should be world coordinates
   assert_world_dimensions(world);
 
   // Is the cell explicitly stored in the world right now? If not then use the procedure.
   if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
     if options.hide_world_oob {
-      return (Tile::HideWorld, Pickup::Nothing, 0);
+      return (Tile::HideWorld, Pickup::Nothing, 0, 0);
     }
 
     // OOB. Use generated value
     let cell = generate_cell(options, wx, wy);
-    return (cell.tile, cell.pickup, cell.value);
+    return (cell.tile, cell.pickup, cell.value, 0);
   }
 
   if options.hide_world_ib {
-    return (Tile::HideWorld, Pickup::Nothing, 0);
+    return (Tile::HideWorld, Pickup::Nothing, 0, 0);
   }
 
   // If x is negative then the coord is `min_x.abs() + x` (ex: `abs(-10) + -5` or `10 - 5` = 5)
@@ -570,7 +629,7 @@ pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
   assert!(ay < (world.min_y.abs() + 1 + world.max_y));
 
   let cell = &world.tiles[ay as usize][ax as usize];
-  return (cell.tile, cell.pickup, cell.value);
+  return (cell.tile, cell.pickup, cell.value, cell.visited);
 }
 
 pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> Tile {

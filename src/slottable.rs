@@ -17,28 +17,31 @@ pub struct Slottable {
     pub sum: f32,
 }
 
+pub const SLOT_COUNT: i32 = 8; // Must manually keep up to date with the enum ;(
 #[derive(Debug, Clone, Copy)]
 pub enum SlotKind {
-    Drill = 0,
-    DroneLauncher = 1,
-    Hammer = 2,
-    Emptiness = 3,
-    EnergyCell = 4,
-    PurityScanner = 5,
-    BrokenGps = 6,
+    BrokenGps = 0,
+    Builder = 1,
+    Drill = 2,
+    DroneLauncher = 3,
+    Emptiness = 4,
+    EnergyCell = 5,
+    Hammer = 6,
+    PurityScanner = 7,
+    // Make sure to update the SLOT_COUNT!
 }
 
-pub const SLOT_COUNT: i32 = 7; // Must manually keep up to date with the enum ;(
 // This function serves as a sanity check for the size constant
 fn assert_size(x: &SlotKind) -> i32 {
     match x {
+        | SlotKind::BrokenGps
+        | SlotKind::Builder
         | SlotKind::Drill
         | SlotKind::DroneLauncher
-        | SlotKind::Hammer
         | SlotKind::Emptiness
         | SlotKind::EnergyCell
+        | SlotKind::Hammer
         | SlotKind::PurityScanner
-        | SlotKind::BrokenGps
         => SLOT_COUNT, // Update SLOT_COUNT when this function updates
     }
 }
@@ -53,6 +56,7 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotKind {
         4 => SlotKind::EnergyCell,
         5 => SlotKind::PurityScanner,
         6 => SlotKind::BrokenGps,
+        7 => SlotKind::Emptiness, // SlotKind::Builder,
         _ => panic!("wat?"),
     }
 }
@@ -66,6 +70,7 @@ pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
         SlotKind::EnergyCell => "E".to_string(),
         SlotKind::PurityScanner => "P".to_string(),
         SlotKind::BrokenGps => "G".to_string(),
+        SlotKind::Builder => "B".to_string(),
     };
 }
 
@@ -78,13 +83,14 @@ pub fn symbol_to_slot_type(sym: char) -> SlotKind {
         'E' => SlotKind::EnergyCell,
         'P' => SlotKind::PurityScanner,
         'G' => SlotKind::BrokenGps,
+        'B' => SlotKind::Builder,
         _ => panic!("add me, {}", sym),
     }
 }
 
 pub fn create_slot_kind_counter() -> Vec<i32> {
-    assert_eq!(SLOT_COUNT, 7);
-    return vec![0; 7]; // One for every slot type value
+    assert_eq!(SLOT_COUNT, 8);
+    return vec![0; SLOT_COUNT as usize]; // One for every slot type value
 }
 
 pub fn slots_to_short_string(slots: [SlotKind; 32]) -> String {

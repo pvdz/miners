@@ -1,4 +1,5 @@
 use super::slottable::*;
+use super::slot_builder::*;
 use super::values::*;
 use super::slot_emptiness::*;
 use super::helix::*;
@@ -157,10 +158,10 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
             },
             SlotKind::BrokenGps => {
                 slots[i] = create_slot_broken_gps(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
-            }
-            _ => {
-                panic!("Fix slot range generator in helix")
             },
+            SlotKind::Builder => {
+                panic!("The builder is not a valid starting slot");
+            }
         }
 
         kind_counts[kind_usize] = kind_counts[kind_usize] + 1;
@@ -199,6 +200,71 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
         drones,
     };
 
+}
+
+fn can_craft_builder(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
+    let mut has_empty = false;
+    for i in 0..slots.len() {
+        match slots[i].kind {
+            SlotKind::Builder => return false,
+            SlotKind::Emptiness => has_empty = true,
+            _ => {},
+        }
+    }
+
+    // Must have an available slot for the builder
+    if !has_empty { return false; }
+
+    // Must have enough materials to craft a builder
+    return meta.inventory.wood > 5 && (meta.inventory.stone_white + meta.inventory.stone_blue + meta.inventory.stone_green + meta.inventory.stone_yellow) > 5;
+}
+
+pub fn tick_miner(meta: &mut MinerMeta, slots: &mut MinerSlots) {
+    // If;
+    // - There are slots available
+    // - The build drone was built
+    // - The build drone is currently not used
+    // - There are enough resources
+    // then send a drone to build something on the expando
+
+    // The build drone needs to be crafted using wood and stone.
+
+    // For now the drone can phase through walls but later we'll want to add some pathfinding.
+
+    if can_craft_builder(meta, slots) {
+        // Deduct materials
+        meta.inventory.wood -= 5;
+        let mut left = 5;
+        let mut next = meta.inventory.stone_white.min(left);
+        left -= next;
+        meta.inventory.stone_white -= next;
+        if left > 0 {
+            next = meta.inventory.stone_blue.min(left);
+            left -= next;
+            meta.inventory.stone_blue -= next;
+        }
+        if left > 0 {
+            next = meta.inventory.stone_green.min(left);
+            left -= next;
+            meta.inventory.stone_green -= next;
+        }
+        if left > 0 {
+            next = meta.inventory.stone_yellow.min(left);
+            left -= next;
+            meta.inventory.stone_yellow -= next;
+        }
+        assert_eq!(left, 0, "we asserted that there were enough stones, so we should have consumed that many stones now");
+
+        // Add a builder to the first empty slot
+        let len = slots.len();
+        for i in 0..len {
+            if matches!(slots[i].kind, SlotKind::Emptiness) {
+                slots[i] = create_slot_builder(i, 1);
+                break;
+            }
+            assert!(i < len - 1, "should have asserted beforehand that the builder would fit somewhere");
+        }
+    }
 }
 
 // impl Miner {

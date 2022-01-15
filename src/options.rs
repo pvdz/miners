@@ -18,6 +18,8 @@ pub struct Options {
     pub paint_empty_world: bool, // Always draw empty tiles instead of the world
     pub hide_world_oob: bool, // Do not draw the world that doesn't explicitly exist in memory
     pub hide_world_ib: bool, // Do not draw the world that explicitly exists in memory (only oob)
+    pub paint_visited: bool, // Paint the number of times the miner visited a tile, in the world view?
+    pub paint_visited_bool: bool, // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
 }
 
 pub fn parse_cli_args() -> Options {
@@ -40,6 +42,8 @@ pub fn parse_cli_args() -> Options {
         paint_miner_ids: false,
         hide_world_oob: false,
         hide_world_ib: false,
+        paint_visited: true,
+        paint_visited_bool: false,
     };
 
     let args: Vec<String> = env::args().collect();
