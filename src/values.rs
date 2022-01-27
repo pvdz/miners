@@ -10,4 +10,4 @@ pub const INIT_ENERGY: i32 = 5000;
 pub const WHAT_MINER: i32 = 0;
 pub const WHAT_DRONE: i32 = 1;
 pub const WHAT_WINDRONE: i32 = 2;
-pub const WHAT_HYDRONE: i32 = 3;
+pub const WHAT_SANDRONE: i32 = 3;

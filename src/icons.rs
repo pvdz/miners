@@ -50,7 +50,7 @@ pub const ICON_MINER_DOWN: char = ICON_HEAVY_DOWN;
 pub const ICON_MINER_LEFT: char = ICON_HEAVY_LEFT;
 pub const ICON_GHOST: char = ICON_EYES_ONLY;
 
-pub const ICON_HYDRONE: char = ICON_SOCCER_BALL;
+pub const ICON_SANDRONE: char = ICON_SOCCER_BALL;
 pub const ICON_WINDRONE_POWER: char = ICON_TORNADO;
 
 pub const ICON_DRONE_UP: char = ICON_TRIPLE_UP;

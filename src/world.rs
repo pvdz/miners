@@ -8,7 +8,7 @@ use rand::distributions::{Standard};
 use super::cell::*;
 use super::fountain::*;
 use super::windrone::*;
-use super::hydrone::*;
+use super::sandrone::*;
 use super::color::*;
 use super::movable::*;
 use super::slottable::*;
@@ -27,7 +27,7 @@ use super::slot_purity_scanner::*;
 use super::slot_energy_cell::*;
 use super::slot_emptiness::*;
 use super::slot_windrone::*;
-use super::slot_hydrone::*;
+use super::slot_sandrone::*;
 use super::expando::*;
 
 // The world is procedurally generated and has no theoretical bounds.
@@ -461,17 +461,17 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     paint_maybe(biomes[0].miner.windrone.movable.x, biomes[0].miner.windrone.movable.y, "##".to_string(), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
   }
 
-  // Paint the hydrone, if it's moving
-  // The hydrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top. (TODO: incorporeal is tbd)
-  match biomes[0].miner.hydrone.state {
-    | HydroneState::MovingToOrigin
-    | HydroneState::MovingToNeighborCell
-    | HydroneState::BuildingArrowCell
-    | HydroneState::PickingUpMiner
-    | HydroneState::DeliveringMiner
-    => paint_maybe(biomes[0].miner.hydrone.movable.x, biomes[0].miner.hydrone.movable.y, ui_hydrone(&biomes[0].miner.hydrone), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
-    HydroneState::Unconstructed => {}
-    HydroneState::WaitingForWater => {}
+  // Paint the sandrone, if it's moving
+  // The sandrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top. (TODO: incorporeal is tbd)
+  match biomes[0].miner.sandrone.state {
+    | SandroneState::MovingToOrigin
+    | SandroneState::MovingToNeighborCell
+    | SandroneState::BuildingArrowCell
+    | SandroneState::PickingUpMiner
+    | SandroneState::DeliveringMiner
+    => paint_maybe(biomes[0].miner.sandrone.movable.x, biomes[0].miner.sandrone.movable.y, ui_sandrone(&biomes[0].miner.sandrone), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
+    SandroneState::Unconstructed => {}
+    SandroneState::WaitingForWater => {}
   }
 
   // Draw UI
@@ -499,7 +499,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
       SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
-      SlotKind::Hydrone => ui_slot_hydrone(slot, &biomes[0].miner.hydrone, biomes[0].miner.meta.inventory.water),
+      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.water),
       SlotKind::Drill => ui_slot_drill(slot),
       SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
       SlotKind::Hammer => ui_slot_hammer(slot),

@@ -28,7 +28,7 @@ pub enum SlotKind {
     EnergyCell = 5,
     Hammer = 6,
     PurityScanner = 7,
-    Hydrone = 8,
+    Sandrone = 8,
     // Make sure to update the SLOT_COUNT!
 }
 
@@ -37,7 +37,7 @@ fn assert_size(x: &SlotKind) -> i32 {
     match x {
         | SlotKind::BrokenGps
         | SlotKind::Windrone
-        | SlotKind::Hydrone
+        | SlotKind::Sandrone
         | SlotKind::Drill
         | SlotKind::DroneLauncher
         | SlotKind::Emptiness
@@ -60,7 +60,7 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotKind {
         5 => SlotKind::PurityScanner,
         6 => SlotKind::BrokenGps,
         7 => SlotKind::Emptiness, // SlotKind::Windrone
-        8 => SlotKind::Emptiness, // SlotKind::Hydrone
+        8 => SlotKind::Emptiness, // SlotKind::Sandrone
         _ => panic!("wat?"),
     }
 }
@@ -75,7 +75,7 @@ pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
         SlotKind::PurityScanner => "P".to_string(),
         SlotKind::BrokenGps => "G".to_string(),
         SlotKind::Windrone => "B".to_string(),
-        SlotKind::Hydrone => "H".to_string(),
+        SlotKind::Sandrone => "H".to_string(),
     };
 }
 
@@ -89,7 +89,7 @@ pub fn symbol_to_slot_type(sym: char) -> SlotKind {
         'P' => SlotKind::PurityScanner,
         'G' => SlotKind::BrokenGps,
         'B' => SlotKind::Windrone,
-        'H' => SlotKind::Hydrone,
+        'H' => SlotKind::Sandrone,
         _ => panic!("add me, {}", sym),
     }
 }

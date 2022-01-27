@@ -1,14 +1,14 @@
 use crate::icons::*;
 use super::slottable::*;
-use super::hydrone::*;
+use super::sandrone::*;
 
-pub const TITLE_HYDRONE: &str = "HyDrone";
+pub const TITLE_SANDRONE: &str = "SanDrone";
 
-pub fn create_slot_hydrone(slot_index: usize, nth: i32) -> Slottable {
+pub fn create_slot_sandrone(slot_index: usize, nth: i32) -> Slottable {
   return Slottable {
-    kind: SlotKind::Hydrone,
+    kind: SlotKind::Sandrone,
     slot: slot_index,
-    title: TITLE_HYDRONE.to_owned(),
+    title: TITLE_SANDRONE.to_owned(),
     max_cooldown: 0.0,
     cur_cooldown: 0.0,
     nth,
@@ -17,9 +17,9 @@ pub fn create_slot_hydrone(slot_index: usize, nth: i32) -> Slottable {
   };
 }
 
-pub fn ui_slot_hydrone(_hydrone_slot: &Slottable, hydrone: &Hydrone, water: u32) -> (String, String, String) {
+pub fn ui_slot_sandrone(_sandrone_slot: &Slottable, sandrone: &Sandrone, water: u32) -> (String, String, String) {
   return (
-    TITLE_HYDRONE.to_string(),
+    TITLE_SANDRONE.to_string(),
     format!(
       " {}{}  ({: >2}/{})",
       std::iter::repeat(format!("{}", ICON_WATER)).take(water.min(10) as usize).collect::<String>(),
@@ -29,13 +29,13 @@ pub fn ui_slot_hydrone(_hydrone_slot: &Slottable, hydrone: &Hydrone, water: u32)
     ),
     // This text is offset which is caused by the character printing as two but rust {: <30} counting it as one.
     format!("Blocks: {}. Pos: {},{}. Seeking: {}. back tracking: {}. air lifted: {}. {}",
-      hydrone.push_tiles.len(),
-      hydrone.movable.x,
-      hydrone.movable.y,
-      hydrone.seeking,
-      hydrone.backtracking,
-      hydrone.air_lifted,
-      hydrone.status_desc.to_owned(),
+      sandrone.push_tiles.len(),
+      sandrone.movable.x,
+      sandrone.movable.y,
+      sandrone.seeking,
+      sandrone.backtracking,
+      sandrone.air_lifted,
+      sandrone.status_desc.to_owned(),
     ),
   );
 }

@@ -26,16 +26,16 @@ pub struct Options {
 pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
-        batch_size: 1,
+        batch_size: 10, // Can be controlled through --batch-size
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
         mutate_from_best: false,
-        seed: 210114, // 0 is random
+        seed: 210114, // 0 is random. Can be set through --seed
         speed: 1,
         reset_rate: 500,
         reset_after_noop: true,
         return_to_move: false,
-        visual: true,
+        visual: true, // Can be set through --visual and --no-visual
 
         // Debug
         paint_ten_lines: false,

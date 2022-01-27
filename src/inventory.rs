@@ -39,6 +39,7 @@ pub struct Inventory {
   pub water: u32,
   pub wind: u32,
   pub wood: u32,
+  pub sand: u32,
 }
 
 pub fn create_inventory() -> Inventory {
@@ -57,6 +58,7 @@ pub fn create_inventory() -> Inventory {
     water: 0,
     wind: 0,
     wood: 0,
+    sand: 0,
   };
 }
 
@@ -76,6 +78,7 @@ pub fn clone_inventory(inventory: &Inventory) -> Inventory {
     water: inventory.wind,
     wind: inventory.wind,
     wood: inventory.wood,
+    sand: inventory.sand,
   };
 }
 

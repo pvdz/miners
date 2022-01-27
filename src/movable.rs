@@ -272,77 +272,27 @@ fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32,
     // println!("  free, go forth");
     return ( dx, dy, false );
   }
+}
 
-  // println!("  xy taken");
-  if !blocked_fwd { return ( dx, dy, false ); }
-  return ( 0, 0, false ); // invokes normal turning rules
-
-  //
-  // let mut turnx = 0;
-  // let mut turny = 0;
-  // if blocked_left && blocked_right {
-  //   println!("  Gotta turn around...");
-  //   if blocked_back {
-  //     // Somehow got stuck in the walls. This could happen when teleporting the miner to 0,0
-  //     // or maybe due to a race condition (but hopefully not). Let it move under normal rules.
-  //     turnx = 0;
-  //     turny = 0;
-  //   } else {
-  //     // Must move backward (u-turn)
-  //     turnx = -dx;
-  //     turny = -dy;
-  //
-  //     // Don't seal off the origin (it'll mess up the hydrone, if nothing else)
-  //     if mx != 0 || my != 0 {
-  //       println!("  Sealing off this dead end at {}x{}...", mx, my);
-  //       set_cell_tile_at(options, world, mx, my, Tile::Impassible);
-  //       //options.visual = true;
-  //     }
-  //   }
-  // } else if blocked_left {
-  //   // Must move rightward
-  //   turnx = -dy;
-  //   turny = dx;
-  //
-  //   // This is a corner. You are on (a) facing up to (Q). The forward and left of you are push
-  //   // blocks (P/Q). We want to know if the current tile (a) can be sealed off. Now we must
-  //   // check to confirm that the back tile (c) and back-right tile (d) are not push blocks.
-  //   // We must check this otherwise we risk locking ourselves into an unbreakable box.
-  //   // We already know (b) is not a push block and by verifying (c) and (d) we know that
-  //   // there's still always a path from (b) to (c) over (d).
-  //   //  state:   PQP     seal    PQP
-  //   //           Pab     corner: PRb
-  //   //           Pcd             Pcd
-  //   // This situation can happen due to blocking pockets of non-empty cells, like expandos.
-  //
-  //   if
-  //     // Current tile can not already be blocked by a push or impassable tile
-  //     !blocked_xy &&
-  //     // This is (b) in the diagram
-  //     !blocked_back &&
-  //     // This is (d) in the diagram
-  //     !blocked_br
-  //   {
-  //     // Should be okay to seal this cell off and turn to the right
-  //     println!("  Sealing off this pocket corner at {}x{}...", mx, my);
-  //     set_cell_tile_at(options, world, mx, my, Tile::Impassible);
-  //   }
-  // } else if blocked_right {
-  //   // Must move leftward
-  //   turnx = dy;
-  //   turny = -dx;
-  //
-  //   // (See description in blocked_left branch)
-  //   if !blocked_xy && !blocked_back && !blocked_bl {
-  //     println!("  Sealing off this pocket corner at {}x{}...", mx, my);
-  //     set_cell_tile_at(options, world, mx, my, Tile::Impassible);
-  //   }
-  //
-  // } else {
-  //   // free to move under normal rules
-  //   turnx = 0;
-  //   turny = 0;
-  // }
+fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta) {
+  let n = strength - if movable.what == WHAT_MINER { hammers } else { 1 };
+  world.tiles[unexty][unextx] = match n.max(0) {
+    3 => create_cell(Tile::Wall3, pickup, tile_value, pickup_value),
+    2 => create_cell(Tile::Wall2, pickup, tile_value, pickup_value),
+    1 => create_cell(Tile::Wall1, pickup, tile_value, pickup_value),
+    0 => create_cell(Tile::Empty, pickup, tile_value, pickup_value),
+    // always at least -1
+    _ => panic!("A bump should always at least decrease the wall by one so it can never stay 4: {}", n),
+  };
+  // TODO: should drones use same "prefer visited tiles" heuristic as miner?
+  movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
+  movable.now_energy = movable.now_energy - meta.block_bump_cost;
+  if movable.what == WHAT_MINER {
+    if drills > 0 {
+      drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
+    }
+    meta.prev_move_bumped = true;
+  }
 }
 
 fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32) {
@@ -376,67 +326,22 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
   let hammers = meta.kind_counts[SlotKind::Hammer as usize];
   match world.tiles[unexty][unextx] {
     Cell { tile: Tile::Wall4, pickup, tile_value, pickup_value, .. } => {
-      world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-        0 => create_cell(Tile::Wall3, pickup, tile_value, pickup_value),
-        1 => create_cell(Tile::Wall2, pickup, tile_value, pickup_value),
-        2 => create_cell(Tile::Wall1, pickup, tile_value, pickup_value),
-        _ => create_cell(Tile::Empty, pickup, tile_value, pickup_value),
-      };
-      // TODO: should drones use same "prefer visited tiles" heuristic as miner?
-      movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
-      movable.now_energy = movable.now_energy - meta.block_bump_cost;
-      if movable.what == WHAT_MINER {
-        if drills > 0 {
-          drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
-        }
-        meta.prev_move_bumped = true;
-      }
+      bump_wall(4, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
     },
     Cell { tile: Tile::Wall3, pickup, tile_value, pickup_value, .. } => {
-      world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-        0 => create_cell(Tile::Wall2, pickup, tile_value, pickup_value),
-        1 => create_cell(Tile::Wall1, pickup, tile_value, pickup_value),
-        _ => create_cell(Tile::Empty, pickup, tile_value, pickup_value),
-      };
-      movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
-      movable.now_energy = movable.now_energy - meta.block_bump_cost;
-      if movable.what == WHAT_MINER {
-        if drills > 0 {
-          drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
-        }
-        meta.prev_move_bumped = true;
-      }
+      bump_wall(3, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
     },
     Cell { tile: Tile::Wall2, pickup, tile_value, pickup_value, .. } => {
-      world.tiles[unexty][unextx] = match if movable.what == WHAT_MINER { hammers } else { 1 } {
-        0 => create_cell(Tile::Wall1, pickup, tile_value, pickup_value),
-        _ => create_cell(Tile::Empty, pickup, tile_value, pickup_value),
-      };
-      movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
-      movable.now_energy = movable.now_energy - meta.block_bump_cost;
-      if movable.what == WHAT_MINER {
-        if drills > 0 {
-          drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
-        }
-        meta.prev_move_bumped = true;
-      }
+      bump_wall(2, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
     },
     Cell { tile: Tile::Wall1, pickup, tile_value, pickup_value, .. } => {
-      world.tiles[unexty][unextx] = create_cell(Tile::Empty, pickup, tile_value, pickup_value); // Or a different powerup?
-      movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
-      movable.now_energy = movable.now_energy - meta.block_bump_cost;
-      if movable.what == WHAT_MINER {
-        if drills > 0 {
-          drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
-        }
-        meta.prev_move_bumped = true;
-      }
+      bump_wall(1, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
     },
     Cell { tile: Tile::Push | Tile::Impassible, .. } => {
       // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
       // not to send the movable into an infinite loop.
 
-      if movable.what == WHAT_HYDRONE {
+      if movable.what == WHAT_SANDRONE {
         // ignore
       } else if movable.what == WHAT_WINDRONE {
         // ignore
@@ -506,25 +411,16 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
 
         // Different gems with different points.
         // Miners could have properties or powerups to affect this, too.
-        let gem_value = match (pickup_value + primed).min(3) {
-          0 => {
-            meta.inventory.diamond_white += 1;
-            1
-          },
-          1 => {
-            meta.inventory.diamond_green += 1;
-            2
-          },
-          2 => {
-            meta.inventory.diamond_blue += 1;
-            3
-          },
-          3 => {
-            meta.inventory.diamond_yellow += 1;
-            4
-          },
+        let gv: i32 = (pickup_value + primed).min(3) as i32;
+        match gv {
+          0 => meta.inventory.diamond_white += 1,
+          1 => meta.inventory.diamond_green += 1,
+          2 => meta.inventory.diamond_blue += 1,
+          3 => meta.inventory.diamond_yellow += 1,
           _ => panic!("what value did this diamond have: {:?}", world.tiles[unexty][unextx]),
         };
+        let gem_value: i32 = gv + 1;
+
         if movable.what == WHAT_MINER {
           meta.points_last_move = gem_value;
           if world.tiles[unexty][unextx].visited == 0 {

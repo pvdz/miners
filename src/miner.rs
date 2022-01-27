@@ -1,7 +1,7 @@
 use super::slottable::*;
-use super::hydrone::*;
+use super::sandrone::*;
 use super::slot_windrone::*;
-use super::slot_hydrone::*;
+use super::slot_sandrone::*;
 use super::values::*;
 use super::slot_emptiness::*;
 use super::helix::*;
@@ -34,7 +34,7 @@ pub struct Miner {
   pub drones: Vec<Drone>,
 
   pub windrone: Windrone,
-  pub hydrone: Hydrone,
+  pub sandrone: Sandrone,
 }
 
 /**
@@ -172,8 +172,8 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
       SlotKind::Windrone => {
         panic!("The windrone is not a valid starting slot");
       }
-      SlotKind::Hydrone => {
-        panic!("The hydrone is not a valid starting slot");
+      SlotKind::Sandrone => {
+        panic!("The sandrone is not a valid starting slot");
       }
     }
 
@@ -213,7 +213,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
     slots,
     drones,
     windrone: create_windrone(),
-    hydrone: create_hydrone(),
+    sandrone: create_sandrone(),
   };
 }
 
@@ -233,24 +233,24 @@ fn can_craft_windrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
   // Must have enough materials to craft a windrone
   return meta.inventory.wood > 5 && (meta.inventory.stone_white + meta.inventory.stone_blue + meta.inventory.stone_green + meta.inventory.stone_yellow) > 5;
 }
-fn can_craft_hydrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
+fn can_craft_sandrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
   let mut has_empty = false;
   for i in 0..slots.len() {
     match slots[i].kind {
-      SlotKind::Hydrone => return false,
+      SlotKind::Sandrone => return false,
       SlotKind::Emptiness => has_empty = true,
       _ => {},
     }
   }
 
-  // Must have an available slot for the hydrone
+  // Must have an available slot for the sandrone
   if !has_empty { return false; }
 
-  // Must have enough materials to craft a hydrone
+  // Must have enough materials to craft a sandrone
   return meta.inventory.wood > 5 && meta.inventory.water > 10 && (/*meta.inventory.stone_white + */meta.inventory.stone_blue + meta.inventory.stone_green + meta.inventory.stone_yellow) > 5;
 }
 
-pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut MinerSlots, windrone: &mut Windrone, hydrone: &mut Hydrone) {
+pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut MinerSlots, windrone: &mut Windrone, sandrone: &mut Sandrone) {
   // If;
   // - There are slots available
   // - The build drone was built
@@ -317,16 +317,16 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
     }
   }
 
-  match hydrone.state {
-    HydroneState::Unconstructed => {
-      if can_craft_hydrone(meta, slots) {
+  match sandrone.state {
+    SandroneState::Unconstructed => {
+      if can_craft_sandrone(meta, slots) {
         // Deduct materials
         meta.inventory.wood -= 5;
         meta.inventory.water -= 10;
         let mut left = 5;
         let mut next = meta.inventory.stone_white.min(left);
         left -= next;
-        // Do not allow the white stones. Only use more expensive stones to build a hydrone.
+        // Do not allow the white stones. Only use more expensive stones to build a sandrone.
         // meta.inventory.stone_white -= next;
         // if left > 0 {
           next = meta.inventory.stone_blue.min(left);
@@ -345,23 +345,23 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
         }
         assert_eq!(left, 0, "we asserted that there were enough stones, so we should have consumed that many stones now");
 
-        // Add a hydrone to the first empty slot
+        // Add a sandrone to the first empty slot
         let len = slots.len();
         for i in 0..len {
           if matches!(slots[i].kind, SlotKind::Emptiness) {
-            slots[i] = create_slot_hydrone(i, 1);
-            set_hydrone_state(hydrone, HydroneState::WaitingForWater);
+            slots[i] = create_slot_sandrone(i, 1);
+            set_sandrone_state(sandrone, SandroneState::WaitingForWater);
             break;
           }
-          assert!(i < len - 1, "should have asserted beforehand that the hydrone would fit somewhere");
+          assert!(i < len - 1, "should have asserted beforehand that the sandrone would fit somewhere");
         }
       }
     }
-    HydroneState::WaitingForWater => {}
-    HydroneState::MovingToOrigin => {}
-    HydroneState::MovingToNeighborCell => {}
-    HydroneState::BuildingArrowCell => {}
-    HydroneState::PickingUpMiner => {}
-    HydroneState::DeliveringMiner => {}
+    SandroneState::WaitingForWater => {}
+    SandroneState::MovingToOrigin => {}
+    SandroneState::MovingToNeighborCell => {}
+    SandroneState::BuildingArrowCell => {}
+    SandroneState::PickingUpMiner => {}
+    SandroneState::DeliveringMiner => {}
   }
 }
