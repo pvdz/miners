@@ -4,12 +4,11 @@ use super::pickup::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Tile {
-  DroneDown,
-  DroneLeft,
-  DroneRight,
-  DroneUp,
   ExpandoWater,
   Empty,
+  Fountain,
+  Impassible,
+  Push,
   Wall1,
   Wall2,
   Wall3,
@@ -25,11 +24,10 @@ pub enum Tile {
 
 pub fn cell_to_uncolored_string(tile: Tile, pickup: Pickup, wx: i32, wy: i32) -> String {
   return match tile {
-    Tile::DroneDown => ICON_DRONE_DOWN.to_string(),
-    Tile::DroneLeft => ICON_DRONE_LEFT.to_string(),
-    Tile::DroneRight => ICON_DRONE_RIGHT.to_string(),
-    Tile::DroneUp => ICON_DRONE_UP.to_string(),
     Tile::ExpandoWater => ICON_EXPANDO_WATER.to_string(),
+    Tile::Fountain => ICON_FOUNTAIN.to_string(),
+    Tile::Impassible => ICON_DEAD_END.to_string(),
+    Tile::Push => format!("{} ", ICON_TRIANGLE_DOWN.to_string()),
     Tile::Wall1 => format!("{}{}", ICON_BLOCK_25, ICON_BLOCK_25),
     Tile::Wall2 => format!("{}{}", ICON_BLOCK_50, ICON_BLOCK_50),
     Tile::Wall3 => format!("{}{}", ICON_BLOCK_75, ICON_BLOCK_75),
@@ -55,6 +53,7 @@ pub fn cell_add_color(str: &String, tile: Tile, value: u32, pickup: Pickup) -> S
   // add a color to it according to its type and/or its value.
   // Each cell is assumed to start as reset. Only add foreground colors to the string.
   return match tile {
+    Tile::Push => str.to_string(),
     | Tile::Wall1
     | Tile::Wall2
     | Tile::Wall3
@@ -67,7 +66,15 @@ pub fn cell_add_color(str: &String, tile: Tile, value: u32, pickup: Pickup) -> S
       },
     | Tile::Empty => pickup_add_color(&str, pickup, value),
     | Tile::ExpandoWater => add_bg_color_with_reset(&pickup_add_color(&str, pickup, value), COLOR_EXPANDO_WATER),
-    _ => str.to_string(),
+    Tile::Fountain => add_bg_color_with_reset(&pickup_add_color(&str, pickup, value), COLOR_FOUNTAIN),
+    Tile::Impassible => add_fg_color_with_reset(str, COLOR_RED),
+    Tile::Wall4 => str.to_string(),
+
+    Tile::ZeroZero => str.to_string(),
+    Tile::TenLine => str.to_string(),
+    Tile::HideWorld => str.to_string(),
+    Tile::Test2 => str.to_string(),
+    Tile::Test3 => str.to_string(),
   };
 }
 

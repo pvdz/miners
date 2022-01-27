@@ -9,8 +9,10 @@ pub const COLOR_LEVEL_4: &str = "5;11";
 pub const COLOR_DRONE: &str = "5;14";
 pub const COLOR_ENERGY: &str = "5;11";
 pub const COLOR_EXPANDO_WATER: &str = "5;18";
+pub const COLOR_FOUNTAIN: &str = "5;105";
 pub const COLOR_MINER: &str = "5;13";
 pub const COLOR_GHOST: &str = "5;254";
+pub const COLOR_WATER: &str = "5;105";
 pub const COLOR_WOOD: &str = "2;139;69;19"; // "saddlebrown"
 pub const COLOR_WIND: &str = "5;3";
 

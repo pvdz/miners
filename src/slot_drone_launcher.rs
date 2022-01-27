@@ -1,15 +1,10 @@
-use std::fmt;
-
 use super::utils::*;
 use super::slottable::*;
 use super::movable::*;
 use super::miner::*;
 use super::world::*;
-// use super::values::*;
-// use super::icons::*;
 use super::drone::*;
 use super::options::*;
-// use super::cell_contents;
 
 pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
 pub const DRONE_INITIAL_ENERGY: f32 = 1000.0;
@@ -27,7 +22,7 @@ pub fn create_drone_launcher(slot_index: usize, nth: i32, drone_id: i32, max_coo
   };
 }
 
-pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<Drone>, miner_meta: &mut MinerMeta, world: &mut World, options: &Options, _first_miner: bool) {
+pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<Drone>, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options, _first_miner: bool) {
   // TODO: this function has access to all drones but it should really only have access to its own. :shrug:?
 
   let nth = slot.nth;
@@ -56,7 +51,6 @@ pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movabl
           Direction::Right => Direction::Down,
           Direction::Down => Direction::Left,
           Direction::Left => Direction::Up,
-          _ => panic!("Fix dir in drone_launcher::after_paint"),
         };
         // Reset the cooldown. It will be ignored until the drone runs out of energy.
         slot.cur_cooldown = 0.0;

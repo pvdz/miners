@@ -1,7 +1,11 @@
 pub mod options;
+pub mod hydrone;
+pub mod fountain;
 pub mod slottable;
 pub mod color;
-pub mod slot_builder;
+pub mod slot_windrone;
+pub mod slot_hydrone;
+pub mod windrone;
 pub mod world;
 pub mod values;
 pub mod icons;
@@ -26,7 +30,6 @@ pub mod utils;
 pub mod expando;
 
 use std::{thread, time};
-use std::borrow::Borrow;
 use std::sync::mpsc::TryRecvError;
 use std::fs;
 use std::path::Path;
@@ -39,7 +42,6 @@ use std::time::SystemTime;
 use rand::prelude::*;
 use rand_pcg::{Pcg64, Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
-use crate::helix::create_initial_helix;
 
 // Unique character ideas ("powerups with massive impact of which you should only need one")
 // - random starting position
@@ -68,6 +70,7 @@ use crate::helix::create_initial_helix;
 
 // - Item to slowly construct paths (or ability? or auto? resource cost?) which reduce energy spent on that tile
 
+// Miners should perhaps be simply helix:points pairs. Paths are going to be ambiguous anyways so unique paths don't matter much. Points is an easy concept to grasp and aim for and it kinda limits the max number of miners to track. More so than paths.
 
 fn main() {
   println!("Starting....");
@@ -178,8 +181,8 @@ fn main() {
   let start_time = SystemTime::now();
 
   let mut stats_last_second = 0;
-  let mut stats_last_batches = 0;
-  let mut stats_last_batch_loops = 0;
+  // let mut stats_last_batches = 0;
+  // let mut stats_last_batch_loops = 0;
   let mut stats_last_biome_ticks = 0;
   let mut stats_last_ticks_sec = 0;
 
@@ -215,9 +218,9 @@ fn main() {
       biomes.push(biome);
     }
 
-    total_miner_count += (biomes.len() as u32);
-    current_miner_count += (biomes.len() as u32);
-    miner_count_since_last_best += (biomes.len() as u32);
+    total_miner_count += biomes.len() as u32;
+    current_miner_count += biomes.len() as u32;
+    miner_count_since_last_best += biomes.len() as u32;
 
     // Move it move it
     let mut batch_loops = 0; // How many iterations for the current batch
@@ -225,58 +228,75 @@ fn main() {
     while has_energy && !reset {
       // This is basically the main game loop
 
-      // Handle keyboard event
-      match stdin_channel.try_recv() {
-        Ok(key) => match key.as_str() {
-          "v\n" => options.visual = !options.visual,
-          "+\n" => {
-            options.speed = (options.speed as f64 + (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
-            delay = time::Duration::from_millis(options.speed);
-          },
-          "-\n" => {
-            options.speed = (options.speed as f64 - (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
-            delay = time::Duration::from_millis(options.speed);
-          },
-          "o\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 1.0).max(0.0),
-          "oo\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 5.0).max(0.0),
-          "p\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 1.0).max(0.0),
-          "pp\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 5.0).max(0.0),
-          "k\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 1.0).max(0.0),
-          "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
-          "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
-          "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
-          "n\n" => options.batch_size = options.batch_size + 1,
-          "m\n" => options.batch_size = (options.batch_size - 1).max(1),
-          "r\n" => {
-            reset = true;
-            println!("Manual reset requested...");
-          },
-          "b\n" => {
-            load_best_as_miner_zero = true;
-            println!("Aborting current run and loading best as miner now...");
+      let mut waiting = true;
+      while waiting {
+        // Handle keyboard event
+        match stdin_channel.try_recv() {
+          Ok(key) => match key.as_str() {
+            "\n" => waiting = false, // Tick forward
+            "x\n" => {
+              options.return_to_move = false;
+              waiting = false;
+            },
+            "v\n" => options.visual = !options.visual,
+            "+\n" => {
+              options.speed = (options.speed as f64 + (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
+              delay = time::Duration::from_millis(options.speed);
+            },
+            "++\n" => {
+              options.speed = (options.speed as f64 + (options.speed as f64 * 0.5).max(1.0)).max(1.0) as u64;
+              delay = time::Duration::from_millis(options.speed);
+            },
+            "-\n" => {
+              options.speed = (options.speed as f64 - (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
+              delay = time::Duration::from_millis(options.speed);
+            },
+            "--\n" => {
+              options.speed = (options.speed as f64 - (options.speed as f64 * 0.5).max(1.0)).max(1.0) as u64;
+              delay = time::Duration::from_millis(options.speed);
+            },
+            "o\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 1.0).max(0.0),
+            "oo\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 5.0).max(0.0),
+            "p\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 1.0).max(0.0),
+            "pp\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 5.0).max(0.0),
+            "k\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 1.0).max(0.0),
+            "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
+            "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
+            "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
+            "n\n" => options.batch_size = options.batch_size + 1,
+            "m\n" => options.batch_size = (options.batch_size - 1).max(1),
+            "r\n" => {
+              reset = true;
+              println!("Manual reset requested...");
+            },
+            "b\n" => {
+              load_best_as_miner_zero = true;
+              println!("Aborting current run and loading best as miner now...");
+            }
+            "g\n" => {
+              options.mutate_from_best = !options.mutate_from_best;
+              println!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best);
+            }
+            "t\n" => {
+              options.reset_after_noop = !options.reset_after_noop;
+              println!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop);
+            }
+            "q\n" => {
+              // Save and quit.
+              println!("Serializing btree with {} entries...", btree.len());
+              let s = serde_json::to_string_pretty(&btree).unwrap();
+              let f = format!("./seed_{}.rson", options.seed);
+              println!("Storing {} bytes to `{}`", s.len(), f);
+              fs::write(f, s).expect("Unable to write file");
+              println!("Finished writing. Exiting now...");
+              panic!("Quit after request");
+            },
+            _ => (),
           }
-          "g\n" => {
-            options.mutate_from_best = !options.mutate_from_best;
-            println!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best);
-          }
-          "t\n" => {
-            options.reset_after_noop = !options.reset_after_noop;
-            println!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop);
-          }
-          "q\n" => {
-            // Save and quit.
-            println!("Serializing btree with {} entries...", btree.len());
-            let s = serde_json::to_string_pretty(&btree).unwrap();
-            let f = format!("./seed_{}.rson", options.seed);
-            println!("Storing {} bytes to `{}`", s.len(), f);
-            fs::write(f, s).expect("Unable to write file");
-            println!("Finished writing. Exiting now...");
-            panic!("Quit after request");
-          },
-          _ => (),
+          Err(TryRecvError::Empty) => (),
+          Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
         }
-        Err(TryRecvError::Empty) => (),
-        Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
+        if !options.return_to_move { break; };
       }
 
       if load_best_as_miner_zero || reset {
@@ -291,6 +311,7 @@ fn main() {
       for m in 0..biomes.len() {
         let biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
+          let miner_disabled = biome.miner.movable.disabled;
           stats_total_biome_ticks += 1;
 
           let first_miner = m == 0;
@@ -298,24 +319,29 @@ fn main() {
           let mminermovable: &mut movable::Movable = &mut biome.miner.movable;
           let mslots: &mut miner::MinerSlots = &mut biome.miner.slots;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
+          let mwindrone: &mut windrone::Windrone = &mut biome.miner.windrone;
+          let mhydrone: &mut hydrone::Hydrone = &mut biome.miner.hydrone;
           let mdrones: &mut Vec<drone::Drone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
 
           world::tick_world(mworld, &options);
-          miner::tick_miner(mmeta, mslots);
+          if !miner_disabled {
+            miner::tick_miner(mminermovable, mmeta, mslots, mwindrone, mhydrone);
+          }
 
-          movable::move_movable(mminermovable, mslots, mmeta, mworld, &options);
+          movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options);
           for i in 0..mslots.len() {
             let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
             match slot.kind {
               slottable::SlotKind::Emptiness => (), // noop
               slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminermovable, mmeta, mworld, &options, first_miner),
-              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminermovable, mdrones, mmeta, mworld, &options, first_miner),
+              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminermovable, mdrones, mmeta, mworld, &mut options, first_miner),
               slottable::SlotKind::Hammer => (), // noop
               slottable::SlotKind::Drill => (), // noop
               slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
               slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminermovable, first_miner),
-              slottable::SlotKind::Builder => slot_builder::tick_builder(slot),
+              slottable::SlotKind::Windrone => windrone::tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, &options, m),
+              slottable::SlotKind::Hydrone => hydrone::tick_hydrone(slot, &mut biome.miner.hydrone, mminermovable, mmeta.inventory.water, mworld, &mut options, m),
             }
           }
 
@@ -380,8 +406,8 @@ fn main() {
 
       if dur_sec > stats_last_second {
         stats_last_second = dur_sec;
-        stats_last_batches = stats_total_batches;
-        stats_last_batch_loops = stats_total_batch_loops;
+        // stats_last_batches = stats_total_batches;
+        // stats_last_batch_loops = stats_total_batch_loops;
         stats_last_ticks_sec = stats_total_biome_ticks - stats_last_biome_ticks;
         stats_last_biome_ticks = stats_total_biome_ticks;
       }

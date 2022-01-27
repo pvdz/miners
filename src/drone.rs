@@ -8,8 +8,8 @@ pub struct Drone {
   pub movable: Movable,
 }
 
-pub fn tick_drone(drone: &mut Drone, miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &Options) {
+pub fn tick_drone(drone: &mut Drone, _miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options) {
   let v = vec!();
-  move_movable(&mut drone.movable, &v, miner_meta, world, &options);
+  move_movable(&mut drone.movable, &v, miner_meta, world, options);
 }
 

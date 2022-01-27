@@ -1,12 +1,4 @@
-use std::fmt;
-
-use super::utils::*;
 use super::slottable::*;
-// use super::miner::*;
-// use super::movable::*;
-// use super::world::*;
-// use super::cell_contents::*;
-// use super::options::*;
 
 pub const TITLE_EMPTINESS: &str = "Empty";
 
@@ -23,7 +15,7 @@ pub fn create_empty_slot(slot_index: usize) -> Slottable {
     };
 }
 
-pub fn ui_slot_emptiness(slot: &Slottable) -> (String, String, String) {
+pub fn ui_slot_emptiness(_slot: &Slottable) -> (String, String, String) {
     return (
         TITLE_EMPTINESS.to_string(),
         "".to_string(),

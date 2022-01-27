@@ -4,10 +4,8 @@ use std::fmt;
 use rand_pcg::{Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
 
-use super::miner::*;
 use super::options::*;
 use super::slottable::*;
-use super::inventory::*;
 
 /**
  * Describe the genes for a single Miner instantiation

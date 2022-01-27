@@ -8,7 +8,9 @@ pub enum Pickup {
   Energy,
   Stone,
   Expando,
+  Fountain,
   Wind,
+  Water,
   Wood,
 }
 
@@ -17,8 +19,10 @@ pub fn pickup_to_string(tile: Pickup, _wx: i32, _wy: i32) -> String {
     Pickup::Diamond => ICON_DIAMOND.to_string(),
     Pickup::Energy => ICON_ENERGY.to_string(),
     Pickup::Expando => format!("{}", ICON_EXPANDO_WATER),
+    Pickup::Fountain => format!("{}", ICON_FOUNTAIN),
     Pickup::Nothing => "  ".to_string(),
     Pickup::Stone => format!("{}", ICON_STONE),
+    Pickup::Water => format!("{}", ICON_WATER),
     Pickup::Wind => format!("{} ", ICON_TORNADO),
     Pickup::Wood => format!("{}", ICON_WOOD),
   };
@@ -32,6 +36,8 @@ pub fn pickup_add_color(str: &String, pickup: Pickup, value: u32) -> String {
     | Pickup::Nothing => str.to_string(),
     | Pickup::Energy => add_fg_color_with_reset(str, COLOR_ENERGY),
     | Pickup::Expando => add_fg_color_with_reset(str, COLOR_BLUE),
+    | Pickup::Fountain => add_fg_color_with_reset(str, COLOR_FOUNTAIN),
+    | Pickup::Water => add_fg_color_with_reset(str, COLOR_FOUNTAIN),
     | Pickup::Wind => add_fg_color_with_reset(str, COLOR_WIND),
     | Pickup::Wood => add_fg_color_with_reset(str, COLOR_WOOD),
     | Pickup::Stone

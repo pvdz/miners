@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 
-use crate::miner::*;
 use crate::tile::*;
 use crate::options::*;
 use crate::world::*;
+use crate::pickup::*;
+
+pub const MIN_EXPANDO_SIZE: u32 = 5;
+pub const MAX_EXPANDO_SIZE: u32 = 15;
 
 #[derive(Debug)]
 pub struct Expando {
@@ -16,8 +19,11 @@ pub struct Expando {
 
   kind: ExpandoKind,
 
-  x: i32,
-  y: i32,
+  pub x: i32,
+  pub y: i32,
+
+  // When disabled we should consider this expando not to exist.
+  pub disabled: bool,
 
   // The volume basically tells us how far this expando can still spread
   // Once it reaches zero, it should be removed
@@ -37,13 +43,14 @@ pub enum ExpandoKind {
   Lava,
 }
 
-pub fn create_expando(x: i32, y: i32) -> Expando {
+pub fn create_expando(x: i32, y: i32, size: u32) -> Expando {
   return Expando {
     kind: ExpandoKind::Water,
     x,
     y,
+    disabled: false,
 
-    volume: 9,
+    volume: size,
     speed: 100,
     ticks_since_last_update: 0,
   };
@@ -51,20 +58,28 @@ pub fn create_expando(x: i32, y: i32) -> Expando {
 
 pub fn tick_expando(expando_index: usize, world: &mut World, options: &Options) {
   assert!(expando_index < world.expandos.len());
-  world.expandos[expando_index].ticks_since_last_update += 1;
 
-  if world.expandos[expando_index].ticks_since_last_update < world.expandos[expando_index].speed {
+  let expando = &world.expandos[expando_index];
+
+  if expando.disabled {
     return;
   }
 
-  if world.expandos[expando_index].volume == 0 {
+  if !matches!(get_cell_tile_at(options, world, expando.x, expando.y), Tile::ExpandoWater) {
+    // The tile is no longer an expando. Disable this expando.
+    world.expandos[expando_index].disabled = true;
+    return;
+  }
+
+  if expando.volume == 0 {
     // This expando is done expanding
     return;
   }
 
-  world.expandos[expando_index].ticks_since_last_update = 0;
-
-  let expando = &world.expandos[expando_index];
+  if expando.ticks_since_last_update < expando.speed {
+    world.expandos[expando_index].ticks_since_last_update += 1;
+    return;
+  }
 
   // Expandos only expand to empty cells (items and actors are ignored).
   // When expanding (that's now) they consider the neighbors in a cross (left/right/up/down).
@@ -97,7 +112,10 @@ pub fn tick_expando(expando_index: usize, world: &mut World, options: &Options) 
     assert!(ax < (world.min_x.abs() + 1 + world.max_x));
     assert!(ay < (world.min_y.abs() + 1 + world.max_y));
 
+    // Convert the tile to a water tile
     world.tiles[ay as usize][ax as usize].tile = Tile::ExpandoWater;
+    // "swallow" whatever item is here.
+    world.tiles[ay as usize][ax as usize].pickup = Pickup::Nothing;
 
     n += 1;
     if n > volume {
@@ -108,6 +126,8 @@ pub fn tick_expando(expando_index: usize, world: &mut World, options: &Options) 
       break;
     }
   }
+
+  world.expandos[expando_index].ticks_since_last_update = 0;
 }
 
 fn collect_empty_neighbors(x: i32, y: i32, expando_index: usize, expando_volume: u32, world: &mut World, options: &Options, set: &mut HashSet<(i32, i32)>) {

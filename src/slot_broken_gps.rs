@@ -30,7 +30,6 @@ pub fn tick_slot_broken_gps(slot: &mut Slottable, miner_movable: &mut Movable, _
             Direction::Right => if slot.val < 0.0 { Direction::Down } else { Direction::Up },
             Direction::Down => if slot.val < 0.0 { Direction::Left } else { Direction::Right },
             Direction::Left => if slot.val < 0.0 { Direction::Up } else { Direction::Down },
-            _ => panic!("what enum"),
         };
         slot.cur_cooldown = 0.0;
         slot.val *= -1.0;

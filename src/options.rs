@@ -7,6 +7,7 @@ pub struct Options {
     pub mutate_from_best: bool, // Mutate a new batch from the overall best or the last winner?
     pub reset_rate: u32,        // Reset every this many generated miners
     pub reset_after_noop: bool, // Only reset after that many miners did not yield a new best?
+    pub return_to_move: bool,   // Press enter to forward a tick? Useful for debugging.
     pub seed: u64,
     pub speed: u64,
     pub visual: bool,
@@ -25,7 +26,7 @@ pub struct Options {
 pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
-        batch_size: 10,
+        batch_size: 1,
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
         mutate_from_best: false,
@@ -33,6 +34,7 @@ pub fn parse_cli_args() -> Options {
         speed: 1,
         reset_rate: 500,
         reset_after_noop: true,
+        return_to_move: false,
         visual: true,
 
         // Debug
@@ -42,7 +44,7 @@ pub fn parse_cli_args() -> Options {
         paint_miner_ids: false,
         hide_world_oob: false,
         hide_world_ib: false,
-        paint_visited: true,
+        paint_visited: false,
         paint_visited_bool: false,
     };
 
@@ -53,7 +55,7 @@ pub fn parse_cli_args() -> Options {
     while index < args.len() {
         match args[index].as_str() {
             "--seed" => {
-                index = index + 1;
+                index += 1;
                 options.seed = args[index].trim().parse::<u64>().unwrap_or(0);
                 if options.seed == 0 {
                     panic!("Seed must be a non-zero positive integer");
@@ -64,6 +66,13 @@ pub fn parse_cli_args() -> Options {
             }
             "--no-visual" => {
                 options.visual = false;
+            }
+            "--batch-size" => {
+                index += 1;
+                options.batch_size = args[index].trim().parse::<u8>().unwrap_or(0);
+                if options.batch_size == 0 {
+                    panic!("Seed must be a non-zero positive integer");
+                }
             }
             _ => {
                 println!("Unknown parameter: {}", args[index]);

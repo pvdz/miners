@@ -3,9 +3,12 @@ use std::collections::VecDeque;
 
 use rand::prelude::*;
 use rand_pcg::Pcg64;
-use rand::distributions::{Distribution, /*Uniform,*/ Standard};
+use rand::distributions::{Standard};
 
 use super::cell::*;
+use super::fountain::*;
+use super::windrone::*;
+use super::hydrone::*;
 use super::color::*;
 use super::movable::*;
 use super::slottable::*;
@@ -23,7 +26,8 @@ use super::slot_hammer::*;
 use super::slot_purity_scanner::*;
 use super::slot_energy_cell::*;
 use super::slot_emptiness::*;
-use super::slot_builder::*;
+use super::slot_windrone::*;
+use super::slot_hydrone::*;
 use super::expando::*;
 
 // The world is procedurally generated and has no theoretical bounds.
@@ -50,6 +54,7 @@ pub struct World {
   // should be safe because the world always starts at 0,0 and does not shrink.
   pub tiles: Grid,
   pub expandos: Vec<Expando>,
+  pub fountains: Vec<Fountain>,
 }
 
 pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
@@ -76,10 +81,10 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
   let energy_roll = cell_rng.sample::<f32, Standard>(Standard);
   if energy_roll < 0.05 {
     if energy_roll < 0.01 {
-      // For builder drones. Don't need as much (but some)
-      return Cell { tile: Tile::Empty, pickup: Pickup::Wind, value: 0, visited: 0 };
+      // For windrones. Don't need as much (but some)
+      return Cell { tile: Tile::Empty, pickup: Pickup::Wind, tile_value: 0, pickup_value: 0, visited: 0 };
     }
-    return Cell { tile: Tile::Empty, pickup: Pickup::Energy, value: 0, visited: 0 };
+    return Cell { tile: Tile::Empty, pickup: Pickup::Energy, tile_value: 0, pickup_value: 0, visited: 0 };
   }
 
   // Roughly half the cells should be filled with walls
@@ -88,26 +93,35 @@ pub fn generate_cell(options: &Options, x: i32, y: i32) -> Cell {
     let kind_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
     let value_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
     let reward_roll: f32 = cell_rng.sample::<f32, Standard>(Standard);
+
     // 60% chance for wall to be common, 30% to be uncommon, 10% to be rare :shrug:
-    let wall_value = if value_roll < 0.1 { 2 } else if value_roll < 0.4 { 1 } else { 0 };
+    let tile_value = if value_roll < 0.1 { 2 } else if value_roll < 0.4 { 1 } else { 0 };
+
+    let mut pickup_value = tile_value;
     let reward_value =
       if reward_roll < 0.1 { Pickup::Diamond }
-      else if reward_roll < 0.1105 { Pickup::Expando } // Fake pickup. Causes water/gas/etc fluids.
       else if reward_roll < 0.4 { Pickup::Wood }
+      else if reward_roll < 0.41 {
+        // Fake pickup. Causes water/gas/etc fluids.
+        // Set its size between 5 and 10 cells
+        pickup_value = MIN_EXPANDO_SIZE + ((MAX_EXPANDO_SIZE - MIN_EXPANDO_SIZE) as f32 * cell_rng.sample::<f32, Standard>(Standard)).round() as u32;
+        // Mark the pickup as an expando. There will be special handling for this.
+        Pickup::Expando
+      }
       else { Pickup::Stone };
 
     if kind_roll < 0.1 {
-      return Cell { tile: Tile::Wall3, pickup: reward_value, value: wall_value, visited: 0 };
+      return Cell { tile: Tile::Wall3, pickup: reward_value, tile_value, pickup_value, visited: 0 };
     }
 
     if kind_roll < 0.4 {
-      return Cell { tile: Tile::Wall2, pickup: reward_value, value: wall_value, visited: 0 };
+      return Cell { tile: Tile::Wall2, pickup: reward_value, tile_value, pickup_value, visited: 0 };
     }
 
-    return Cell { tile: Tile::Wall1, pickup: reward_value, value: wall_value, visited: 0 };
+    return Cell { tile: Tile::Wall1, pickup: reward_value, tile_value, pickup_value, visited: 0 };
   }
 
-  return Cell { tile: Tile::Empty, pickup: Pickup::Nothing, value: 0, visited: 0 };
+  return Cell { tile: Tile::Empty, pickup: Pickup::Nothing, tile_value: 0, pickup_value: 0, visited: 0 };
 }
 
 pub fn world_width(world: &World) -> i32 {
@@ -140,7 +154,7 @@ pub fn generate_world(options: &Options) -> World {
 
   let mut ygrid: VecDeque<VecDeque<Cell>> = VecDeque::new();
   let mut xgrid: VecDeque<Cell> = VecDeque::new();
-  xgrid.push_back(Cell { tile: Tile::Empty, pickup: Pickup::Nothing, value: 0u32, visited: 0 });
+  xgrid.push_back(Cell { tile: Tile::Empty, pickup: Pickup::Nothing, tile_value: 0, pickup_value: 0, visited: 0 });
   ygrid.push_back(xgrid);
 
   let mut world = World {
@@ -150,6 +164,7 @@ pub fn generate_world(options: &Options) -> World {
     max_y: 0,
     tiles: ygrid,
     expandos: vec!(),
+    fountains: vec!(),
   };
 
   // Use this to prerender part of the world for inspection reasons
@@ -164,11 +179,14 @@ pub fn tick_world(world: &mut World, options: &Options) {
   for n in (0..world.expandos.len()).rev() {
     tick_expando(n, world, options);
   }
+  for n in (0..world.fountains.len()).rev() {
+    tick_fountain(n, world, options);
+  }
 }
 
-fn bound_ex(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
-  return x >= min_x && x < max_x && y >= min_y && y < max_y;
-}
+// fn bound_ex(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
+//   return x >= min_x && x < max_x && y >= min_y && y < max_y;
+// }
 
 fn bound_inc(x: i32, y: i32, min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> bool {
   return x >= min_x && x <= max_x && y >= min_y && y <= max_y;
@@ -183,6 +201,22 @@ pub fn assert_world_dimensions(world: &World) {
   for y in 0..world.tiles.len() {
     assert_eq!(world.tiles[y].len() as i32, world.min_x.abs() + 1 + world.max_x, "World should have each row with min_x+1+max_x cells");
   }
+}
+
+pub fn assert_arr_xy_in_world(world: &World, wx: i32, wy: i32, ax: usize, ay: usize) {
+  // Only assert xy (array coords, not world coords!), and not the entire rectangle
+
+  assert!(wx >= world.min_x, "assert_arr_xy_in_world; wx underflow");
+  assert!(wy >= world.min_y, "assert_arr_xy_in_world; wy underflow");
+  assert!(wx <= world.max_x, "assert_arr_xy_in_world; wx overflow");
+  assert!(wy <= world.max_y, "assert_arr_xy_in_world; wy overflow");
+  // assert!(ax >= 0, "assert_arr_xy_in_world; ax underflow");
+  // assert!(ay >= 0, "assert_arr_xy_in_world; ay underflow");
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x) as usize, "assert_arr_xy_in_world; ax overflow");
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y) as usize, "assert_arr_xy_in_world; ay overflow");
+
+  assert!(world.tiles.len() > ay, "assert_arr_xy_in_world; tile.len <= ay");
+  assert!(world.tiles[ay].len() > ax, "assert_arr_xy_in_world; tile.len <= ax");
 }
 
 fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
@@ -282,15 +316,15 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
 
   // Note: top has a forced empty line.
   let wv_margin: (usize, usize, usize, usize) = (2, 1, 1, 1);
-  assert!(wv_margin.0 >= 0);
-  assert!(wv_margin.1 >= 0);
-  assert!(wv_margin.2 >= 0);
-  assert!(wv_margin.3 >= 0);
+  // assert!(wv_margin.0 >= 0);
+  // assert!(wv_margin.1 >= 0);
+  // assert!(wv_margin.2 >= 0);
+  // assert!(wv_margin.3 >= 0);
   let wv_border: (usize, usize, usize, usize) = (1, 1, 1, 1);
-  assert!(wv_border.0 >= 0);
-  assert!(wv_border.1 >= 0);
-  assert!(wv_border.2 >= 0);
-  assert!(wv_border.3 >= 0);
+  // assert!(wv_border.0 >= 0);
+  // assert!(wv_border.1 >= 0);
+  // assert!(wv_border.2 >= 0);
+  // assert!(wv_border.3 >= 0);
 
   // World coordinates for the viewport:
   let viewport_offset_x: i32 = -25; // (TODO: this should make sure the character location is included in the viewport)
@@ -421,28 +455,30 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   }
   paint_biome_actors(&biomes[0], 0, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 
+  // Paint the windrone, if it's in flight
+  // The windrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top.
+  if matches!(biomes[0].miner.windrone.state, WindroneState::FlyingToGoal) || matches!(biomes[0].miner.windrone.state, WindroneState::FlyingHome) {
+    paint_maybe(biomes[0].miner.windrone.movable.x, biomes[0].miner.windrone.movable.y, "##".to_string(), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+  }
+
+  // Paint the hydrone, if it's moving
+  // The hydrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top. (TODO: incorporeal is tbd)
+  match biomes[0].miner.hydrone.state {
+    | HydroneState::MovingToOrigin
+    | HydroneState::MovingToNeighborCell
+    | HydroneState::BuildingArrowCell
+    | HydroneState::PickingUpMiner
+    | HydroneState::DeliveringMiner
+    => paint_maybe(biomes[0].miner.hydrone.movable.x, biomes[0].miner.hydrone.movable.y, ui_hydrone(&biomes[0].miner.hydrone), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
+    HydroneState::Unconstructed => {}
+    HydroneState::WaitingForWater => {}
+  }
 
   // Draw UI
 
   // Offsets for the UI. Start at the top of the map to the right of it.
   // let uox = (wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1 + 1) as i32;
   // let uoy = 0; // Just the top.
-
-  // Miner pos:    x, y     Miner points: 0       Miner steps: 0
-  // Miner energy: ||||||||||||                 Miner pickups: 0
-  //
-  // Slot 1
-  // Slot 2
-  // Slot 3
-  // Slot 4
-  // Slot 5
-  // Slot 6
-  // Slot 7
-  // Slot 8
-  // Slot 9
-  // Slot 10
-  //
-  // UI: toggle UI: v⏎  faster: +⏎   slower: -⏎
 
   let vlen = view.len();
 
@@ -458,11 +494,12 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory)));
   view[10].push(std::iter::repeat(' ').take(100).collect::<String>());
 
-  let mut so = 11;
+  let so = 11;
   for n in 0..biomes[0].miner.slots.len() {
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
-      SlotKind::Builder => ui_slot_builder(slot, biomes[0].miner.meta.inventory.wind),
+      SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
+      SlotKind::Hydrone => ui_slot_hydrone(slot, &biomes[0].miner.hydrone, biomes[0].miner.meta.inventory.water),
       SlotKind::Drill => ui_slot_drill(slot),
       SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
       SlotKind::Hammer => ui_slot_hammer(slot),
@@ -478,7 +515,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
   }
 
-  view[vlen - 5].push(format!(" Keys: toggle visual: v⏎   save and quite: q⏎  speed [{}]  faster: +⏎   slower: -⏎ {: <50}", options.speed, ' '));
+  view[vlen - 5].push(format!(" Keys: toggle visual: v⏎   save and quite: q⏎  speed [{}]  faster: -⏎   slower: +⏎   return-stepper: x⏎ {: <50}", options.speed, ' '));
   view[vlen - 4].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎ {: <50}", options.mutation_rate_genes, ' '));
   view[vlen - 3].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ {: <50}", options.mutation_rate_slots, ' '));
   view[vlen - 2].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎ {: <50}", options.batch_size, ' '));
@@ -509,7 +546,7 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
     // println!("Expanding -x (left), prepending {} cols to {} rows", to_prepend, world_height);
 
     for j in 0..world_height {
-      let mut row = &mut world.tiles[j as usize];
+      let row = &mut world.tiles[j as usize];
       for i in 1..=to_prepend {
         let gx = world.min_x - i;
         let gy = world.min_y + j;
@@ -526,7 +563,7 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
     // println!("Expanding +x (right), appending {} cols to {} rows", to_append, world_height);
 
     for j in 0..world_height {
-      let mut row = &mut world.tiles[j as usize];
+      let row = &mut world.tiles[j as usize];
       for i in 1..=to_append {
         let gx = world.max_x + i;
         let gy = world.min_y + j;
@@ -580,12 +617,12 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
   assert_world_dimensions(world);
 }
 
-pub fn create_cell(tile: Tile, pickup: Pickup, value: u32) -> Cell {
-  return Cell { tile, pickup, value, visited: 0 };
+pub fn create_cell(tile: Tile, pickup: Pickup, tile_value: u32, pickup_value: u32) -> Cell {
+  return Cell { tile, pickup, tile_value, pickup_value, visited: 0 };
 }
 
-pub fn create_visited_cell(tile: Tile, pickup: Pickup, value: u32, visited: u32) -> Cell {
-  return Cell { tile, pickup, value, visited };
+pub fn create_visited_cell(tile: Tile, pickup: Pickup, tile_value: u32, pickup_value: u32, visited: u32) -> Cell {
+  return Cell { tile, pickup, tile_value, pickup_value, visited };
 }
 
 pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> (Tile, Pickup, u32, u32) {
@@ -602,7 +639,7 @@ pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
 
     // OOB. Use generated value
     let cell = generate_cell(options, wx, wy);
-    return (cell.tile, cell.pickup, cell.value, 0);
+    return (cell.tile, cell.pickup, cell.tile_value, 0);
   }
 
   if options.hide_world_ib {
@@ -629,7 +666,7 @@ pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
   assert!(ay < (world.min_y.abs() + 1 + world.max_y));
 
   let cell = &world.tiles[ay as usize][ax as usize];
-  return (cell.tile, cell.pickup, cell.value, cell.visited);
+  return (cell.tile, cell.pickup, cell.tile_value, cell.visited);
 }
 
 pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> Tile {
@@ -683,7 +720,7 @@ pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
     }
 
     // OOB. Use generated value
-    return generate_cell(options, wx, wy).value;
+    return generate_cell(options, wx, wy).tile_value;
   }
 
   if options.hide_world_ib {
@@ -697,17 +734,40 @@ pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
   let ax = world.min_x.abs() + wx;
   let ay = world.min_y.abs() + wy;
 
-  // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
-  // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
 
-  assert!(wx >= world.min_x);
-  assert!(wy >= world.min_y);
-  assert!(wx <= world.max_x);
-  assert!(wy <= world.max_y);
-  assert!(ax >= 0);
-  assert!(ay >= 0);
-  assert!(ax < (world.min_x.abs() + 1 + world.max_x));
-  assert!(ay < (world.min_y.abs() + 1 + world.max_y));
+  return world.tiles[ay as usize][ax as usize].tile_value;
+}
 
-  return world.tiles[ay as usize][ax as usize].value;
+pub fn set_cell_tile_at(_options: &Options, world: &mut World, wx: i32, wy: i32, tile: Tile) {
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
+
+  world.tiles[ay as usize][ax as usize].tile = tile;
+}
+pub fn set_cell_tile_value_at(_options: &Options, world: &mut World, wx: i32, wy: i32, value: u32) {
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
+
+  world.tiles[ay as usize][ax as usize].tile_value = value;
+}
+pub fn set_cell_pickup_at(_options: &Options, world: &mut World, wx: i32, wy: i32, pickup: Pickup) {
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
+
+  world.tiles[ay as usize][ax as usize].pickup = pickup;
+}
+pub fn set_cell_pickup_value_at(_options: &Options, world: &mut World, wx: i32, wy: i32, value: u32) {
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
+
+  world.tiles[ay as usize][ax as usize].pickup_value = value;
 }

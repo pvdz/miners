@@ -1,10 +1,4 @@
-use super::utils::*;
 use super::slottable::*;
-// use super::miner::*;
-// use super::movable::*;
-// use super::world::*;
-// use super::options::*;
-// use super::cell_contents::*;
 
 pub const TITLE_HAMMER: &str = "Hammer";
 
@@ -21,7 +15,7 @@ pub fn create_hammer(slot_index: usize, nth: i32) -> Slottable {
     };
 }
 
-pub fn ui_slot_hammer(slot: &Slottable) -> (String, String, String) {
+pub fn ui_slot_hammer(_slot: &Slottable) -> (String, String, String) {
     return (
         TITLE_HAMMER.to_string(),
         "".to_string(),
