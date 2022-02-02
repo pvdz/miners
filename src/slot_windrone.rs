@@ -1,6 +1,6 @@
 use crate::icons::*;
 use super::slottable::*;
-use super::windrone::*;
+use super::drone_win::*;
 
 pub const TITLE_WINDRONE: &str = "WinDrone";
 

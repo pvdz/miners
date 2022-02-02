@@ -7,7 +7,7 @@ use super::cell::*;
 use super::options::*;
 use super::tile::*;
 use super::pickup::*;
-use super::sandrone::*;
+use super::drone_san::*;
 
 // use rand::distributions::Uniform;
 

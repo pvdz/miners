@@ -1,12 +1,12 @@
 use super::slottable::*;
-use super::sandrone::*;
+use super::drone_san::*;
 use super::slot_windrone::*;
 use super::slot_sandrone::*;
-use super::values::*;
 use super::slot_emptiness::*;
-use super::helix::*;
 use super::slot_drone_launcher::*;
 use super::slot_energy_cell::*;
+use super::values::*;
+use super::helix::*;
 use super::movable::*;
 use super::slot_hammer::*;
 use super::slot_drill::*;
@@ -14,7 +14,7 @@ use super::slot_purity_scanner::*;
 use super::slot_broken_gps::*;
 use super::inventory::*;
 use super::drone_me::*;
-use super::windrone::*;
+use super::drone_win::*;
 
 pub type MinerSlots = Vec<Slottable>;
 

@@ -1,11 +1,11 @@
 pub mod options;
-pub mod sandrone;
+pub mod drone_san;
 pub mod fountain;
 pub mod slottable;
 pub mod color;
 pub mod slot_windrone;
 pub mod slot_sandrone;
-pub mod windrone;
+pub mod drone_win;
 pub mod world;
 pub mod values;
 pub mod icons;
@@ -339,8 +339,8 @@ fn main() {
           let mminermovable: &mut movable::Movable = &mut biome.miner.movable;
           let mslots: &mut miner::MinerSlots = &mut biome.miner.slots;
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
-          let mwindrone: &mut windrone::Windrone = &mut biome.miner.windrone;
-          let msandrone: &mut sandrone::Sandrone = &mut biome.miner.sandrone;
+          let mwindrone: &mut drone_win::Windrone = &mut biome.miner.windrone;
+          let msandrone: &mut drone_san::Sandrone = &mut biome.miner.sandrone;
           let mdrones: &mut Vec<drone_me::MeDrone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
 
@@ -374,8 +374,8 @@ fn main() {
               slottable::SlotKind::Drill => (), // noop
               slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
               slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminermovable, first_miner),
-              slottable::SlotKind::Windrone => windrone::tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, &options, m),
-              slottable::SlotKind::Sandrone => sandrone::tick_sandrone(&mut biome.miner.sandrone, mminermovable, mmeta, mworld, &mut options, m),
+              slottable::SlotKind::Windrone => drone_win::tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, &options, m),
+              slottable::SlotKind::Sandrone => drone_san::tick_sandrone(&mut biome.miner.sandrone, mminermovable, mmeta, mworld, &mut options, m),
             }
           }
 
