@@ -2,6 +2,7 @@ use std::env;
 
 pub struct Options {
     pub batch_size: u8,
+    pub inial_miner_code: String,
     pub mutation_rate_genes: f32,
     pub mutation_rate_slots: f32,
     pub mutate_from_best: bool, // Mutate a new batch from the overall best or the last winner?
@@ -11,6 +12,8 @@ pub struct Options {
     pub seed: u64,
     pub speed: u64,
     pub visual: bool,
+    pub sandrone_pickup_count: u32,
+    pub sandcastle_area_limit: u32,
 
     // Debugging
     pub paint_ten_lines: bool, // Draw grids at every 10th line/col
@@ -27,6 +30,7 @@ pub fn parse_cli_args() -> Options {
     // Defaults:
     let mut options = Options {
         batch_size: 10, // Can be controlled through --batch-size
+        inial_miner_code: "".to_string(),
         mutation_rate_genes: 5.0,
         mutation_rate_slots: 5.0,
         mutate_from_best: false,
@@ -36,6 +40,9 @@ pub fn parse_cli_args() -> Options {
         reset_after_noop: true,
         return_to_move: false,
         visual: true, // Can be set through --visual and --no-visual
+
+        sandrone_pickup_count: 200,
+        sandcastle_area_limit: 500,
 
         // Debug
         paint_ten_lines: false,
@@ -73,6 +80,10 @@ pub fn parse_cli_args() -> Options {
                 if options.batch_size == 0 {
                     panic!("Seed must be a non-zero positive integer");
                 }
+            }
+            "--miner" => {
+                index += 1;
+                options.inial_miner_code = args[index].trim().parse::<String>().unwrap_or("".to_string());
             }
             _ => {
                 println!("Unknown parameter: {}", args[index]);

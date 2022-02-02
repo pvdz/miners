@@ -149,7 +149,25 @@ fn main() {
   println!("Miner seed: {}", options.seed);
   let new_inv = inventory::create_inventory();
   let mut best_miner: (helix::Helix, u64, usize, usize, inventory::Inventory) =
-    if load_best_as_miner_zero {
+    if options.inial_miner_code.len() != 0 {
+      let x: (
+        u64, // seed
+        f32, // drone_gen_cooldown
+        f32, // multiplier_energy_start
+        f32, // multiplier_points
+        f32, // block_bump_cost
+        f32, // multiplier_energy_pickup
+        String // slots: [SlotKind; 32]
+      ) = serde_json::from_str(&options.inial_miner_code).unwrap();
+      let y = helix::helix_deserialize(&x);
+      (
+        y,
+        0,
+        0,
+        0,
+        new_inv
+      )
+    } else if load_best_as_miner_zero {
       (
         best_helix_from_file,
         best_points_from_file,
@@ -208,6 +226,7 @@ fn main() {
       load_best_as_miner_zero = false;
       let own_world: world::World = world::generate_world(&options);
       let biome = biome::Biome {
+        ticks: 0,
         world: own_world,
         miner: cur_miner,
         path: vec!(0, 0),
@@ -312,6 +331,7 @@ fn main() {
         let biome = &mut biomes[m];
         if biome.miner.movable.now_energy > 0.0 {
           let miner_disabled = biome.miner.movable.disabled;
+          biome.ticks += 1;
           stats_total_biome_ticks += 1;
 
           let first_miner = m == 0;
@@ -329,7 +349,21 @@ fn main() {
             miner::tick_miner(mminermovable, mmeta, mslots, mwindrone, msandrone);
           }
 
-          movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options);
+          if msandrone.air_lifting {
+            // Do not "move" the miner. It is being moved by the sandrone.
+          } else if msandrone.air_lifted {
+            // The magic castle wall is enabled
+            let magic_min_x = msandrone.expansion_min_x;
+            let magic_min_y = msandrone.expansion_min_y;
+            let magic_max_x = msandrone.expansion_max_x;
+            let magic_max_y = msandrone.expansion_max_y;
+
+            movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options, Some(msandrone), true, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+          } else {
+            // No magic castle wall
+            movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options, None, false, 0, 0, 0, 0);
+          }
+
           for i in 0..mslots.len() {
             let slot: &mut slottable::Slottable = &mut biome.miner.slots[i];
             match slot.kind {
@@ -341,7 +375,7 @@ fn main() {
               slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
               slottable::SlotKind::BrokenGps => slot_broken_gps::tick_slot_broken_gps(slot, mminermovable, first_miner),
               slottable::SlotKind::Windrone => windrone::tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, &options, m),
-              slottable::SlotKind::Sandrone => sandrone::tick_sandrone(slot, &mut biome.miner.sandrone, mminermovable, mmeta.inventory.water, mworld, &mut options, m),
+              slottable::SlotKind::Sandrone => sandrone::tick_sandrone(&mut biome.miner.sandrone, mminermovable, mmeta, mworld, &mut options, m),
             }
           }
 
@@ -475,8 +509,6 @@ fn main() {
 
       let mut he : String = "".to_string();
       helix::helix_to_string(&mut he, &winner.0);
-
-
 
       println!(
         "Time: {} s, batches: {: <5} bath loops: {: <5} miners: {}, in current seed: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",

@@ -15,6 +15,7 @@ pub const COLOR_GHOST: &str = "5;254";
 pub const COLOR_WATER: &str = "5;105";
 pub const COLOR_WOOD: &str = "2;139;69;19"; // "saddlebrown"
 pub const COLOR_WIND: &str = "5;3";
+pub const COLOR_SAND: &str = "5;174";
 
 pub const COLOR_BLACK: &str = "5;0";
 pub const COLOR_DARK_RED: &str = "5;1";

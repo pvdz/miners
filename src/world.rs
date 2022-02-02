@@ -1,11 +1,13 @@
 // use std::fmt::Write;
 use std::collections::VecDeque;
+use serde_json::to_string_pretty;
 
 use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rand::distributions::{Standard};
 
 use super::cell::*;
+use super::helix::*;
 use super::fountain::*;
 use super::windrone::*;
 use super::sandrone::*;
@@ -314,6 +316,8 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
 
   // Start by painting the world. Give it a border too (annoying with calculations but worth it)
 
+  let tick = biomes[0].ticks;
+
   // Note: top has a forced empty line.
   let wv_margin: (usize, usize, usize, usize) = (2, 1, 1, 1);
   // assert!(wv_margin.0 >= 0);
@@ -474,6 +478,18 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     SandroneState::WaitingForWater => {}
   }
 
+  if biomes[0].miner.sandrone.air_lifted {
+    // Paint the castle rectangle
+    for i in biomes[0].miner.sandrone.expansion_min_x-1..biomes[0].miner.sandrone.expansion_max_x+1 {
+      paint_maybe(i, biomes[0].miner.sandrone.expansion_min_y - 1, if biomes[0].ticks % 2 == 1 {"xx".to_string() } else {"||".to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+      paint_maybe(i, biomes[0].miner.sandrone.expansion_max_y + 1, if biomes[0].ticks % 2 == 1 {"xx".to_string() } else {"||".to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+    }
+    for j in biomes[0].miner.sandrone.expansion_min_y-1..biomes[0].miner.sandrone.expansion_max_y + 2 {
+      paint_maybe(biomes[0].miner.sandrone.expansion_min_x - 1, j, if biomes[0].ticks % 2 == 1 {" x".to_string() } else {" |".to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+      paint_maybe(biomes[0].miner.sandrone.expansion_max_x + 1, j, if biomes[0].ticks % 2 == 1 {"x ".to_string() } else {"| ".to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+    }
+  }
+
   // Draw UI
 
   // Offsets for the UI. Start at the top of the map to the right of it.
@@ -492,14 +508,16 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   view[7].push(format!("   {: <150}", biomes[0].miner.helix));
   view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <15} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), get_points(&biomes[0].miner.meta.inventory), format!("{} ({})", biomes[0].miner.movable.history.len(), biomes[0].miner.movable.unique.len()), biomes[0].miner.movable.now_energy.round()).to_string());
   view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory)));
-  view[10].push(std::iter::repeat(' ').take(100).collect::<String>());
+  let t = helix_serialize(&biomes[0].miner.helix);
+  view[10].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY));
+  view[11].push(std::iter::repeat(' ').take(100).collect::<String>());
 
-  let so = 11;
+  let so = 12;
   for n in 0..biomes[0].miner.slots.len() {
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
       SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
-      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.water),
+      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.sand),
       SlotKind::Drill => ui_slot_drill(slot),
       SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
       SlotKind::Hammer => ui_slot_hammer(slot),
@@ -747,6 +765,14 @@ pub fn set_cell_tile_at(_options: &Options, world: &mut World, wx: i32, wy: i32,
 
   world.tiles[ay as usize][ax as usize].tile = tile;
 }
+pub fn get_cell_tile_value_at(_options: &Options, world: &mut World, wx: i32, wy: i32) -> u32 {
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
+
+  return world.tiles[ay as usize][ax as usize].tile_value;
+}
 pub fn set_cell_tile_value_at(_options: &Options, world: &mut World, wx: i32, wy: i32, value: u32) {
   let ax = world.min_x.abs() + wx;
   let ay = world.min_y.abs() + wy;
@@ -770,4 +796,8 @@ pub fn set_cell_pickup_value_at(_options: &Options, world: &mut World, wx: i32, 
   assert_arr_xy_in_world(world, wx, wy, ax as usize, ay as usize);
 
   world.tiles[ay as usize][ax as usize].pickup_value = value;
+}
+
+pub fn oob(x: i32, y: i32, minx: i32, miny: i32, maxx: i32, maxy: i32) -> bool {
+  return x < minx || x > maxx || y < miny || y > maxy;
 }

@@ -42,6 +42,7 @@ pub const ICON_STONE: char = '🥌'; // curling, stone, get it?
 pub const ICON_TORNADO: char = '🌪';
 pub const ICON_WAVE: char = '🌊'; // 💦 💧 🌊 🚰 🚰 ⚓ ≋ ≈ ~ // https://unicode-table.com/en/sets/sea-symbols/
 pub const ICON_WATER: char = '💦'; // 💦 💧 🌊 🚰 🚰 ⚓ ≋ ≈ ~ // https://unicode-table.com/en/sets/sea-symbols/
+pub const ICON_SAND: char = '🥪'; // ⏳ 🏖️ 🥪
 pub const ICON_WOOD: char = '🌳'; // there are no good wood emojis
 
 pub const ICON_MINER_UP: char = ICON_HEAVY_UP;

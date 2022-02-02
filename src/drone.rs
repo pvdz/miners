@@ -10,6 +10,6 @@ pub struct Drone {
 
 pub fn tick_drone(drone: &mut Drone, _miner_movable: &mut Movable, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options) {
   let v = vec!();
-  move_movable(&mut drone.movable, &v, miner_meta, world, options);
+  move_movable(&mut drone.movable, &v, miner_meta, world, options, None, false, 0, 0, 0, 0);
 }
 

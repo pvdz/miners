@@ -91,5 +91,9 @@ fn collect_connected_water_coords(x: i32, y: i32, world: &World, options: &Optio
 // wind -> windrone
 // earth -> sandrone
 // fire -> ignidrone
+// buildrone
+// woodrone
+// redrone
+// walldrone
 
 

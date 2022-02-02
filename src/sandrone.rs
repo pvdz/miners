@@ -4,6 +4,7 @@ use crate::tile::*;
 use crate::pickup::*;
 use crate::options::*;
 use crate::world::*;
+use crate::miner::*;
 use super::slottable::*;
 use super::icons::*;
 use super::color::*;
@@ -47,13 +48,16 @@ pub struct Sandrone {
   pub status_desc: String,
   // Each drone has its own x, y, direction, and energy
   pub movable: Movable,
-  // Generated push tiles. They'll need to be ticked and we don't want to have to search for them.
+  // Generated tiles. They'll need to be ticked and we don't want to have to search for them.
   pub push_tiles: Vec<(i32, i32)>,
+  pub impassable_tiles: Vec<(i32, i32)>,
   // This contains the rotating order of which direction to check first. Prevents simple/short infinite loops.
   pub direction_cycle: VecDeque<(i32, i32)>,
 
   // Have we air lifted the miner back to 0x0 yet?
+  pub air_lifting: bool,
   pub air_lifted: bool,
+  pub post_castle: bool,
 
   tmp: u32,
   // Remember the last direction for backtracking over push tiles
@@ -62,6 +66,17 @@ pub struct Sandrone {
   pub seeking: bool,
   pub backtracking: bool,
   pub found_end: bool,
+
+  last_expansion_x: i32,
+  last_expansion_y: i32,
+
+  // Maintain a rectangle of the size of the castle
+  pub expansion_min_x: i32,
+  pub expansion_min_y: i32,
+  pub expansion_max_x: i32,
+  pub expansion_max_y: i32,
+  // Did the hydrone add an impassable tile to the end of a
+  pub plugged_a_hole: bool,
 }
 
 pub fn create_sandrone() -> Sandrone {
@@ -86,14 +101,24 @@ pub fn create_sandrone() -> Sandrone {
       disabled: false,
     },
     push_tiles: vec!(),
+    impassable_tiles: vec!(),
     direction_cycle: dc,
+    air_lifting: false,
     air_lifted: false,
+    post_castle: false,
     tmp: 20,
     last_dx: 1,
     last_dy: 0,
     seeking: true,
     backtracking: false,
     found_end: false,
+    last_expansion_x: 0,
+    last_expansion_y: 0,
+    expansion_min_x: 0,
+    expansion_min_y: 0,
+    expansion_max_x: 0,
+    expansion_max_y: 0,
+    plugged_a_hole: false,
   };
 }
 
@@ -110,7 +135,7 @@ pub fn set_sandrone_state(sandrone: &mut Sandrone, state: SandroneState) {
   sandrone.state = state;
 }
 
-pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mminermovable: &mut Movable, water: u32, world: &mut World, options: &mut Options, biome_index: usize) {
+pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta: &mut MinerMeta, world: &mut World, options: &mut Options, biome_index: usize) {
   let mx = mminermovable.x;
   let my = mminermovable.y;
 
@@ -119,7 +144,7 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
 
     }
     SandroneState::WaitingForWater => {
-      if water >= 10 {
+      if meta.inventory.sand >= 10 {
         set_sandrone_state(sandrone, SandroneState::MovingToOrigin);
         options.visual = true;
       }
@@ -129,16 +154,16 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
       // TODO: do we take the windrone approach of ghosting or do we make it move in the real world or maybe drill through anything it encounters in its path towards 0x0 or smth?
 
       if move_sandrone_towards(sandrone, 0, 0, biome_index) {
-        println!("Convert 0x0 to a push tile and start generating an arrow structure");
+        println!("Convert 0x0 to a push tile and start generating an sand castle");
         set_cell_tile_at(options, world, 0, 0, Tile::Push);
         sandrone.push_tiles.push((0, 0));
         set_sandrone_state(sandrone, SandroneState::MovingToNeighborCell);
 
-        if !sandrone.air_lifted && sandrone.push_tiles.len() > 1000 {
+        if !sandrone.air_lifted && !sandrone.post_castle && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
           println!("Shutting down the sandrone");
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
           options.visual = true;
-          sandrone.air_lifted = true;
+          sandrone.air_lifting = true;
         }
 
         // if sandrone.push_tiles.len() > 1000 {
@@ -182,10 +207,16 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
         // println!("  Rotated right: Cycle now: {:?}", sandrone.direction_cycle);
       }
 
-      if !sandrone.found_end && (sandrone.seeking || !sandrone.backtracking) {
+      if meta.inventory.sand < 10 {
+        sandrone.backtracking = true;
+      } else if sandrone.last_expansion_x == sandrone.movable.x && sandrone.last_expansion_y == sandrone.movable.y {
+        sandrone.backtracking = false;
+      }
+
+      if !sandrone.backtracking && meta.inventory.sand >= 10 && !sandrone.found_end {
         for (dx, dy) in sandrone.direction_cycle.to_owned() {
           // println!("- Testing {},{} if sandrone can convert {},{} :: {:?}", dx, dy, fx + dx, fy + dy, get_cell_tile_at(options, world, fx + dx, fy + dy));
-          if sandrone.tmp > 0 && can_convert_tile_to_push(options, world, fx + dx, fy + dy, dx, dy) {
+          if sandrone.tmp > 0 && can_convert_tile_to_push(options, world, fx + dx, fy + dy, dx, dy, sandrone) {
             found = true;
             // sandrone.direction_cycle.rotate_left(1);
             sandrone.movable.x = fx + dx;
@@ -205,6 +236,7 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
       }
       if !found {
         if !sandrone.seeking {
+          // println!("dead end. last tile is {},{}", sandrone.last_expansion_x, sandrone.last_expansion_y);
           // Found a dead end while having expanded at least once since reaching origin. Move back.
           // sandrone.backtracking = true;
           sandrone.seeking = true;
@@ -213,11 +245,42 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
           // fx = 0;
           // fy = 0;
 
-          if !sandrone.air_lifted && sandrone.push_tiles.len() > 250 {
-            println!("Going to pick up miner...");
+          if !sandrone.air_lifted && !sandrone.post_castle && !sandrone.air_lifting && sandrone.push_tiles.len() > options.sandrone_pickup_count as usize{
+            // println!("Going to pick up miner...");
             set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-            options.visual = true;
-            sandrone.air_lifted = true;
+            // options.visual = true;
+            sandrone.air_lifting = true;
+            // Make sure it doesn't branch before it's back at the end...
+            sandrone.backtracking = true;
+
+            sandrone.found_end = true;
+          }
+        }
+
+        if sandrone.backtracking {
+          if sandrone.last_expansion_x == sandrone.movable.x && sandrone.last_expansion_y == sandrone.movable.y {
+            // sandrone.backtracking = false;
+            sandrone.seeking = true;
+          }
+        }
+
+        if sandrone.air_lifted && !sandrone.plugged_a_hole {
+          if fx - 1 == sandrone.expansion_min_x {
+            set_cell_tile_at(options, world, fx - 1, fy, Tile::Impassible);
+            sandrone.plugged_a_hole = true;
+            sandrone.impassable_tiles.push((fx - 1, fy));
+          } else if fx + 1 == sandrone.expansion_max_x {
+            set_cell_tile_at(options, world, fx + 1, fy, Tile::Impassible);
+            sandrone.plugged_a_hole = true;
+            sandrone.impassable_tiles.push((fx + 1, fy));
+          } else if fy - 1 == sandrone.expansion_min_y {
+            set_cell_tile_at(options, world, fx, fy - 1, Tile::Impassible);
+            sandrone.plugged_a_hole = true;
+            sandrone.impassable_tiles.push((fx, fy - 1));
+          } else if fy + 1 == sandrone.expansion_max_y {
+            set_cell_tile_at(options, world, fx, fy + 1, Tile::Impassible);
+            sandrone.plugged_a_hole = true;
+            sandrone.impassable_tiles.push((fx, fy + 1));
           }
         }
 
@@ -230,24 +293,10 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
             // set_sandrone_state(sandrone, SandroneState::BuildingArrowCell);
             tx += dx;
             ty += dy;
-            if tx == 0 && ty == 0 {
-              sandrone.backtracking = false;
-              // Ignore dead ends until having expanded at least once.
-              sandrone.seeking = true;
-
-              if !sandrone.air_lifted && sandrone.push_tiles.len() > 500 {
-                println!("Going to pick up miner...");
-                set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-                options.visual = true;
-                sandrone.air_lifted = true;
-              }
-            }
             sandrone.last_dx = dx;
             sandrone.last_dy = dy;
             // println!("Walking back over push tiles, from {},{} to {},{}", fx, fy, tx, ty);
             break;
-          // } else {
-          //   sandrone.direction_cycle.rotate_left(1);
           }
         }
       }
@@ -260,32 +309,69 @@ pub fn tick_sandrone(_sandrone_slot: &mut Slottable, sandrone: &mut Sandrone, mm
       // Convert the current cell, which ought to be empty, to a push cell
       // println!("Convert {}x{} to a push tile", sandrone.movable.x, sandrone.movable.y);
       set_cell_tile_at(options, world, sandrone.movable.x, sandrone.movable.y, Tile::Push);
+      sandrone.last_expansion_x = sandrone.movable.x;
+      sandrone.last_expansion_y = sandrone.movable.y;
+
+      // Set the expansion rectangle. This determines the magic walls. Make it one wider such that
+      // the magic wall always has at least one space between the outer wall and the magic wall.
+      // This way the sandrone never gets trapped in a pocket caused by the magic wall.
+      // The left wall will not have this buffer which prevents the miner from running in circles.
+      if sandrone.last_expansion_x <= sandrone.expansion_min_x {
+        sandrone.expansion_min_x = sandrone.last_expansion_x - 1;
+      } else if sandrone.last_expansion_x >= sandrone.expansion_max_x {
+        sandrone.expansion_max_x = sandrone.last_expansion_x + 1;
+      }
+      if sandrone.last_expansion_y <= sandrone.expansion_min_y {
+        sandrone.expansion_min_y = sandrone.last_expansion_y - 1;
+      } else if sandrone.last_expansion_y >= sandrone.expansion_max_y {
+        sandrone.expansion_max_y = sandrone.last_expansion_y + 1;
+      }
+
       sandrone.push_tiles.push((sandrone.movable.x, sandrone.movable.y));
       set_sandrone_state(sandrone, SandroneState::MovingToNeighborCell);
+      meta.inventory.sand = ((meta.inventory.sand as i32) - 10).max(0) as u32;
+
+      if ((sandrone.expansion_max_x - sandrone.expansion_min_x) * (sandrone.expansion_max_y - sandrone.expansion_min_y)) as u32 > options.sandcastle_area_limit {
+        options.visual = true;
+        println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
+        sandrone.status_desc = format!("Idle. Waiting for completed castle.");
+        sandrone.found_end = true;
+        sandrone.seeking = false;
+        sandrone.backtracking = false;
+        if !sandrone.air_lifted && !sandrone.post_castle {
+          set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
+          // options.visual = true;
+          sandrone.air_lifting = true;
+          // Make sure it doesn't branch before it's back at the end...
+          sandrone.backtracking = true;
+        }
+      }
     }
     SandroneState::PickingUpMiner => {
       // Home in on the miner. Whereever it is.
-      println!("SandroneState::PickingUpMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
+      // println!("SandroneState::PickingUpMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
       if move_sandrone_towards(sandrone, mx, my, biome_index) {
-        println!("  gottem!");
+        // println!("  gottem!");
         sandrone.state = SandroneState::DeliveringMiner;
         sandrone.status_desc = format!("Delivering miner to origin...");
       }
     }
     SandroneState::DeliveringMiner => {
-      println!("SandroneState::DeliveringMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
+      // println!("SandroneState::DeliveringMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
       // Home in on the miner. Whereever it is.
       if move_sandrone_towards(sandrone, 0, 0, biome_index) {
         sandrone.state = SandroneState::MovingToNeighborCell;
         sandrone.status_desc = format!("Idle. Waiting for enough wind...");
+        sandrone.air_lifting = false;
+        sandrone.air_lifted = true;
         mminermovable.disabled = false;
 
         // println!("Return to move enabled. Press ⏎ to tick forward. Press x⏎ to exit this mode.");
         // options.return_to_move = true;
-        options.visual = true;
+        // options.visual = true;
 
-        println!("Putting sandrone in permanent seek mode");
-        sandrone.found_end = true;
+        // println!("Putting sandrone in permanent seek mode");
+        // sandrone.found_end = true;
       }
       mminermovable.x = sandrone.movable.x;
       mminermovable.y = sandrone.movable.y;
@@ -301,6 +387,10 @@ pub fn ui_sandrone(sandrone: &Sandrone) -> String {
   return add_fg_color_with_reset(&format!("{}", ICON_SANDRONE), COLOR_DARK_RED);
 }
 
+pub fn is_push_impossible_cell(options: &Options, world: &World, x: i32, y: i32) -> bool {
+  return matches!(get_cell_tile_at(options, world, x, y), Tile::Push | Tile::Impassible);
+}
+
 fn can_empty_cell_be_push_cell(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {
   // An empty cell can become a push cell iif all the only neighboring push cells all share one axis
   // It is assumed this is part of a sandrone move check, in which case we can assume that the
@@ -308,40 +398,280 @@ fn can_empty_cell_be_push_cell(options: &Options, world: &World, tx: i32, ty: i3
   // cells that border the origin can be push cells (so we can ignore them) and we have to assert
   // that the other 5 surrounding cells are not push cells.
 
+  // abc
+  // def  <- xy is at e
+  // ghi
+
+  let e = is_push_impossible_cell(options, world, tx,   ty);
+
+  if e {
+    return false;
+  }
+
+  let a = is_push_impossible_cell(options, world, tx - 1,   ty - 1);
+  let b = is_push_impossible_cell(options, world, tx,   ty - 1);
+  let c = is_push_impossible_cell(options, world, tx + 1,   ty - 1);
+  let d = is_push_impossible_cell(options, world, tx - 1,   ty);
+  let f = is_push_impossible_cell(options, world, tx + 1,   ty);
+  let g = is_push_impossible_cell(options, world, tx - 1,   ty + 1);
+  let h = is_push_impossible_cell(options, world, tx,   ty + 1);
+  let i = is_push_impossible_cell(options, world, tx + 1,   ty + 1);
+
+  // if
+  //   (b && !(d || f || g || h || i)) ||
+  //   (f && !(b || a || d || g || h)) ||
+  //   (h && !(d || a || b || c || f)) ||
+  //   (d && !(b || c || f || i || h))
+  // {
+  //   // One horizontal or vertical cell is full while the opposite half-moon is empty
+  //   // It should be safe to fill the current tile because there is still a path to the empty
+  //   // neighbors currently and it will neighbor an existing tile.
+  //   return true;
+  // }
+
+
   if dx == -1 {
     assert_eq!(dy, 0);
     // x-1 is moving to the left so we must check fx-1,fy-1 fx-2,fy-1 fx-2,fy-2 fx-2,fy-3 fx-1,fy-3
-    !matches!(get_cell_tile_at(options, world, tx,   ty-1), Tile::Push | Tile::Impassible) && // up
-    !matches!(get_cell_tile_at(options, world, tx-1, ty-1), Tile::Push | Tile::Impassible) && // up-left
-    !matches!(get_cell_tile_at(options, world, tx-1, ty), Tile::Push | Tile::Impassible) && // left
-    !matches!(get_cell_tile_at(options, world, tx-1, ty+1), Tile::Push | Tile::Impassible) && // down-left
-    !matches!(get_cell_tile_at(options, world, tx,   ty+1), Tile::Push | Tile::Impassible) // down
+    !b && // up
+    !a && // up-left
+    !d && // left
+    !g && // down-left
+    !h // down
   } else if dx == 1 {
     assert_eq!(dy, 0);
     // x+1 is moving to the right
-    !matches!(get_cell_tile_at(options, world, tx,   ty-1), Tile::Push | Tile::Impassible) && // up
-    !matches!(get_cell_tile_at(options, world, tx+1, ty-1), Tile::Push | Tile::Impassible) && // up-right
-    !matches!(get_cell_tile_at(options, world, tx+1, ty), Tile::Push | Tile::Impassible) && // right
-    !matches!(get_cell_tile_at(options, world, tx+1, ty+1), Tile::Push | Tile::Impassible) && // down-right
-    !matches!(get_cell_tile_at(options, world, tx,   ty+1), Tile::Push | Tile::Impassible) // down
+    !b && // up
+    !c && // up-right
+    !f && // right
+    !i && // down-right
+    !h // down
   } else if dy == -1 {
     assert_eq!(dx, 0);
     // y-1 is moving up
-    !matches!(get_cell_tile_at(options, world, tx-1, ty), Tile::Push | Tile::Impassible) && // left
-    !matches!(get_cell_tile_at(options, world, tx-1, ty-1), Tile::Push | Tile::Impassible) && // up-left
-    !matches!(get_cell_tile_at(options, world, tx,   ty-1), Tile::Push | Tile::Impassible) && // up
-    !matches!(get_cell_tile_at(options, world, tx+1, ty-1), Tile::Push | Tile::Impassible) && // up-right
-    !matches!(get_cell_tile_at(options, world, tx+1, ty), Tile::Push | Tile::Impassible) // right
+    !d && // left
+    !a && // up-left
+    !b && // up
+    !c && // up-right
+    !f  // right
   } else {
     assert_eq!(dy, 1);
     assert_eq!(dx, 0);
     // y-1 is moving up
-    !matches!(get_cell_tile_at(options, world, tx-1, ty), Tile::Push | Tile::Impassible) && // left
-    !matches!(get_cell_tile_at(options, world, tx-1, ty+1), Tile::Push | Tile::Impassible) && // down-left
-    !matches!(get_cell_tile_at(options, world, tx,   ty+1), Tile::Push | Tile::Impassible) && // down
-    !matches!(get_cell_tile_at(options, world, tx+1, ty+1), Tile::Push | Tile::Impassible) && // down-right
-    !matches!(get_cell_tile_at(options, world, tx+1, ty), Tile::Push | Tile::Impassible) // right
+    !d && // left
+    !g && // down-left
+    !h && // down
+    !i && // down-right
+    !f // right
   }
+}
+pub fn can_magic_wall_bordering_empty_cell_be_push_cell(options: &Options, world: &World, x: i32, y: i32, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) -> bool {
+  // When the forward cell is a magic wall:
+  // - Left or right is a magic wall and the opposite diagonal and other left or right is empty
+  // - This is a dead end with one exit to the side (and so the back closed)
+  // - Left or right is full, not a dead end, and the opposite diagonal is empty
+  // There are seven cases to consider: (W=magic wall, P=push block, x=miner, .=empty, ?=whatever)
+  //
+  //    WWW   WWW   WWW   WWW   WWW   |   WWW   WWW   WWW   WWW
+  //    .xP   .xP   .xP   .x.   PxP   |   Wx?   WxP   Wx.   WxP
+  //    ..?   ?P?   P.?   ?P?   ?.P   |   W..   W.P   W.P   WP.
+  //                                  |
+  //    yes   yes   no    no    no    |   yes   yes   no    wtf (should not be a possible state)
+  //
+  // The main point is that we want to test whether we can fill the current tile without risking
+  // locking the miner in. A path to an outside wall must keep existing. These fill rules are set
+  // up in such a way that this is guaranteed as long as the rule is correct. We basically only
+  // fill if even after the fill a path to the exit can be found from the current tile, and without
+  // blocking potential other paths from that exit. By "walking around" the current tile we know
+  // that this property is preserved. That's why we check the diagonal in most cases.
+
+  // Do not fill the top tile on the zero axis. There must be one.
+  if x == 0 && y - 1 < magic_min_y {
+    return false;
+  }
+
+  let e = is_push_impossible_cell(options, world, x, y);
+  if e {
+    return false;
+  }
+
+  // abc
+  // def  <- xy is at e
+  // ghi
+
+  let a = is_push_impossible_cell(options, world, x - 1, y - 1) || x - 1 < magic_min_x || y - 1 < magic_min_y;
+  let b = is_push_impossible_cell(options, world, x,   y - 1) || y - 1 < magic_min_y;
+  let c = is_push_impossible_cell(options, world, x + 1,   y - 1) || x + 1 > magic_max_x || y - 1 < magic_min_y;
+  let d = is_push_impossible_cell(options, world, x - 1, y) || x - 1 < magic_min_x;
+  let f = is_push_impossible_cell(options, world, x + 1, y) || x + 1 > magic_max_x;
+  let g = is_push_impossible_cell(options, world, x - 1,   y + 1) || x - 1 < magic_min_x || y + 1 > magic_max_y;
+  let h = is_push_impossible_cell(options, world, x,   y + 1) || y + 1 > magic_max_y;
+  let i = is_push_impossible_cell(options, world, x + 1,   y + 1) || x + 1 > magic_max_x || y + 1 > magic_max_y;
+
+
+  // println!("At {},{}. area: {},{} ~ {},{} The circle a-i: {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}",
+  //   x, y,
+  //   magic_min_x, magic_min_y, magic_max_x, magic_max_y,
+  //   is_push_impossible_cell(options, world, x - 1, y - 1), x - 1 < magic_min_x || y - 1 < magic_min_y,
+  //   is_push_impossible_cell(options, world, x,   y - 1), y - 1 < magic_min_y,
+  //   is_push_impossible_cell(options, world, x + 1,   y - 1), x + 1 > magic_max_x || y - 1 < magic_min_y,
+  //   is_push_impossible_cell(options, world, x - 1, y), x - 1 < magic_min_x,
+  //   '-','-',
+  //   is_push_impossible_cell(options, world, x + 1, y), x + 1 > magic_max_x,
+  //   is_push_impossible_cell(options, world, x - 1,   y + 1), x - 1 < magic_min_x || y + 1 > magic_max_y,
+  //   is_push_impossible_cell(options, world, x,   y + 1), y + 1 > magic_max_y,
+  //   is_push_impossible_cell(options, world, x + 1,   y + 1), x + 1 > magic_max_x || y + 1 > magic_max_y,
+  // );
+
+
+  // if
+  //   (b && !(f || i || h || g || d)) ||
+  //   (f && !(h || g || d || a || b)) ||
+  //   (h && !(d || a || b || c || f)) ||
+  //   (d && !(b || c || f || i || h))
+  // {
+  //   // One horizontal or vertical cell is full while the opposite half-moon is empty
+  //   // It should be safe to fill the current tile because there is still a path to the empty
+  //   // neighbors currently and it will neighbor an existing tile.
+  //   return true;
+  // }
+
+  if y - 1 < magic_min_y {
+    // The magic wall is up (at least)
+
+    //  WWW   WWW   WWW   WWW
+    //  W^?   W^P   W^.   W^P
+    //  W..   W.P   W.P   WP.
+    //
+    //  yes   yes   no    wtf
+
+    if x - 1 < magic_min_x {
+      // up-left corner of the magic wall
+      // only fill when right is empty or down is full
+      // return !f && (!i || h);
+      // Only fill when the down-right diagonal is empty or there is at least one full neighbor
+      return !i || f || h;
+    } else if x +1 > magic_max_x {
+      // up-right corner of the magic wall
+      // only fill when left is empty
+      // return !d && (!g || h);
+      // Only fill when the down-left diagonal is empty or there is at least one full neighbor
+      return !g || d || h;
+    } else {
+
+      //   abc   WWW   WWW   WWW   WWW   WWW      WWW
+      //   def   .^P   .^P   .^P   .^.   P^P      P^P
+      //   ghi   ..?   ?P?   P.?   ?P?   ???      ???
+      //
+      //         yes   yes   no    no    no       yes
+
+      if d {
+        // up wall, not corner, left cell is full
+        // Only fill when right is empty and; down is full or down-right diagonal is empty
+        if f { return true; } // temp
+        return !f && (h || !i);
+      } else if f {
+        // up wall, not corner, right cell is full
+        // Only fill when left is empty and; down is full or down-left diagonal is empty
+        // return /*!d &&*/ (h || !g);
+        return h || !g;
+      }
+    }
+
+    // Both left and right are empty. Do not fill regardless.
+    return false;
+  }
+
+  if y + 1 > magic_max_y {
+    // The magic wall is down (at least)
+
+    //  W..   W.P   W.P   WP.
+    //  Wv?   WvP   Wv.   WvP
+    //  WWW   WWW   WWW   WWW
+    //
+    //  yes   yes   no    wtf
+
+    if x - 1 < magic_min_x {
+      // down-left corner of the magic wall
+      // Only fill when the up-right diagonal is empty or there is at least one full neighbor
+      return !c || f || b;
+    } else if x +1 > magic_max_x {
+      // up-right corner of the magic wall
+      // Only fill when the down-left diagonal is empty or there is at least one full neighbor
+      return !a || d || b;
+    } else {
+
+      //    ..?   ?..   ?P?   ?P?   P.?   ?P?   ???
+      //    .vP   Pv.   .vP   Pv.   .vP   .v.   PvP
+      //    WWW   WWW   WWW   WWW   WWW   WWW   WWW
+      //
+      //    yes   yes   yes   yes   no    no    no
+
+      if d {
+        // down wall, not corner, left cell is full
+        // Only fill when right is empty and; up is full or up-right diagonal is empty
+        if f { return true; } // temp
+        return !f && (b || !c);
+      } else if f {
+        // down wall, not corner, right cell is full
+        // Only fill when left is empty and; up is full or up-left diagonal is empty
+        // return !d && (b || !a);
+        return b || !a;
+      }
+    }
+
+    // Both left and right are empty. Do not fill regardless.
+    return false
+  }
+
+  if x - 1 < magic_min_x {
+    // The magic wall is to the left
+    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
+
+    //    W..   WP?   W.?   W.P   W.?   WP?
+    //    Wx.   Wx.   WxP   Wx.   WxP   Wx?
+    //    WP?   W..   WP?   WP?   W.?   WP?
+    //
+    //    yes   yes   yes   no    no    no
+
+    if b {
+      // left wall, not corner, up cell is full
+      // Only fill when down is empty and; right is full or down-right diagonal is empty
+      if h { return true; } // temp
+      return !h && (f || !i);
+    } else if h {
+      // left wall, not corner, down cell is full
+      // Only fill when up is empty and; right is full or up-right diagonal is empty
+      // return !b && (f || !c);
+      return f || !c;
+    }
+
+    // Both up and down and right are empty. Do not fill regardless.
+    return false;
+  }
+
+  if x +1 > magic_max_x {
+    // The magic wall is to the right
+    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
+
+    if b {
+      // right wall, not corner, up cell is full
+      // Only fill when down is empty and; left is full or down-left diagonal is empty
+      if h { return true; } // temp
+      return !h && (d || !g);
+    } else if h {
+      // left wall, not corner, down cell is full
+      // Only fill when up is empty and; left is full or up-left diagonal is empty
+      // return !b && (d || !a);
+      return d || !a;
+    }
+
+    // Both up and down and right are empty. Do not fill regardless.
+    return false;
+  }
+
+  // Apparently the coord is not bordering a magic wall
+  return false;
 }
 
 fn sandrone_can_move_to(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {
@@ -355,10 +685,11 @@ fn sandrone_can_move_to(options: &Options, world: &World, tx: i32, ty: i32, dx: 
   };
 }
 
-fn can_convert_tile_to_push(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {
+fn can_convert_tile_to_push(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32, sandrone: &Sandrone) -> bool {
   // A cell can be converted to a push tile when it is empty and when it borders horizontally
   // or vertically to exactly one push/impassable cell and when all diagonal cells that are push cells are also
   // bordering that one cell (share the same axis). The origin is implied to be a push cell.
+  // Additionally, the magic wall counts a special non-passable tile with slightly different rules.
   return matches!(get_cell_tile_at(options, world, tx, ty), Tile::Empty) && matches!(get_cell_stuff_at(options, world, tx, ty).1, Pickup::Nothing) && can_empty_cell_be_push_cell(options, world, tx, ty, dx, dy);
 }
 

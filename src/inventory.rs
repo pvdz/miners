@@ -84,7 +84,7 @@ pub fn clone_inventory(inventory: &Inventory) -> Inventory {
 
 pub fn ui_inventory(inventory: &Inventory) -> String {
   return format!(
-    "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {} : {: <5}  {}: {: <5}  {}: {: <5} {: <50}",
+    "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {}: {: <5}  {} : {: <5}  {}: {: <5}   {}: {: <5} {: <50}",
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_1), inventory.stone_white,
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_2), inventory.stone_green,
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_3), inventory.stone_blue,
@@ -95,6 +95,7 @@ pub fn ui_inventory(inventory: &Inventory) -> String {
     add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_3), inventory.diamond_blue,
     add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_4), inventory.diamond_yellow,
 
+    add_fg_color_with_reset(&ICON_SAND.to_string(), COLOR_SAND), inventory.sand,
     add_fg_color_with_reset(&ICON_ENERGY.to_string(), COLOR_ENERGY), inventory.energy,
     add_fg_color_with_reset(&ICON_WINDRONE_POWER.to_string(), COLOR_WIND), inventory.wind,
     add_fg_color_with_reset(&ICON_WOOD.to_string(), COLOR_WOOD), inventory.wood,

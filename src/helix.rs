@@ -39,6 +39,7 @@ pub struct Helix {
 }
 
 // Workaround for Serde; we serialize the helix to a plain tuple
+
 pub type SerializedHelix = (
   u64, // seed
   f32, // drone_gen_cooldown
@@ -201,7 +202,7 @@ pub fn helix_to_string(into: &mut String, helix: &Helix) {
     helix.multiplier_points,
     helix.block_bump_cost,
     helix.multiplier_energy_pickup,
-    slots_to_short_string(helix.slots),
+    slots_to_short_string(helix.slots)
   ).unwrap();
 }
 
