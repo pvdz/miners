@@ -9,7 +9,7 @@ pub mod windrone;
 pub mod world;
 pub mod values;
 pub mod icons;
-pub mod drone;
+pub mod drone_me;
 pub mod movable;
 pub mod cell;
 pub mod miner;
@@ -341,7 +341,7 @@ fn main() {
           let mmeta: &mut miner::MinerMeta = &mut biome.miner.meta;
           let mwindrone: &mut windrone::Windrone = &mut biome.miner.windrone;
           let msandrone: &mut sandrone::Sandrone = &mut biome.miner.sandrone;
-          let mdrones: &mut Vec<drone::Drone> = &mut biome.miner.drones;
+          let mdrones: &mut Vec<drone_me::MeDrone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
 
           world::tick_world(mworld, &options);

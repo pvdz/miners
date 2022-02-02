@@ -13,7 +13,7 @@ use super::slot_drill::*;
 use super::slot_purity_scanner::*;
 use super::slot_broken_gps::*;
 use super::inventory::*;
-use super::drone::*;
+use super::drone_me::*;
 use super::windrone::*;
 
 pub type MinerSlots = Vec<Slottable>;
@@ -31,7 +31,7 @@ pub struct Miner {
   // The items the miner is carrying
   pub slots: MinerSlots,
 
-  pub drones: Vec<Drone>,
+  pub drones: Vec<MeDrone>,
 
   pub windrone: Windrone,
   pub sandrone: Sandrone,
@@ -127,7 +127,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
 
   let mut kind_counts: Vec<i32> = create_slot_kind_counter();
 
-  let mut drones: Vec<Drone> = vec!();
+  let mut drones: Vec<MeDrone> = vec!();
 
   for i in 0..32 {
     let kind: SlotKind = helix.slots[i];
@@ -142,7 +142,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
       },
       SlotKind::DroneLauncher => {
         slots[i] = create_drone_launcher(i, nth, nth, helix.drone_gen_cooldown * 2.0_f32.powf(((nth as f32 / 2.0) + 1.0) as f32));
-        drones.push(Drone {
+        drones.push(MeDrone {
           movable: Movable {
             what: WHAT_DRONE,
             x: 0,

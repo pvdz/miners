@@ -3,7 +3,7 @@ use super::slottable::*;
 use super::movable::*;
 use super::miner::*;
 use super::world::*;
-use super::drone::*;
+use super::drone_me::*;
 use super::options::*;
 
 pub const TITLE_DRONE_LAUNCHER: &str = "Drone Launcher";
@@ -22,12 +22,12 @@ pub fn create_drone_launcher(slot_index: usize, nth: i32, drone_id: i32, max_coo
   };
 }
 
-pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<Drone>, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options, _first_miner: bool) {
+pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<MeDrone>, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options, _first_miner: bool) {
   // TODO: this function has access to all drones but it should really only have access to its own. :shrug:?
 
   let nth = slot.nth;
   assert!(drones.len() > nth as usize, "Each drone launcher should at least have one drone in the list");
-  let drone: &mut Drone = &mut drones[nth as usize];
+  let drone: &mut MeDrone = &mut drones[nth as usize];
 
   // There always exists a drone for this launcher but it may not be operable
   // (not (yet) re/launched or out of energy). First check for that and launch if the miner has
@@ -36,7 +36,7 @@ pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movabl
   if drone.movable.now_energy > 0.0 {
     // if first_miner { println!("slot {} drone {} has energy: {}", slot.slot, nth, drone.movable.now_energy); }
     // Drone is alive so tick it. The launcher is irrelevant right now.
-    tick_drone(drone, miner_movable, miner_meta, world, options);
+    tick_me_drone(drone, miner_movable, miner_meta, world, options);
   } else {
     // If the launcher is charged and the miner has enough energy, launch another drone
     if slot.cur_cooldown >= slot.max_cooldown {
@@ -64,7 +64,7 @@ pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movabl
   }
 }
 
-pub fn ui_slot_drone_launcher(slot: &Slottable, drone: &Drone) -> (String, String, String) {
+pub fn ui_slot_drone_launcher(slot: &Slottable, drone: &MeDrone) -> (String, String, String) {
   if drone.movable.now_energy > 0.0 {
     return (
       TITLE_DRONE_LAUNCHER.to_string(),
