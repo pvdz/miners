@@ -40,6 +40,7 @@ pub struct Inventory {
   pub wind: u32,
   pub wood: u32,
   pub sand: u32,
+  pub food: u32,
 }
 
 pub fn create_inventory() -> Inventory {
@@ -59,6 +60,7 @@ pub fn create_inventory() -> Inventory {
     wind: 0,
     wood: 0,
     sand: 0,
+    food: 0,
   };
 }
 
@@ -79,12 +81,13 @@ pub fn clone_inventory(inventory: &Inventory) -> Inventory {
     wind: inventory.wind,
     wood: inventory.wood,
     sand: inventory.sand,
+    food: inventory.food,
   };
 }
 
 pub fn ui_inventory(inventory: &Inventory) -> String {
   return format!(
-    "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {}: {: <5}  {} : {: <5}  {}: {: <5}   {}: {: <5} {: <50}",
+    "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {}: {: <5}  {} : {: <5}  {}: {: <5}   {}: {: <5} {} : {: <5} {: <10}",
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_1), inventory.stone_white,
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_2), inventory.stone_green,
     add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_3), inventory.stone_blue,
@@ -100,6 +103,7 @@ pub fn ui_inventory(inventory: &Inventory) -> String {
     add_fg_color_with_reset(&ICON_WINDRONE_POWER.to_string(), COLOR_WIND), inventory.wind,
     add_fg_color_with_reset(&ICON_WOOD.to_string(), COLOR_WOOD), inventory.wood,
     add_fg_color_with_reset(&ICON_WATER.to_string(), COLOR_WATER), inventory.water,
+    add_fg_color_with_reset(&ICON_FOOD.to_string(), COLOR_FOOD), inventory.food,
     ' '
   );
 }

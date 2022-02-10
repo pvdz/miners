@@ -22,7 +22,7 @@ pub fn create_drone_launcher(slot_index: usize, nth: i32, drone_id: i32, max_coo
   };
 }
 
-pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<MeDrone>, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options, _first_miner: bool) {
+pub fn tick_slot_drone_launcher(ticks: u32, slot: &mut Slottable, miner_movable: &mut Movable, drones: &mut Vec<MeDrone>, miner_meta: &mut MinerMeta, world: &mut World, options: &mut Options, _first_miner: bool) {
   // TODO: this function has access to all drones but it should really only have access to its own. :shrug:?
 
   let nth = slot.nth;
@@ -36,7 +36,7 @@ pub fn tick_slot_drone_launcher(slot: &mut Slottable, miner_movable: &mut Movabl
   if drone.movable.now_energy > 0.0 {
     // if first_miner { println!("slot {} drone {} has energy: {}", slot.slot, nth, drone.movable.now_energy); }
     // Drone is alive so tick it. The launcher is irrelevant right now.
-    tick_me_drone(drone, miner_movable, miner_meta, world, options);
+    tick_me_drone(ticks, drone, miner_movable, miner_meta, world, options);
   } else {
     // If the launcher is charged and the miner has enough energy, launch another drone
     if slot.cur_cooldown >= slot.max_cooldown {

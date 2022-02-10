@@ -37,6 +37,8 @@ pub enum SandroneState {
   PickingUpMiner,
   // On its way to deliver the miner to 0x0
   DeliveringMiner,
+  // Post castle building, the sandrone now exclusively moves around on impassible tiles and pushes.
+  Redecorating,
 }
 
 #[derive(Debug)]
@@ -57,7 +59,7 @@ pub struct Sandrone {
   // Have we air lifted the miner back to 0x0 yet?
   pub air_lifting: bool,
   pub air_lifted: bool,
-  pub post_castle: bool,
+  pub post_castle: u32, // Tick at which castle completed
 
   tmp: u32,
   // Remember the last direction for backtracking over push tiles
@@ -105,7 +107,7 @@ pub fn create_sandrone() -> Sandrone {
     direction_cycle: dc,
     air_lifting: false,
     air_lifted: false,
-    post_castle: false,
+    post_castle: 0,
     tmp: 20,
     last_dx: 1,
     last_dy: 0,
@@ -131,6 +133,7 @@ pub fn set_sandrone_state(sandrone: &mut Sandrone, state: SandroneState) {
     SandroneState::BuildingArrowCell => format!("Building a push cell..."),
     SandroneState::PickingUpMiner => format!("Picking up miner..."),
     SandroneState::DeliveringMiner => format!("Delivering miner to origin..."),
+    SandroneState::Redecorating => format!("Redecorating the castle"),
   };
   sandrone.state = state;
 }
@@ -146,7 +149,8 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
     SandroneState::WaitingForWater => {
       if meta.inventory.sand >= 10 {
         set_sandrone_state(sandrone, SandroneState::MovingToOrigin);
-        options.visual = true;
+        // start of building a sand castle
+        // options.visual = true;
       }
     }
     SandroneState::MovingToOrigin => {
@@ -159,10 +163,10 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
         sandrone.push_tiles.push((0, 0));
         set_sandrone_state(sandrone, SandroneState::MovingToNeighborCell);
 
-        if !sandrone.air_lifted && !sandrone.post_castle && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
+        if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
           println!("Shutting down the sandrone");
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-          options.visual = true;
+          // options.visual = true;
           sandrone.air_lifting = true;
         }
 
@@ -194,6 +198,37 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
       let mut tx = fx;
       let mut ty = fy;
       let mut found = false;
+
+      if sandrone.post_castle > 0 {
+        // Move to a neighboring Impassable cell. There must be multiple (inc dia). Juts pick one.
+        // Then move like normal movables except the sandrone can only move over Impassible tiles.
+        // The sandrone will now be redecorating the castle.
+        set_sandrone_state(sandrone, SandroneState::Redecorating);
+
+        // With the current rules, it is not possible to create a 2x2 of castle walls. So
+        // checking any quadrant should suffice to guarantee at least one available position.
+
+        if matches!(get_cell_tile_at(options, world, fx, fy - 1), Tile::Soil) {
+          // sandrone.movable.x = fx;
+          sandrone.movable.y = fy - 1;
+        } else if matches!(get_cell_tile_at(options, world, fx - 1, fy - 1), Tile::Soil) {
+          sandrone.movable.x = fx + 1;
+          sandrone.movable.y = fy + 1;
+        } else if matches!(get_cell_tile_at(options, world, fx - 1, fy), Tile::Soil) {
+          sandrone.movable.x = fx + 1;
+          // sandrone.movable.y = fy;
+        } else {
+          println!("Assumption does not hold; it is not sufficient to scan for a quadrant and guarantee an impassable tile. uups {:?} {:?} {:?}",
+            get_cell_tile_at(options, world, fx, fy - 1),
+            get_cell_tile_at(options, world, fx - 1, fy - 1),
+            get_cell_tile_at(options, world, fx - 1, fy),
+          );
+          options.return_to_move = true;
+        }
+
+        // The sandrone is now in redecorator mode and it is on an Impassible tile. Time to go.
+        return;
+      }
 
       // The next step is determined in two phases;
       // - check whether there is any neighbouring cell that can be converted to push
@@ -245,7 +280,7 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
           // fx = 0;
           // fy = 0;
 
-          if !sandrone.air_lifted && !sandrone.post_castle && !sandrone.air_lifting && sandrone.push_tiles.len() > options.sandrone_pickup_count as usize{
+          if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > options.sandrone_pickup_count as usize{
             // println!("Going to pick up miner...");
             set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
             // options.visual = true;
@@ -338,7 +373,7 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
         sandrone.found_end = true;
         sandrone.seeking = false;
         sandrone.backtracking = false;
-        if !sandrone.air_lifted && !sandrone.post_castle {
+        if !sandrone.air_lifted && !sandrone.post_castle > 0 {
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
           // options.visual = true;
           sandrone.air_lifting = true;
@@ -375,6 +410,103 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
       }
       mminermovable.x = sandrone.movable.x;
       mminermovable.y = sandrone.movable.y;
+    }
+    SandroneState::Redecorating => {
+      // - Move on impassible tiles only.
+      //   - Randomly (?) move forward, left, or right
+      //   - Only move back when the other three are blocked
+      //   - Should not be possible to lock yourself in
+      // - Push around Push tiles
+      //   - If you walk into a push block, push it if there's an Impassible tile behind it.
+      // - Push tiles can only move over Impassible tiles
+      //   - If you can't push, don't.
+
+      // Generic turning relative to current direction:
+      //   dx  dy   ->     back      left      right     tl-corner   tr-corner   bl-corner   br-corner       tl-corner   tr-corner  bl-corner   br-corner
+      // ^  0, -1:        0,  1     -1,  0     1,  0      -1, -1       1, -1      -1,  1       1,  1           y,  y      -y,  y      y, -y      -y, -y
+      // >  1,  0:       -1,  0      0, -1     0,  1       1, -1       1,  1      -1, -1      -1,  1           x, -x       x,  x     -x, -x      -x,  x
+      // < -1,  0:        1,  0      0,  1     0, -1      -1,  1      -1, -1       1,  1       1, -1           x, -x       x,  x     -x, -x      -x,  x
+      // v  0,  1:        0, -1      1,  0    -1,  0       1,  1      -1,  1       1, -1      -1, -1           y,  y      -y,  y      y, -y      -y, -y
+      // ---------       ------    -------    ------      ------      ------      ------      ------          ------      ------     ------      ------
+      //   dx, dy       -dx,-dy     dy,-dx    -dy,dx     y+x,y-x     x-y,x+y     y-x,-y-x    -y-x,-y+x        y+x,y-x     x-y,x+y   y-x,-y-x    -y-x,-y+x
+
+
+      let fx = sandrone.movable.x;
+      let fy = sandrone.movable.y;
+      let mut ways: Vec<(i32, i32, i32, i32, u32, bool)> = vec!();
+
+      if fx - 1 >= sandrone.expansion_min_x {
+        if matches!(get_cell_tile_at(options, world, fx - 1, fy), Tile::Soil) {
+          // Can move to empty tile
+          ways.push((fx - 1, fy, 0, 0, get_cell_tile_value_at(options, world, fx - 1, fy), false));
+        } else if fx - 2 > sandrone.expansion_min_x && matches!(get_cell_tile_at(options, world, fx - 2, fy), Tile::Soil) {
+          // If it's not impassable then it must be push. Check if you can push it to the next tile.
+          ways.push((fx -1, fy, fx - 2, fy, get_cell_tile_value_at(options, world, fx - 1, fy), true));
+        }
+      }
+
+      if fy - 1 >= sandrone.expansion_min_y {
+        if matches!(get_cell_tile_at(options, world, fx, fy - 1), Tile::Soil) {
+          // Can move to empty tile
+          ways.push((fx, fy - 1, 0, 0, get_cell_tile_value_at(options, world, fx, fy - 1), false));
+        } else if fy - 2 > sandrone.expansion_min_y && matches!(get_cell_tile_at(options, world, fx, fy - 2), Tile::Soil) {
+          // If it's not impassable then it must be push. Check if you can push it to the next tile.
+          ways.push((fx, fy - 1, fx, fy - 2, get_cell_tile_value_at(options, world, fx, fy - 1), true));
+        }
+      }
+
+      if fx + 1 <= sandrone.expansion_max_x {
+        if matches!(get_cell_tile_at(options, world, fx + 1, fy), Tile::Soil) {
+          // Can move to empty tile
+          ways.push((fx + 1, fy, 0, 0, get_cell_tile_value_at(options, world, fx + 1, fy), false));
+        } else if fx + 2 < sandrone.expansion_max_x && matches!(get_cell_tile_at(options, world, fx + 2, fy), Tile::Soil) {
+          // If it's not impassable then it must be push. Check if you can push it to the next tile.
+          ways.push((fx + 1, fy, fx + 2, fy, get_cell_tile_value_at(options, world, fx + 1, fy), true));
+        }
+      }
+
+      if fy + 1 <= sandrone.expansion_max_y {
+        if matches!(get_cell_tile_at(options, world, fx, fy + 1), Tile::Soil) {
+          // Can move to empty tile
+          ways.push((fx, fy + 1, 0, 0, get_cell_tile_value_at(options, world, fx, fy + 1), false));
+        } else if fy + 2 < sandrone.expansion_max_y && matches!(get_cell_tile_at(options, world, fx, fy + 2), Tile::Soil) {
+          // If it's not impassable then it must be push. Check if you can push it to the next tile.
+          ways.push((fx, fy + 1, fx, fy + 2, get_cell_tile_value_at(options, world, fx, fy + 1), true));
+        }
+      }
+
+      // I think there must always be at least one?
+      let some = ways[ways.len() - 1];
+      ways.pop();
+      let mut tx = some.0;
+      let mut ty = some.1;
+      let mut txx = some.2;
+      let mut tyy = some.3;
+      let mut v = some.4;
+      let mut mv = some.5;
+
+      for o in ways {
+        match o {
+          (a, b, aa, bb, c, d) => {
+            if c < v {
+              tx = a;
+              ty = b;
+              txx = aa;
+              tyy = bb;
+              v = c;
+              mv = d;
+            }
+          }
+        }
+      }
+
+      sandrone.movable.x = tx;
+      sandrone.movable.y = ty;
+      set_cell_tile_value_at(options, world, tx, ty, v + 1);
+      if mv {
+        set_cell_tile_at(options, world, tx, ty, Tile::Soil);
+        set_cell_tile_at(options, world, txx, tyy, Tile::Push);
+      }
     }
   }
 }

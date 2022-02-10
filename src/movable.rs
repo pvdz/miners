@@ -275,7 +275,7 @@ fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32,
   }
 }
 
-fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta) {
+fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta, building_sandcastle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
   let n = strength - if movable.what == WHAT_MINER { hammers } else { 1 };
   world.tiles[unexty][unextx] = match n.max(0) {
     3 => create_cell(Tile::Wall3, pickup, tile_value, pickup_value),
@@ -290,18 +290,19 @@ fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut 
     // TODO: what about the drill? What about bonuses? Should it be u32 or f32?
     meta.inventory.sand += 1;
   }
-  // TODO: should drones use same "prefer visited tiles" heuristic as miner?
-  movable.now_energy = movable.now_energy - meta.block_bump_cost;
-  movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
   if movable.what == WHAT_MINER {
     if drills > 0 {
       drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, world, options);
     }
     meta.prev_move_bumped = true;
   }
+
+  movable.now_energy = movable.now_energy - meta.block_bump_cost;
+  // TODO: should drones use same "prefer visited tiles" heuristic as miner?
+  movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
 }
 
-fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
+fn move_it_xy(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, post_castle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
   let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
   if movable.what == WHAT_MINER {
     meta.points_last_move = 0;
@@ -403,8 +404,23 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
           options.visual = true;
 
           match sandrone { Some(sandrone) => {
-            sandrone.post_castle = true;
+            sandrone.post_castle = ticks;
             sandrone.air_lifted = false;
+
+            // Change tiles for the grid. Reset values and everything.
+            // Special case the stuck drones?
+            for y in sandrone.expansion_min_y..sandrone.expansion_max_y+1 {
+              for x in sandrone.expansion_min_x..sandrone.expansion_max_x+1 {
+                if matches!(get_cell_tile_at(options, world, x, y), Tile::Impassible) {
+                  // Change the tile so we can enable special drawing mode for it
+                  // TODO: if a drone was stuck in it perhaps it enables a special super soil?
+                  set_cell_tile_at(options, world, x, y, Tile::Soil);
+                }
+                set_cell_tile_value_at(options, world, x, y, 0);
+                set_cell_pickup_at(options, world, x, y, Pickup::Nothing);
+                set_cell_pickup_value_at(options, world, x, y, 0);
+              }
+            }
           }, _ => panic!("should not happen")}
         }
       }
@@ -418,16 +434,16 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
   let hammers = meta.kind_counts[SlotKind::Hammer as usize];
   match world.tiles[unexty][unextx] {
     Cell { tile: Tile::Wall4, pickup, tile_value, pickup_value, .. } => {
-      bump_wall(4, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
+      bump_wall(4, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Cell { tile: Tile::Wall3, pickup, tile_value, pickup_value, .. } => {
-      bump_wall(3, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
+      bump_wall(3, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Cell { tile: Tile::Wall2, pickup, tile_value, pickup_value, .. } => {
-      bump_wall(2, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
+      bump_wall(2, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Cell { tile: Tile::Wall1, pickup, tile_value, pickup_value, .. } => {
-      bump_wall(1, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta);
+      bump_wall(1, world, options, movable, hammers, drills, pickup, tile_value, pickup_value, nextx, nexty, deltax, deltay, unextx, unexty, meta, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Cell { tile: Tile::Push | Tile::Impassible, .. } => {
       // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
@@ -457,6 +473,35 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
           (0, 1) => Direction::Down,
           (0, -1) => Direction::Up,
           (0, 0) => {
+            // Must check whether left or right is oob. If so, force the other way.
+            if movable.what == WHAT_MINER && building_sandcastle {
+              // Check for oobs. Prevents annoying flip-flop patterns for one-way-streets
+              if oob(movable.x + deltay, movable.y - deltax, magic_min_x, magic_min_y, magic_max_x, magic_max_y) {
+                // Do not turn this way. Turn the other way.
+                // Turn clockwise
+                movable.dir = match movable.dir {
+                  Direction::Up => Direction::Right,
+                  Direction::Right => Direction::Down,
+                  Direction::Down => Direction::Left,
+                  Direction::Left => Direction::Up,
+                };
+                return;
+              } else if oob(movable.x - deltay, movable.y + deltax, magic_min_x, magic_min_y, magic_max_x, magic_max_y) {
+                // Do not turn this way, turn the other way
+                // Turn counter-clockwise
+                movable.dir = match movable.dir {
+                  Direction::Up => Direction::Left,
+                  Direction::Right => Direction::Up,
+                  Direction::Down => Direction::Right,
+                  Direction::Left => Direction::Down,
+                };
+                return;
+              }
+
+              // else do the normal thing.
+            }
+
+
             let v = get_cell_tile_value_at(options, world, movable.x, movable.y, );
             set_cell_tile_value_at(options, world, movable.x, movable.y, if v == 1 { 0 } else { 1 });
 
@@ -474,10 +519,11 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
       }
     }
 
-    // The rest is considered an empty tile
+    // The rest is considered an empty or at least passable tile
     |  Cell {
       tile:
           Tile::Fountain
+          | Tile::Soil
         | Tile::ZeroZero
         | Tile::TenLine
         | Tile::HideWorld
@@ -669,7 +715,7 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
 
   if movable.what == WHAT_MINER {
     // Cannot be in an infinite loop while building the sand castle
-    if was_boring && !building_sandcastle {
+    if was_boring && !building_sandcastle /*&& !post_castle*/ {
       // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
       movable.now_energy = movable.now_energy - meta.boredom_level as f32;
       // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
@@ -686,26 +732,26 @@ fn move_it_xy(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut Miner
   }
 }
 
-pub fn move_movable(movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
+pub fn move_movable(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, post_castle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
   if movable.disabled { return; }
 
   // println!("moving from {}x{}", movable.x, movable.y);
   match movable.dir {
     Direction::Up => {
       let nexty = movable.y - 1;
-      move_it_xy(movable, mslots_maybe, meta, world, options, movable.x, nexty, 0, -1, sandrone, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+      move_it_xy(ticks, movable, mslots_maybe, meta, world, options, movable.x, nexty, 0, -1, sandrone, building_sandcastle, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Direction::Left => {
       let nextx = movable.x - 1;
-      move_it_xy(movable, mslots_maybe, meta, world, options, nextx, movable.y, -1, 0, sandrone, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+      move_it_xy(ticks, movable, mslots_maybe, meta, world, options, nextx, movable.y, -1, 0, sandrone, building_sandcastle, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Direction::Down => {
       let nexty = movable.y + 1;
-      move_it_xy(movable, mslots_maybe, meta, world, options, movable.x, nexty, 0, 1, sandrone, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+      move_it_xy(ticks, movable, mslots_maybe, meta, world, options, movable.x, nexty, 0, 1, sandrone, building_sandcastle, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
     Direction::Right => {
       let nextx = movable.x + 1;
-      move_it_xy(movable, mslots_maybe, meta, world, options, nextx, movable.y, 1, 0, sandrone, building_sandcastle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+      move_it_xy(ticks, movable, mslots_maybe, meta, world, options, nextx, movable.y, 1, 0, sandrone, building_sandcastle, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
     },
   }
 }

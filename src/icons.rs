@@ -22,12 +22,14 @@ pub const ICON_DOUBLE_DOWN: char = '⮇';
 pub const ICON_END: char = '🔚';
 pub const ICON_ENERGY: char = '🔋';
 pub const ICON_EYES_ONLY: char = '😶';
+pub const ICON_FOOD: char = '🍽'; // 🍇 🍈 🍉 🍊 🍋 🍌 🍍 🥭 🍎 🍏 🍐 🍑 🍒 🍓 🫐 🥝 🍅 🫒 🥥 🥑 🍆 🥔 🥕 🌽 🌶 🫑 🥒 🥬 🥦 🧄 🧅 🍄 🥜 🌰 🍞 🥐 🥖 🫓 🥨 🥯 🥞 🧇 🧀 🍖 🍗 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🫔 🥙 🧆 🥚 🍳 🥘 🍲 🫕 🥣 🥗 🍿 🧈 🧂 🥫 🍱 🍘 🍙 🍚 🍛 🍜 🍝 🍠 🍢 🍣 🍤 🍥 🥮 🍡 🥟 🥠 🥡 🦪 🍦 🍧 🍨 🍩 🍪 🎂 🍰 🧁 🥧 🍫 🍬 🍭 🍮 🍯 🍼 🥛 ☕ 🫖 🍵 🍶 🍾 🍷 🍸 🍹 🍺 🍻 🥂 🥃 🥤 🧋 🧃 🧉 🧊 🥢 🍽 🍴 🥄 // https://emojipedia.org/food-drink/
 pub const ICON_FOUNTAIN: char= '⛲';
 pub const ICON_HEAVY_UP: char = '🡅';
 pub const ICON_HEAVY_RIGHT: char = '🡆';
 pub const ICON_HEAVY_DOWN: char = '🡇';
 pub const ICON_HEAVY_LEFT: char = '🡄';
 pub const ICON_NO_ENTRY: char = '🚫';
+pub const ICON_PUSH_PIN: char = '📍'; // 📍 📌
 pub const ICON_TRIANGLE_DOWN: char = '⮛';
 pub const ICON_TRIANGLE_LEFT: char = '⮘';
 pub const ICON_TRIANGLE_RIGHT: char = '⮚';
@@ -44,6 +46,7 @@ pub const ICON_WAVE: char = '🌊'; // 💦 💧 🌊 🚰 🚰 ⚓ ≋ ≈ ~ //
 pub const ICON_WATER: char = '💦'; // 💦 💧 🌊 🚰 🚰 ⚓ ≋ ≈ ~ // https://unicode-table.com/en/sets/sea-symbols/
 pub const ICON_SAND: char = '🥪'; // ⏳ 🏖️ 🥪
 pub const ICON_WOOD: char = '🌳'; // there are no good wood emojis
+pub const ICON_WORLD_MAP: char = '🗺';
 
 pub const ICON_MINER_UP: char = ICON_HEAVY_UP;
 pub const ICON_MINER_RIGHT: char = ICON_HEAVY_RIGHT;
@@ -54,13 +57,15 @@ pub const ICON_GHOST: char = ICON_EYES_ONLY;
 pub const ICON_SANDRONE: char = ICON_SOCCER_BALL;
 pub const ICON_WINDRONE_POWER: char = ICON_TORNADO;
 
+pub const ICON_PUSH: char = ICON_WORLD_MAP;
+
 pub const ICON_DRONE_UP: char = ICON_TRIPLE_UP;
 pub const ICON_DRONE_RIGHT: char = ICON_TRIPLE_RIGHT;
 pub const ICON_DRONE_DOWN: char = ICON_TRIPLE_DOWN;
 pub const ICON_DRONE_LEFT: char = ICON_TRIPLE_LEFT;
 
 pub const ICON_EXPANDO_WATER: char = ICON_WAVE;
-pub const ICON_DEAD_END: char = ICON_NO_ENTRY;
+pub const ICON_IMPASSIBLE: char = ' ';
 
 pub const ICON_MARGIN: char = ICON_BLOCK_25;
 

@@ -363,5 +363,6 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
     SandroneState::BuildingArrowCell => {}
     SandroneState::PickingUpMiner => {}
     SandroneState::DeliveringMiner => {}
+    SandroneState::Redecorating => {}
   }
 }

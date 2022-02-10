@@ -254,7 +254,7 @@ fn main() {
           Ok(key) => match key.as_str() {
             "\n" => waiting = false, // Tick forward
             "x\n" => {
-              options.return_to_move = false;
+              options.return_to_move = !options.return_to_move;
               waiting = false;
             },
             "v\n" => options.visual = !options.visual,
@@ -332,6 +332,7 @@ fn main() {
         if biome.miner.movable.now_energy > 0.0 {
           let miner_disabled = biome.miner.movable.disabled;
           biome.ticks += 1;
+          let ticks = biome.ticks;
           stats_total_biome_ticks += 1;
 
           let first_miner = m == 0;
@@ -344,11 +345,12 @@ fn main() {
           let mdrones: &mut Vec<drone_me::MeDrone> = &mut biome.miner.drones;
           let mworld: &mut world::World = &mut biome.world;
 
-          world::tick_world(mworld, &options);
+          world::tick_world(mworld, &options, msandrone);
           if !miner_disabled {
             miner::tick_miner(mminermovable, mmeta, mslots, mwindrone, msandrone);
           }
 
+          let post_castle = msandrone.post_castle > 0;
           if msandrone.air_lifting {
             // Do not "move" the miner. It is being moved by the sandrone.
           } else if msandrone.air_lifted {
@@ -358,10 +360,10 @@ fn main() {
             let magic_max_x = msandrone.expansion_max_x;
             let magic_max_y = msandrone.expansion_max_y;
 
-            movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options, Some(msandrone), true, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
+            movable::move_movable(ticks, mminermovable, mslots, mmeta, mworld, &mut options, Some(msandrone), true, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
           } else {
             // No magic castle wall
-            movable::move_movable(mminermovable, mslots, mmeta, mworld, &mut options, None, false, 0, 0, 0, 0);
+            movable::move_movable(ticks, mminermovable, mslots, mmeta, mworld, &mut options, None, false, post_castle, 0, 0, 0, 0);
           }
 
           for i in 0..mslots.len() {
@@ -369,7 +371,7 @@ fn main() {
             match slot.kind {
               slottable::SlotKind::Emptiness => (), // noop
               slottable::SlotKind::EnergyCell => slot_energy_cell::tick_slot_energy_cell(slot, mminermovable, mmeta, mworld, &options, first_miner),
-              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(slot, mminermovable, mdrones, mmeta, mworld, &mut options, first_miner),
+              slottable::SlotKind::DroneLauncher => slot_drone_launcher::tick_slot_drone_launcher(ticks, slot, mminermovable, mdrones, mmeta, mworld, &mut options, first_miner),
               slottable::SlotKind::Hammer => (), // noop
               slottable::SlotKind::Drill => (), // noop
               slottable::SlotKind::PurityScanner => slot_purity_scanner::tick_slot_purity_scanner(slot, mmeta, first_miner),
