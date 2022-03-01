@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>Miners -- A Langton Ant, GA, and idle game in one!</title>
   <style>
-    .terminal {
+    .world-view {
         background-color: black;
         color: white;
         display: inline-block;
@@ -68,13 +68,15 @@
   return_to_move: false,      // Press enter to forward a tick? Useful for debugging.
   seed: 210114,               // World seed.
   speed: 1,                   // Unused in web (this is `thread.sleep(n)` in Rust)
-  frame_skip: 0,             // Rust won't paint or call out to web for this many frames at a time
+  frame_skip: 0,              // Rust won't paint or call out to web for this many frames at a time
   frames_now: 0,              // Current progress of the frameskip
-  visual: false,              // Don't paint the UI. May feel less responsive depending on your machine
+  visual: true,               // Don't paint the UI. May feel less responsive depending on your machine
   sandrone_pickup_count: 200, // Sandrone will pick up miner after putting down this many push tiles
   sandcastle_area_limit: 500, // Sandrone will stop building the wall after the castle is this big
 
   html_mode: true,            // We want this :) Else output will use terminal ANSI codes
+
+  show_biomes: false,         // Show miners from other biomes in the world view? A little chaotic :)
 
   // Debugging
   paint_ten_lines: false,     // Draw grids at every 10th line/col
@@ -85,8 +87,13 @@
   hide_world_ib: false,       // Do not draw the world that explicitly exists in memory (only oob)
   paint_visited: false,       // Paint dots as the number of times the miner visited a tile
   paint_visited_bool: false,  // Paint all tiles that the miner visited at least once
+  paint_colors: true,         // Film noir?
+  paint_bg_colors: true,      // Can disable background colors while keeping foreground colors
+  paint_fg_colors: true,      // Can disable foreground colors while keeping background colors
 }</textarea>
+<pre id="$world" class="world-view"></pre>
 <pre id="$terminal" class="terminal"></pre>
+
 <script>
   let uiState = {
     paused: false,
@@ -108,7 +115,7 @@
     uiState.stopNext = false;
     preparedInput = '';
     $options.style.display = 'inline-block';
-    $terminal.style.display = 'none';
+    $world.style.display = 'none';
   }
   
   function togglePause() {
@@ -134,12 +141,22 @@
     $inputInput.value = '';
   }
 
+  let logCache = [];
   function log(...args) {
+    let s = '';
     if (args.length === 1) {
       console.log('ℝ:', args[0]);
+      s = typeof args[0] === 'string' ? args[0] : JSON.stringify(args[0]);
     } else {
       console.log('ℝ:', args);
+      s = JSON.stringify(args);
     }
+    logCache.unshift(s.replace(/&/g, '&amp;').replace(/</g, '&lt;'));
+    // Trim the terminal to 200 lines when it exceeds 300 lines
+    if (logCache.length > 300) {
+      logCache.length = 200;
+    }
+    $terminal.innerHTML = logCache.join('\n');
   }
   function dnow() {
     return BigInt(Date.now());
@@ -162,7 +179,7 @@
         return line.replace(/\x1b.*?m/g, '')
     }).join('\n');
 
-    $terminal.innerHTML = out;
+    $world.innerHTML = out;
   }
   async function suspend_app_to_start() {
     //console.log('Inside suspend_app_to_start now ...');
@@ -206,8 +223,8 @@
     $pressReturnButton.disabled = false;
     $startButton.disabled = true;
     $options.style.display = 'none';
-    $terminal.innerHTML = 'Loading...';
-    $terminal.style.display = 'block';
+    $world.innerHTML = 'Loading...';
+    $world.style.display = 'block';
 
     init().then(() => {
       web_main();

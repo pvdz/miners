@@ -50,6 +50,9 @@ pub const COLOR_CYAN: &str = "0,255,255";
 pub const COLOR_WHITE: &str = "255,255,255";
 
 pub fn add_fg_color_with_reset(str: &String, color: &str, options: &Options) -> String {
+  if !options.paint_colors || !options.paint_fg_colors {
+    return format!("{}", str);
+  }
   return if options.html_mode {
     format!("<span style='color:rgb({})'>{}</span>", color, str)
   } else {
@@ -58,6 +61,10 @@ pub fn add_fg_color_with_reset(str: &String, color: &str, options: &Options) -> 
 }
 
 pub fn add_bg_color_with_reset(str: &String, color: &str, options: &Options) -> String {
+  if !options.paint_colors || !options.paint_bg_colors {
+    return format!("{}", str);
+  }
+
   return if options.html_mode {
     format!("<span style='background-color:rgb({})'>{}</span>", color, str)
   } else {
@@ -66,6 +73,10 @@ pub fn add_bg_color_with_reset(str: &String, color: &str, options: &Options) -> 
 }
 
 pub fn add_fg_color_with_reset_double(str: &String, color: &str, options: &Options) -> String {
+  if !options.paint_colors || !options.paint_fg_colors {
+    return format!("{}", str);
+  }
+
   return if options.html_mode {
     format!("<span style='color:rgb({})'>{}{}</span>", color, str, str)
   } else {
@@ -74,6 +85,10 @@ pub fn add_fg_color_with_reset_double(str: &String, color: &str, options: &Optio
 }
 
 pub fn add_bg_color_with_reset_double(str: &String, color: &str, options: &Options) -> String {
+  if !options.paint_colors || !options.paint_bg_colors {
+    return format!("{}", str);
+  }
+
   return if options.html_mode {
     format!("<span style='background-color:rgb({})'>{}{}</span>", color, str, str)
   } else {

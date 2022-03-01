@@ -35,6 +35,8 @@ pub struct Options {
   pub sandcastle_area_limit: u32, // Sandrone will permanently stop building the wall after the castle area is at least this big
   // print the world in html rather than terminal ansi?
   pub html_mode: bool,
+  // Show the miner in all other biomes in the map as well? Confusing but fun? :)
+  pub show_biomes: bool,
 
   // Debugging
   pub paint_ten_lines: bool,
@@ -52,6 +54,12 @@ pub struct Options {
   pub paint_visited: bool,
   // Paint the number of times the miner visited a tile, in the world view?
   pub paint_visited_bool: bool, // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
+  // Film noir?
+  pub paint_colors: bool,
+  // Can disable background colors while keeping foreground colors
+  pub paint_bg_colors: bool,
+  // Can disable foreground colors while keeping background colors
+  pub paint_fg_colors: bool,
 }
 
 pub fn parse_cli_args() -> Options {
@@ -76,6 +84,8 @@ pub fn parse_cli_args() -> Options {
 
     html_mode: false,
 
+    show_biomes: false,
+
     // Debug
     paint_ten_lines: false,
     paint_zero_zero: false,
@@ -85,6 +95,9 @@ pub fn parse_cli_args() -> Options {
     hide_world_ib: false,
     paint_visited: false,
     paint_visited_bool: false,
+    paint_colors: true,
+    paint_bg_colors: true,
+    paint_fg_colors: true,
   };
 
   let args: Vec<String> = env::args().collect();

@@ -552,9 +552,11 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   let voy = (wv_margin.0 + wv_border.0) as i32;
 
   assert!(biomes.len() >= 1, "there should be at least one biome");
-  for (i, biome) in biomes.iter().enumerate() {
-    if i == 0 { continue; }
-    paint_biome_actors(biome, i, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+  if options.show_biomes {
+    for (i, biome) in biomes.iter().enumerate() {
+      if i == 0 { continue; }
+      paint_biome_actors(biome, i, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+    }
   }
   paint_biome_actors(&biomes[0], 0, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 
