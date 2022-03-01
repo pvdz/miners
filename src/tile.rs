@@ -1,6 +1,7 @@
 use super::icons::*;
 use super::color::*;
 use super::pickup::*;
+use super::options::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Tile {
@@ -23,7 +24,7 @@ pub enum Tile {
   Test3,
 }
 
-pub fn cell_to_uncolored_string(tile: Tile, pickup: Pickup, tile_value: u32, wx: i32, wy: i32) -> String {
+pub fn cell_to_uncolored_string(tile: Tile, pickup: Pickup, _tile_value: u32, wx: i32, wy: i32) -> String {
   return match tile {
     Tile::ExpandoWater => ICON_EXPANDO_WATER.to_string(),
     Tile::Fountain => ICON_FOUNTAIN.to_string(),
@@ -51,40 +52,40 @@ pub fn cell_to_uncolored_string(tile: Tile, pickup: Pickup, tile_value: u32, wx:
   }
 }
 
-pub fn cell_add_color(str: &String, tile: Tile, tile_value: u32, pickup: Pickup) -> String {
+pub fn cell_add_color(str: &String, tile: Tile, tile_value: u32, pickup: Pickup, options: &Options) -> String {
   // Given a string, supposedly being the serialized pickup (pickup_to_string)
   // add a color to it according to its type and/or its value.
   // Each cell is assumed to start as reset. Only add foreground colors to the string.
   return match tile {
-    Tile::Push => add_bg_color_with_reset(str, COLOR_PUSH),
+    Tile::Push => add_bg_color_with_reset(str, COLOR_PUSH, options),
     | Tile::Wall1
     | Tile::Wall2
     | Tile::Wall3
     =>
       match tile_value {
-        0 => add_fg_color_with_reset(str, COLOR_LEVEL_1),
-        1 => add_fg_color_with_reset(str, COLOR_LEVEL_2),
-        2 => add_fg_color_with_reset(str, COLOR_LEVEL_3),
+        0 => add_fg_color_with_reset(str, COLOR_LEVEL_1, options),
+        1 => add_fg_color_with_reset(str, COLOR_LEVEL_2, options),
+        2 => add_fg_color_with_reset(str, COLOR_LEVEL_3, options),
         _ => panic!("unexpected cell value for a wall tile"),
       },
-    | Tile::Empty => pickup_add_color(&str, pickup, tile_value),
-    | Tile::ExpandoWater => add_bg_color_with_reset(&pickup_add_color(&str, pickup, tile_value), COLOR_EXPANDO_WATER),
-    Tile::Fountain => add_bg_color_with_reset(&pickup_add_color(&str, pickup, tile_value), COLOR_FOUNTAIN),
-    Tile::Impassible => add_bg_color_with_reset(str, "2;75;55;13"),
+    | Tile::Empty => pickup_add_color(&str, pickup, tile_value, options),
+    | Tile::ExpandoWater => add_bg_color_with_reset(&pickup_add_color(&str, pickup, tile_value, options), COLOR_EXPANDO_WATER, options),
+    Tile::Fountain => add_bg_color_with_reset(&pickup_add_color(&str, pickup, tile_value, options), COLOR_FOUNTAIN, options),
+    Tile::Impassible => add_bg_color_with_reset(str, COLOR_IMPOSSIBLE, options),
     Tile::Wall4 => str.to_string(),
     Tile::Soil => {
       match tile_value.min(10) {
-        0 => add_bg_color_with_reset(str, "2;75;55;13"),
-        1 => add_bg_color_with_reset(str,"2;70;63;17"),
-        2 => add_bg_color_with_reset(str,"2;64;73;22"),
-        3 => add_bg_color_with_reset(str,"2;56;85;29"),
-        4 => add_bg_color_with_reset(str,"2;47;97;36"),
-        5 => add_bg_color_with_reset(str,"2;40;108;42"),
-        6 => add_bg_color_with_reset(str,"2;33;118;47"),
-        7 => add_bg_color_with_reset(str,"2;27;126;52"),
-        8 => add_bg_color_with_reset(str,"2;21;135;56"),
-        9 => add_bg_color_with_reset(str,"2;11;149;64"),
-        10 => add_bg_color_with_reset(str,"2;0;163;71"),
+        0 => add_bg_color_with_reset(str, COLOR_SOIL0, options),
+        1 => add_bg_color_with_reset(str, COLOR_SOIL1, options),
+        2 => add_bg_color_with_reset(str, COLOR_SOIL2, options),
+        3 => add_bg_color_with_reset(str, COLOR_SOIL3, options),
+        4 => add_bg_color_with_reset(str, COLOR_SOIL4, options),
+        5 => add_bg_color_with_reset(str, COLOR_SOIL5, options),
+        6 => add_bg_color_with_reset(str, COLOR_SOIL6, options),
+        7 => add_bg_color_with_reset(str, COLOR_SOIL7, options),
+        8 => add_bg_color_with_reset(str, COLOR_SOIL8, options),
+        9 => add_bg_color_with_reset(str, COLOR_SOIL9, options),
+        10 => add_bg_color_with_reset(str, COLOR_SOIL10, options),
         _ => { panic!("impossible"); },
       }
       // str.to_string()

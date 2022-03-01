@@ -9,3 +9,26 @@ edition = "2018"
 rand = "0.8.4"
 rand_pcg = "0.3.1"
 serde_json = "1.0.59"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures = "*"
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+# these two are necessary for async in wasm in browser
+wasm-bindgen-futures = "0.4.*"
+js-sys = "0.3.*"
+# enables wasm outputs
+getrandom = { version = "0.2", features = ["js"] }
+# enables dumping panics to console.log in js
+console_error_panic_hook = "*"
+# enable serializing options (etc) as json strings for debugging (need it to declare one of my structs as serializable)
+serde = "*"
+serde_derive = "*"
+
+# No support for target-specific lib and none is coming any time soon either: https://github.com/rust-lang/cargo/issues/4881
+[lib]
+# Error: crate-type must be cdylib to compile to wasm32-unknown-unknown. Add the following to your Cargo.toml file:
+# meh?
+crate-type = ["cdylib", "rlib"]
+## can't find library `miners`, rename file to `src/lib.rs` or specify lib.path
+## :facepalm:
+path = "src/main.rs"

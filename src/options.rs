@@ -1,98 +1,198 @@
 use std::env;
 
-pub struct Options {
-    pub batch_size: u8,
-    pub inial_miner_code: String,
-    pub mutation_rate_genes: f32,
-    pub mutation_rate_slots: f32,
-    pub mutate_from_best: bool, // Mutate a new batch from the overall best or the last winner?
-    pub reset_rate: u32,        // Reset every this many generated miners
-    pub reset_after_noop: bool, // Only reset after that many miners did not yield a new best?
-    pub return_to_move: bool,   // Press enter to forward a tick? Useful for debugging.
-    pub seed: u64,
-    pub speed: u64,
-    pub visual: bool,
-    pub sandrone_pickup_count: u32,
-    pub sandcastle_area_limit: u32,
+use std::time::Duration;
+use std::fs;
+use std::collections::BTreeMap;
 
-    // Debugging
-    pub paint_ten_lines: bool, // Draw grids at every 10th line/col
-    pub paint_zero_zero: bool, // Draw hash for the 0,0 coord
-    pub paint_miner_ids: bool, // Draw biome index for other biome miners rather than emoji
-    pub paint_empty_world: bool, // Always draw empty tiles instead of the world
-    pub hide_world_oob: bool, // Do not draw the world that doesn't explicitly exist in memory
-    pub hide_world_ib: bool, // Do not draw the world that explicitly exists in memory (only oob)
-    pub paint_visited: bool, // Paint the number of times the miner visited a tile, in the world view?
-    pub paint_visited_bool: bool, // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
+use super::app_state::*;
+use super::helix::*;
+
+#[cfg(target_arch = "wasm32")]
+use serde_derive::{Serialize, Deserialize};
+
+#[cfg_attr(target_arch = "wasm32", derive(Serialize, Deserialize))]
+#[derive(Debug)]
+pub struct Options {
+  pub batch_size: u8,
+  pub inial_miner_code: String,
+  pub mutation_rate_genes: f32,
+  pub mutation_rate_slots: f32,
+  pub mutate_from_best: bool,
+  // Mutate a new batch from the overall best or the last winner?
+  pub reset_rate: u32,
+  // Reset every this many generated miners
+  pub reset_after_noop: bool,
+  // Only reset after that many miners did not yield a new best?
+  pub return_to_move: bool,
+  // Press enter to forward a tick? Useful for debugging.
+  pub seed: u64,
+  pub speed: u64,
+  pub frame_skip: u32,
+  pub frames_now: u32,
+  pub visual: bool,
+  pub sandrone_pickup_count: u32,
+  // Sandrone will pick up miner after putting down this many push tiles
+  pub sandcastle_area_limit: u32, // Sandrone will permanently stop building the wall after the castle area is at least this big
+  // print the world in html rather than terminal ansi?
+  pub html_mode: bool,
+
+  // Debugging
+  pub paint_ten_lines: bool,
+  // Draw grids at every 10th line/col
+  pub paint_zero_zero: bool,
+  // Draw hash for the 0,0 coord
+  pub paint_miner_ids: bool,
+  // Draw biome index for other biome miners rather than emoji
+  pub paint_empty_world: bool,
+  // Always draw empty tiles instead of the world
+  pub hide_world_oob: bool,
+  // Do not draw the world that doesn't explicitly exist in memory
+  pub hide_world_ib: bool,
+  // Do not draw the world that explicitly exists in memory (only oob)
+  pub paint_visited: bool,
+  // Paint the number of times the miner visited a tile, in the world view?
+  pub paint_visited_bool: bool, // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
 }
 
 pub fn parse_cli_args() -> Options {
-    // Defaults:
-    let mut options = Options {
-        batch_size: 10, // Can be controlled through --batch-size
-        inial_miner_code: "".to_string(),
-        mutation_rate_genes: 5.0,
-        mutation_rate_slots: 5.0,
-        mutate_from_best: false,
-        seed: 210114, // 0 is random. Can be set through --seed
-        speed: 1,
-        reset_rate: 500,
-        reset_after_noop: true,
-        return_to_move: false,
-        visual: true, // Can be set through --visual and --no-visual
+  // Defaults:
+  let mut options = Options {
+    batch_size: 10, // Can be controlled through --batch-size
+    inial_miner_code: "".to_string(),
+    mutation_rate_genes: 5.0,
+    mutation_rate_slots: 5.0,
+    mutate_from_best: false,
+    seed: 210114, // 0 is random. Can be set through --seed
+    speed: 1,
+    frame_skip: 0,
+    frames_now: 0,
+    reset_rate: 500,
+    reset_after_noop: true,
+    return_to_move: false,
+    visual: true, // Can be set through --visual and --no-visual
 
-        sandrone_pickup_count: 200,
-        sandcastle_area_limit: 500,
+    sandrone_pickup_count: 200,
+    sandcastle_area_limit: 500,
 
-        // Debug
-        paint_ten_lines: false,
-        paint_zero_zero: false,
-        paint_empty_world: false,
-        paint_miner_ids: false,
-        hide_world_oob: false,
-        hide_world_ib: false,
-        paint_visited: false,
-        paint_visited_bool: false,
-    };
+    html_mode: false,
 
-    let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
+    // Debug
+    paint_ten_lines: false,
+    paint_zero_zero: false,
+    paint_empty_world: false,
+    paint_miner_ids: false,
+    hide_world_oob: false,
+    hide_world_ib: false,
+    paint_visited: false,
+    paint_visited_bool: false,
+  };
 
-    let mut index = 1; // The first one is the binary path so let's skip that :)
-    while index < args.len() {
-        match args[index].as_str() {
-            "--seed" => {
-                index += 1;
-                options.seed = args[index].trim().parse::<u64>().unwrap_or(0);
-                if options.seed == 0 {
-                    panic!("Seed must be a non-zero positive integer");
-                }
-            }
-            "--visual" => {
-                options.visual = true;
-            }
-            "--no-visual" => {
-                options.visual = false;
-            }
-            "--batch-size" => {
-                index += 1;
-                options.batch_size = args[index].trim().parse::<u8>().unwrap_or(0);
-                if options.batch_size == 0 {
-                    panic!("Seed must be a non-zero positive integer");
-                }
-            }
-            "--miner" => {
-                index += 1;
-                options.inial_miner_code = args[index].trim().parse::<String>().unwrap_or("".to_string());
-            }
-            _ => {
-                println!("Unknown parameter: {}", args[index]);
-                panic!();
-            }
+  let args: Vec<String> = env::args().collect();
+  println!("{:?}", args);
+
+  let mut index = 1; // The first one is the binary path so let's skip that :)
+  while index < args.len() {
+    match args[index].as_str() {
+      "--seed" => {
+        index += 1;
+        options.seed = args[index].trim().parse::<u64>().unwrap_or(0);
+        if options.seed == 0 {
+          panic!("Seed must be a non-zero positive integer");
         }
-
-        index = index + 1;
+      }
+      "--visual" => {
+        options.visual = true;
+      }
+      "--no-visual" => {
+        options.visual = false;
+      }
+      "--batch-size" => {
+        index += 1;
+        options.batch_size = args[index].trim().parse::<u8>().unwrap_or(0);
+        if options.batch_size == 0 {
+          panic!("Seed must be a non-zero positive integer");
+        }
+      }
+      "--miner" => {
+        index += 1;
+        options.inial_miner_code = args[index].trim().parse::<String>().unwrap_or("".to_string());
+      }
+      _ => {
+        println!("Unknown parameter: {}", args[index]);
+        panic!();
+      }
     }
 
-    options
+    index = index + 1;
+  }
+
+  options
+}
+
+pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> bool {
+  let mut waiting = true; // This is for x mode in the CLI
+
+  match key.as_str() {
+    "\n" => waiting = false, // Tick forward
+    "x\n" => {
+      options.return_to_move = !options.return_to_move;
+      waiting = false;
+    },
+    "v\n" => options.visual = !options.visual,
+    "+\n" => {
+      options.speed = (options.speed as f64 + (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
+      state.delay = Duration::from_millis(options.speed);
+    },
+    "++\n" => {
+      options.speed = (options.speed as f64 + (options.speed as f64 * 0.5).max(1.0)).max(1.0) as u64;
+      state.delay = Duration::from_millis(options.speed);
+    },
+    "-\n" => {
+      options.speed = (options.speed as f64 - (options.speed as f64 * 0.1).max(1.0)).max(1.0) as u64;
+      state.delay = Duration::from_millis(options.speed);
+    },
+    "--\n" => {
+      options.speed = (options.speed as f64 - (options.speed as f64 * 0.5).max(1.0)).max(1.0) as u64;
+      state.delay = Duration::from_millis(options.speed);
+    },
+    "o\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 1.0).max(0.0),
+    "oo\n" => options.mutation_rate_genes = (options.mutation_rate_genes - 5.0).max(0.0),
+    "p\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 1.0).max(0.0),
+    "pp\n" => options.mutation_rate_genes = (options.mutation_rate_genes + 5.0).max(0.0),
+    "k\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 1.0).max(0.0),
+    "kk\n" => options.mutation_rate_slots = (options.mutation_rate_slots - 5.0).max(0.0),
+    "l\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 1.0).max(0.0),
+    "ll\n" => options.mutation_rate_slots = (options.mutation_rate_slots + 5.0).max(0.0),
+    "n\n" => options.batch_size = (options.batch_size - 1).max(1),
+    "m\n" => options.batch_size = options.batch_size + 1,
+    "r\n" => {
+      state.reset = true;
+      println!("Manual reset requested...");
+    },
+    "b\n" => {
+      state.load_best_as_miner_zero = true;
+      println!("Aborting current run and loading best as miner now...");
+    }
+    "g\n" => {
+      options.mutate_from_best = !options.mutate_from_best;
+      println!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best);
+    }
+    "t\n" => {
+      options.reset_after_noop = !options.reset_after_noop;
+      println!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop);
+    }
+    "q\n" => {
+      // Save and quit.
+      println!("Serializing btree with {} entries...", btree.len());
+      let s = serde_json::to_string_pretty(&btree).unwrap();
+      let f = format!("./seed_{}.rson", options.seed);
+      println!("Storing {} bytes to `{}`", s.len(), f);
+      fs::write(f, s).expect("Unable to write file");
+      println!("Finished writing. Exiting now...");
+      panic!("Quit after request");
+    },
+    _ => (),
+  }
+
+  return waiting;
 }

@@ -275,7 +275,7 @@ fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32,
   }
 }
 
-fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta, building_sandcastle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
+fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta, _building_sandcastle: bool, _magic_min_x: i32, _magic_min_y: i32, _magic_max_x: i32, _magic_max_y: i32) {
   let n = strength - if movable.what == WHAT_MINER { hammers } else { 1 };
   world.tiles[unexty][unextx] = match n.max(0) {
     3 => create_cell(Tile::Wall3, pickup, tile_value, pickup_value),
@@ -302,7 +302,7 @@ fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut 
   movable.dir = get_most_visited_dir_from_xydir(options, world, nextx, nexty, movable.dir);
 }
 
-fn move_it_xy(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, post_castle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
+fn move_it_xy(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta: &mut MinerMeta, world: &mut World, options: &mut Options, nextx: i32, nexty: i32, deltax: i32, deltay: i32, sandrone: Option<&mut Sandrone>, building_sandcastle: bool, _post_castle: bool, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) {
   let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
   if movable.what == WHAT_MINER {
     meta.points_last_move = 0;
@@ -353,7 +353,7 @@ fn move_it_xy(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta
       let avail_left = !is_push_impossible_cell(options, world, movable.x + deltay, movable.y - deltax) && !oob(movable.x + deltay, movable.y - deltax, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
       let avail_right = !is_push_impossible_cell(options, world, movable.x - deltay, movable.y + deltax) && !oob(movable.x - deltay, movable.y + deltax, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
 
-      if (avail_left && avail_right) {
+      if avail_left && avail_right {
         // flip-flop
 
         let v = get_cell_tile_value_at(options, world, movable.x, movable.y, );
@@ -551,148 +551,148 @@ fn move_it_xy(ticks: u32, movable: &mut Movable, mslots_maybe: &MinerSlots, meta
       }
 
       match pickup {
-      Pickup::Diamond => {
-        // Do we have any purity scanners primed? Bump the value by that many.
-        // Note: purity scanner only works for the miner itself. For drones, slots is empty
-        let mut primed = 0;
-        for n in mslots_maybe {
-          match n.kind {
-            SlotKind::PurityScanner => if n.cur_cooldown >= n.max_cooldown {
-              primed += 1;
-            },
-            _ => ()
+        Pickup::Diamond => {
+          // Do we have any purity scanners primed? Bump the value by that many.
+          // Note: purity scanner only works for the miner itself. For drones, slots is empty
+          let mut primed = 0;
+          for n in mslots_maybe {
+            match n.kind {
+              SlotKind::PurityScanner => if n.cur_cooldown >= n.max_cooldown {
+                primed += 1;
+              },
+              _ => ()
+            }
           }
-        }
 
-        // Different gems with different points.
-        // Miners could have properties or powerups to affect this, too.
-        let gv: i32 = (pickup_value + primed).min(3) as i32;
-        match gv {
-          0 => meta.inventory.diamond_white += 1,
-          1 => meta.inventory.diamond_green += 1,
-          2 => meta.inventory.diamond_blue += 1,
-          3 => meta.inventory.diamond_yellow += 1,
-          _ => panic!("what value did this diamond have: {:?}", world.tiles[unexty][unextx]),
-        };
-        let gem_value: i32 = gv + 1;
+          // Different gems with different points.
+          // Miners could have properties or powerups to affect this, too.
+          let gv: i32 = (pickup_value + primed).min(3) as i32;
+          match gv {
+            0 => meta.inventory.diamond_white += 1,
+            1 => meta.inventory.diamond_green += 1,
+            2 => meta.inventory.diamond_blue += 1,
+            3 => meta.inventory.diamond_yellow += 1,
+            _ => panic!("what value did this diamond have: {:?}", world.tiles[unexty][unextx]),
+          };
+          let gem_value: i32 = gv + 1;
 
-        if movable.what == WHAT_MINER {
-          meta.points_last_move = gem_value;
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
+          if movable.what == WHAT_MINER {
+            meta.points_last_move = gem_value;
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
+            world.tiles[unexty][unextx].visited += 1;
           }
-          world.tiles[unexty][unextx].visited += 1;
-        }
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, 0, 0, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-      },
-      Pickup::Energy => {
-        movable.now_energy = movable.now_energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
-        if movable.now_energy > meta.max_energy {
-          movable.now_energy = meta.max_energy;
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, 0, 0, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+        },
+        Pickup::Energy => {
+          movable.now_energy = movable.now_energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
+          if movable.now_energy > meta.max_energy {
+            movable.now_energy = meta.max_energy;
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
+            world.tiles[unexty][unextx].visited += 1;
           }
-          world.tiles[unexty][unextx].visited += 1;
-        }
-        meta.inventory.energy += 1;
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-      },
-      Pickup::Stone => {
-        // Do we have any purity scanners primed? Bump the value by that many.
-        // Note: purity scanner only works for the miner itself. For drones, slots is empty
-        let mut primed = 0;
-        for n in mslots_maybe {
-          match n.kind {
-            SlotKind::PurityScanner => if n.cur_cooldown >= n.max_cooldown {
-              primed += 1;
-            },
-            _ => ()
+          meta.inventory.energy += 1;
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+        },
+        Pickup::Stone => {
+          // Do we have any purity scanners primed? Bump the value by that many.
+          // Note: purity scanner only works for the miner itself. For drones, slots is empty
+          let mut primed = 0;
+          for n in mslots_maybe {
+            match n.kind {
+              SlotKind::PurityScanner => if n.cur_cooldown >= n.max_cooldown {
+                primed += 1;
+              },
+              _ => ()
+            }
           }
-        }
 
-        // println!("picking up a stone, value: {}, primed: {}", value, primed);
+          // println!("picking up a stone, value: {}, primed: {}", value, primed);
 
-        match (pickup_value + primed).min(3) {
-          0 => meta.inventory.stone_white += 1,
-          1 => meta.inventory.stone_green += 1,
-          2 => meta.inventory.stone_blue += 1,
-          3 => meta.inventory.stone_yellow += 1,
-          _ => panic!("what value did this stone have: {:?} {} {} {}", world.tiles[unexty][unextx], pickup_value, primed, (pickup_value + primed).min(3)),
-        }
-        if movable.what == WHAT_MINER {
-          meta.points_last_move = pickup_value as i32;
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
+          match (pickup_value + primed).min(3) {
+            0 => meta.inventory.stone_white += 1,
+            1 => meta.inventory.stone_green += 1,
+            2 => meta.inventory.stone_blue += 1,
+            3 => meta.inventory.stone_yellow += 1,
+            _ => panic!("what value did this stone have: {:?} {} {} {}", world.tiles[unexty][unextx], pickup_value, primed, (pickup_value + primed).min(3)),
+          }
+          if movable.what == WHAT_MINER {
+            meta.points_last_move = pickup_value as i32;
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
+            world.tiles[unexty][unextx].visited += 1;
+          }
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+        },
+        Pickup::Wind => {
+          meta.inventory.wind += 1;
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+          if movable.what == WHAT_MINER {
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
           }
           world.tiles[unexty][unextx].visited += 1;
-        }
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-      },
-      Pickup::Wind => {
-        meta.inventory.wind += 1;
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-        if movable.what == WHAT_MINER {
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
-          }
-        }
-        world.tiles[unexty][unextx].visited += 1;
-      },
-      Pickup::Water => {
-        meta.inventory.water += 1;
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::ExpandoWater, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-        if movable.what == WHAT_MINER {
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
-          }
-        }
-        world.tiles[unexty][unextx].visited += 1;
-      },
-      Pickup::Wood => {
-        meta.inventory.wood += 1;
-        world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
-        movable.x = nextx;
-        movable.y = nexty;
-        movable.history.push((nextx, nexty));
-        if movable.what == WHAT_MINER {
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
+        },
+        Pickup::Water => {
+          meta.inventory.water += 1;
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::ExpandoWater, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+          if movable.what == WHAT_MINER {
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
           }
           world.tiles[unexty][unextx].visited += 1;
-        }
-      },
-      | Pickup::Nothing
-      | Pickup::Expando // Ignore, fake pickup
-      | Pickup::Fountain // Ignore, fake pickup... TODO: probably some special behavior?
-      => {
-        movable.x = nextx;
-        movable.y = nexty;
-        was_boring = true;
-        movable.history.push((nextx, nexty));
-        if movable.what == WHAT_MINER {
-          if world.tiles[unexty][unextx].visited == 0 {
-            movable.unique.push((nextx, nexty));
+        },
+        Pickup::Wood => {
+          meta.inventory.wood += 1;
+          world.tiles[unexty][unextx] = create_visited_cell(Tile::Empty, Pickup::Nothing, tile_value, pickup_value, world.tiles[unexty][unextx].visited);
+          movable.x = nextx;
+          movable.y = nexty;
+          movable.history.push((nextx, nexty));
+          if movable.what == WHAT_MINER {
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
+            world.tiles[unexty][unextx].visited += 1;
           }
-          world.tiles[unexty][unextx].visited += 1;
-        }
-      },
-    }
-  },
+        },
+        | Pickup::Nothing
+        | Pickup::Expando // Ignore, fake pickup
+        | Pickup::Fountain // Ignore, fake pickup... TODO: probably some special behavior?
+        => {
+          movable.x = nextx;
+          movable.y = nexty;
+          was_boring = true;
+          movable.history.push((nextx, nexty));
+          if movable.what == WHAT_MINER {
+            if world.tiles[unexty][unextx].visited == 0 {
+              movable.unique.push((nextx, nexty));
+            }
+            world.tiles[unexty][unextx].visited += 1;
+          }
+        },
+      }
+    },
   }
 
   if fill_current_cell && (fill_current_x != 0 || fill_current_y - 1 >= magic_min_y) {

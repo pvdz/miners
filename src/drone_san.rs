@@ -5,7 +5,6 @@ use crate::pickup::*;
 use crate::options::*;
 use crate::world::*;
 use crate::miner::*;
-use super::slottable::*;
 use super::icons::*;
 use super::color::*;
 use super::values::*;
@@ -193,8 +192,8 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
       //
       // I believe that this way there can never be a dead end and at least two open entry/exit sides
 
-      let mut fx = sandrone.movable.x;
-      let mut fy = sandrone.movable.y;
+      let fx = sandrone.movable.x;
+      let fy = sandrone.movable.y;
       let mut tx = fx;
       let mut ty = fy;
       let mut found = false;
@@ -511,12 +510,12 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
   }
 }
 
-pub fn ui_sandrone(sandrone: &Sandrone) -> String {
+pub fn ui_sandrone(sandrone: &Sandrone, options: &Options) -> String {
   if sandrone.backtracking {
-    return add_fg_color_with_reset(&format!("{}", ICON_SANDRONE), COLOR_DARK_GREEN);
+    return add_fg_color_with_reset(&format!("{}", ICON_SANDRONE), COLOR_DARK_GREEN, options);
   }
 
-  return add_fg_color_with_reset(&format!("{}", ICON_SANDRONE), COLOR_DARK_RED);
+  return add_fg_color_with_reset(&format!("{}", ICON_SANDRONE), COLOR_DARK_RED, options);
 }
 
 pub fn is_push_impossible_cell(options: &Options, world: &World, x: i32, y: i32) -> bool {
@@ -806,18 +805,18 @@ pub fn can_magic_wall_bordering_empty_cell_be_push_cell(options: &Options, world
   return false;
 }
 
-fn sandrone_can_move_to(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {
-  // A sandrone can always move to another push tile or to a tile that is eligible to come a push tile
-  // println!("sandrone_can_move_to({}, {}) -> {:?}", tx, ty, get_cell_tile_at(options, world, tx, ty));
-  return match get_cell_tile_at(options, world, tx, ty) {
-    Tile::Push => true,
-    Tile::Empty => can_empty_cell_be_push_cell(options, world, tx, ty, dx, dy),
-    // Can not move to any other kind of cell
-    _ => false,
-  };
-}
+// fn sandrone_can_move_to(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {
+//   // A sandrone can always move to another push tile or to a tile that is eligible to come a push tile
+//   // println!("sandrone_can_move_to({}, {}) -> {:?}", tx, ty, get_cell_tile_at(options, world, tx, ty));
+//   return match get_cell_tile_at(options, world, tx, ty) {
+//     Tile::Push => true,
+//     Tile::Empty => can_empty_cell_be_push_cell(options, world, tx, ty, dx, dy),
+//     // Can not move to any other kind of cell
+//     _ => false,
+//   };
+// }
 
-fn can_convert_tile_to_push(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32, sandrone: &Sandrone) -> bool {
+fn can_convert_tile_to_push(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32, _sandrone: &Sandrone) -> bool {
   // A cell can be converted to a push tile when it is empty and when it borders horizontally
   // or vertically to exactly one push/impassable cell and when all diagonal cells that are push cells are also
   // bordering that one cell (share the same axis). The origin is implied to be a push cell.

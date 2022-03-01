@@ -1,5 +1,6 @@
 use super::icons::*;
 use super::color::*;
+use super::options::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Pickup {
@@ -28,24 +29,24 @@ pub fn pickup_to_string(tile: Pickup, _wx: i32, _wy: i32) -> String {
   };
 }
 
-pub fn pickup_add_color(str: &String, pickup: Pickup, value: u32) -> String {
+pub fn pickup_add_color(str: &String, pickup: Pickup, value: u32, options: &Options) -> String {
   // Given a string, supposedly being the serialized pickup (pickup_to_string)
   // add a color to it according to its type and/or its value.
   // Each cell is assumed to start as reset. Only add foreground colors to the string.
   return match pickup {
     | Pickup::Nothing => str.to_string(),
-    | Pickup::Energy => add_fg_color_with_reset(str, COLOR_ENERGY),
-    | Pickup::Expando => add_fg_color_with_reset(str, COLOR_BLUE),
-    | Pickup::Fountain => add_fg_color_with_reset(str, COLOR_FOUNTAIN),
-    | Pickup::Water => add_fg_color_with_reset(str, COLOR_FOUNTAIN),
-    | Pickup::Wind => add_fg_color_with_reset(str, COLOR_WIND),
-    | Pickup::Wood => add_fg_color_with_reset(str, COLOR_WOOD),
+    | Pickup::Energy => add_fg_color_with_reset(str, COLOR_ENERGY, options),
+    | Pickup::Expando => add_fg_color_with_reset(str, COLOR_BLUE, options),
+    | Pickup::Fountain => add_fg_color_with_reset(str, COLOR_FOUNTAIN, options),
+    | Pickup::Water => add_fg_color_with_reset(str, COLOR_FOUNTAIN, options),
+    | Pickup::Wind => add_fg_color_with_reset(str, COLOR_WIND, options),
+    | Pickup::Wood => add_fg_color_with_reset(str, COLOR_WOOD, options),
     | Pickup::Stone
     | Pickup::Diamond =>
       match value {
-        0 => add_fg_color_with_reset(str, COLOR_LEVEL_1),
-        1 => add_fg_color_with_reset(str, COLOR_LEVEL_2),
-        2 => add_fg_color_with_reset(str, COLOR_LEVEL_3),
+        0 => add_fg_color_with_reset(str, COLOR_LEVEL_1, options),
+        1 => add_fg_color_with_reset(str, COLOR_LEVEL_2, options),
+        2 => add_fg_color_with_reset(str, COLOR_LEVEL_3, options),
         _ => panic!("wat"),
       },
   };

@@ -22,6 +22,7 @@
 
 use super::icons::*;
 use super::color::*;
+use super::options::*;
 
 #[derive(Debug)]
 pub struct Inventory {
@@ -85,25 +86,25 @@ pub fn clone_inventory(inventory: &Inventory) -> Inventory {
   };
 }
 
-pub fn ui_inventory(inventory: &Inventory) -> String {
+pub fn ui_inventory(inventory: &Inventory, options: &Options) -> String {
   return format!(
     "{}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5} {}: {: <5}  {}: {: <5}   {}: {: <5}  {} : {: <5}  {}: {: <5}   {}: {: <5} {} : {: <5} {: <10}",
-    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_1), inventory.stone_white,
-    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_2), inventory.stone_green,
-    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_3), inventory.stone_blue,
-    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_4), inventory.stone_yellow,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_1, options), inventory.stone_white,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_2, options), inventory.stone_green,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_3, options), inventory.stone_blue,
+    add_fg_color_with_reset(&ICON_STONE.to_string(), COLOR_LEVEL_4, options), inventory.stone_yellow,
 
-    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_1), inventory.diamond_white,
-    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_2), inventory.diamond_green,
-    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_3), inventory.diamond_blue,
-    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_4), inventory.diamond_yellow,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_1, options), inventory.diamond_white,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_2, options), inventory.diamond_green,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_3, options), inventory.diamond_blue,
+    add_fg_color_with_reset(&ICON_DIAMOND.to_string(), COLOR_LEVEL_4, options), inventory.diamond_yellow,
 
-    add_fg_color_with_reset(&ICON_SAND.to_string(), COLOR_SAND), inventory.sand,
-    add_fg_color_with_reset(&ICON_ENERGY.to_string(), COLOR_ENERGY), inventory.energy,
-    add_fg_color_with_reset(&ICON_WINDRONE_POWER.to_string(), COLOR_WIND), inventory.wind,
-    add_fg_color_with_reset(&ICON_WOOD.to_string(), COLOR_WOOD), inventory.wood,
-    add_fg_color_with_reset(&ICON_WATER.to_string(), COLOR_WATER), inventory.water,
-    add_fg_color_with_reset(&ICON_FOOD.to_string(), COLOR_FOOD), inventory.food,
+    add_fg_color_with_reset(&ICON_SAND.to_string(), COLOR_SAND, options), inventory.sand,
+    add_fg_color_with_reset(&ICON_ENERGY.to_string(), COLOR_ENERGY, options), inventory.energy,
+    add_fg_color_with_reset(&ICON_WINDRONE_POWER.to_string(), COLOR_WIND, options), inventory.wind,
+    add_fg_color_with_reset(&ICON_WOOD.to_string(), COLOR_WOOD, options), inventory.wood,
+    add_fg_color_with_reset(&ICON_WATER.to_string(), COLOR_WATER, options), inventory.water,
+    add_fg_color_with_reset(&ICON_FOOD.to_string(), COLOR_FOOD, options), inventory.food,
     ' '
   );
 }

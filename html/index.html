@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Miners -- A Langton Ant, GA, and idle game in one!</title>
+  <style>
+    .terminal {
+        background-color: black;
+        color: white;
+        display: inline-block;
+    }
+    .view-line {
+        height: 16px;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+    .world-line {
+        font-size: 16px;
+        height: 16px;
+        display: inline-block;
+        vertical-align: text-bottom;
+    }
+    .world-line span {
+        width: 16px;
+        height: 16px;
+        font-size: 17px;
+        display: inline-block;
+        overflow: hidden;
+    }
+    .options {
+        width: 800px;
+        height: 800px;
+    }
+    a { color: #8dafe7; border-bottom: 1px solid black; }
+    a:hover { color: #8dafe7; border-bottom: 1px solid white; }
+
+  </style>
+</head>
+<body style="background-color: black; color: white;">
+<h1>Miners</h1>
+<div>This is a <a href="https://en.wikipedia.org/wiki/Langton%27s_ant" target="_blank">Langton Ant</a>, a <a href="https://en.wikipedia.org/wiki/Genetic_algorithm" target="_blank">Genetic Algorithm</a> Solver, and an <a href="https://en.wikipedia.org/wiki/Incremental_game" target="_blank">Idle Game</a> in one!</div>
+<div>Your goal is to make your miner equipment survive as long as possible before it runs out of energy. Discover new places, build castles, escape the castles, and build drones to help you out. But careful not to spend too much energy on them. Can you find the sweet spot of energy producing equipment versus energy consuming point generation?</div>
+<div>This is a learner project entirely in Rust. Works in the CLI and in the browser as identical as possible. No workers (Rust thread suspends awaiting a JS promise to resolve).</div>
+<div><small>Jan-Feb 2022 (c) <a href="https://pvdz.ee" target="_blank">Peter van der Zee</a></small></div>
+<div>
+  <fieldset style="display: inline">
+    <legend>controls</legend>
+    <button id="$togglePauseButton" onclick="togglePause();">Pause</button>
+    <button id="$stopButton" onclick="stopRust();">Stop</button>
+    <button id="$startButton" disabled onclick="startRust();">Start</button>
+  </fieldset>
+  <fieldset style="display: inline">
+    <legend>input</legend>
+    <input id="$inputInput"/>
+    <button id="$pressReturnButton" onclick="prepareInput()">Enter</button>
+  </fieldset>
+</div>
+<textarea id="$options" class="options">// Input options for the game. Must be a valid object. :shrug:
+{
+  batch_size: 10,
+  inial_miner_code: "[210143,43.0,129.0,0.0,8.0,0.0,\"..DDDDDDDDd.h.dd.EEE.EdEEP.EdPhh\"]",
+  mutation_rate_genes: 5.0,
+  mutation_rate_slots: 5.0,
+  mutate_from_best: false,    // Mutate a new batch from the overall best or the last winner?
+  reset_rate: 500,            // Reset every this many generated miners
+  reset_after_noop: false,    // Only reset after that many miners did not yield a new best?
+  return_to_move: false,      // Press enter to forward a tick? Useful for debugging.
+  seed: 210114,               // World seed.
+  speed: 1,                   // Unused in web (this is `thread.sleep(n)` in Rust)
+  frame_skip: 0,             // Rust won't paint or call out to web for this many frames at a time
+  frames_now: 0,              // Current progress of the frameskip
+  visual: false,              // Don't paint the UI. May feel less responsive depending on your machine
+  sandrone_pickup_count: 200, // Sandrone will pick up miner after putting down this many push tiles
+  sandcastle_area_limit: 500, // Sandrone will stop building the wall after the castle is this big
+
+  html_mode: true,            // We want this :) Else output will use terminal ANSI codes
+
+  // Debugging
+  paint_ten_lines: false,     // Draw grids at every 10th line/col
+  paint_zero_zero: false,     // Draw hash for the 0,0 coord
+  paint_miner_ids: false,     // Draw biome index for other biome miners rather than emoji
+  paint_empty_world: false,   // Always draw empty tiles instead of the world
+  hide_world_oob: false,      // Do not draw the world that doesn't explicitly exist in memory
+  hide_world_ib: false,       // Do not draw the world that explicitly exists in memory (only oob)
+  paint_visited: false,       // Paint dots as the number of times the miner visited a tile
+  paint_visited_bool: false,  // Paint all tiles that the miner visited at least once
+}</textarea>
+<pre id="$terminal" class="terminal"></pre>
+<script>
+  let uiState = {
+    paused: false,
+    stopNext: false, // sends a q\n on the next frame
+    resumePromise: undefined,
+  };
+
+  function stopRust() {
+    uiState.stopNext = true;
+    $stopButton.disabled = true;
+    $togglePauseButton.disabled = true;
+    $pressReturnButton.disabled = true;
+    if (uiState.paused) {
+      togglePause();
+    }
+  }
+  function afterStop() {
+    $startButton.disabled = false;
+    uiState.stopNext = false;
+    preparedInput = '';
+    $options.style.display = 'inline-block';
+    $terminal.style.display = 'none';
+  }
+  
+  function togglePause() {
+    uiState.paused = !uiState.paused;
+    $togglePauseButton.innerHTML = uiState.paused ? 'Unpause' : 'Pause';
+    if (!uiState.paused) {
+      const r = uiState.resumePromise;
+      if (r) {
+        uiState.resumePromise = undefined;
+        const t = preparedInput;
+        preparedInput = '';
+        r(t);
+      }
+    }
+  }
+
+  let preparedInput = '';
+  let lastPreparedInput = '';
+  function prepareInput() {
+    const now = $inputInput.value;
+    preparedInput = (now || lastPreparedInput) + '\n';
+    if (now) lastPreparedInput = now;
+    $inputInput.value = '';
+  }
+
+  function log(...args) {
+    if (args.length === 1) {
+      console.log('ℝ:', args[0]);
+    } else {
+      console.log('ℝ:', args);
+    }
+  }
+  function dnow() {
+    return BigInt(Date.now());
+  }
+  function print_options(options) {
+    console.log('options:', options);
+  }
+  function print_world(...args) {
+    //console.warn('orint_world()', args);
+
+    const body = args[0];
+    if (!body) {
+      document.body.innerHTML = 'empty..';
+      return;
+    }
+
+    // The output was written for (linux) terminals and using ANSI color codes. Translate them to html tags.
+
+    const out = body.split('\n').map(line => {
+        return line.replace(/\x1b.*?m/g, '')
+    }).join('\n');
+
+    $terminal.innerHTML = out;
+  }
+  async function suspend_app_to_start() {
+    //console.log('Inside suspend_app_to_start now ...');
+    const p = new Promise(r => uiState.initialPromise = r);
+    //console.log('done waiting, letsgo!');
+
+    const options = Function('return (' + $options.value + ')');
+    console.log('options:', options());
+    uiState.initialPromise(options());
+
+    return p;
+  }
+  async function await_next_frame() {
+    //console.log('Inside await_next_frame now ...');
+    return new Promise(r => {
+      if (uiState.paused) {
+        uiState.resumePromise = r;
+      } else {
+        setTimeout(() => {
+          if (uiState.stopNext) {
+            afterStop();
+            r('q\n');
+          } else {
+            const t = preparedInput;
+            preparedInput = '';
+            r(t);
+          }
+        }, 1);
+      }
+    });
+    //console.log('done waiting, letsgo!');
+  }
+</script>
+<script type="module">
+  import init, {web_main} from "../pkg/miners.js";
+
+  function startRust() {
+    uiState.stopNext = false;
+    $stopButton.disabled = false;
+    $togglePauseButton.disabled = false;
+    $pressReturnButton.disabled = false;
+    $startButton.disabled = true;
+    $options.style.display = 'none';
+    $terminal.innerHTML = 'Loading...';
+    $terminal.style.display = 'block';
+
+    init().then(() => {
+      web_main();
+    }).catch((e) => {
+      console.error(e);
+      afterStop();
+    });
+  }
+  window.startRust = startRust;
+
+  startRust();
+</script>
+</body>
+</html>

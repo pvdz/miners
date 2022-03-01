@@ -81,7 +81,7 @@ pub struct MinerMeta {
   //  multiplier_cooldown: i32,
 }
 
-pub fn create_miner_from_helix(helix: Helix) -> Miner {
+pub fn create_miner_from_helix(helix: &Helix) -> Miner {
   // Given a Helix ("footprint of a miner") return a Miner with those baseline properties
   // Note: this function receives a clone of the helix since the helix will be stored in this miner. TODO: what does the version without cloning look like?
 
@@ -181,7 +181,7 @@ pub fn create_miner_from_helix(helix: Helix) -> Miner {
   }
 
   return Miner {
-    helix,
+    helix: *helix,
     movable: Movable {
       what: WHAT_MINER,
       x: 0,

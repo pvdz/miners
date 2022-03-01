@@ -1,6 +1,5 @@
 // use std::fmt::Write;
 use std::collections::VecDeque;
-use serde_json::to_string_pretty;
 
 use rand::prelude::*;
 use rand_pcg::Pcg64;
@@ -40,6 +39,37 @@ use super::expando::*;
 // Transposing the 2d world on a 1d array is therefor infeasible because extending one axis means
 // moving potentially many bytes. A simple vec has the same problem in one direction.
 // So we use a vec deque which supports exactly this.
+
+
+// Unique character ideas ("powerups with massive impact of which you should only need one")
+// - random starting position
+//   - Gives you a different path, period
+// - double energy
+//   - reach paths others cant (?)
+// - diagonal movement
+//   - reach paths others cant
+// - random teleporter / glitching
+//   - dunno if this makes sense. maybe hefty energy or slow reload or whatever.
+// - bigfoot, one step moves you two spaces if you can
+// - basher, don't change direction if you change a block into a diamond
+// - radar, prefer to turn towards a diamond if you can
+
+// Power up / character ability ideas:
+// - after breaking a block do not change direction
+// - break blocks two ticks per hit
+// - double energy
+// - wider reach? ability to hit a diagonal block
+// - touch diamonds/items in the 9x9 around you
+// - diamonds give you energy
+// - active: generate random diamond / block
+// - active: randomly hit a block (within radius? next hit hits twice?)
+// - hook that auto-fires after cooldown, teleports you to the nearest forward facing block (provided there is one)
+// - something that prevents an endless empty path with hefty cooldown?
+
+// - Item to slowly construct paths (or ability? or auto? resource cost?) which reduce energy spent on that tile
+
+// Miners should perhaps be simply helix:points pairs. Paths are going to be ambiguous anyways so unique paths don't matter much. Points is an easy concept to grasp and aim for and it kinda limits the max number of miners to track. More so than paths.
+
 
 pub type Grid = VecDeque<VecDeque<Cell>>;
 
@@ -193,8 +223,6 @@ pub fn tick_world(world: &mut World, options: &Options, sandrone: &Sandrone) {
     let magic_max_x = sandrone.expansion_max_x;
     let magic_max_y = sandrone.expansion_max_y;
 
-    let oob_tile = Tile::Impassible;
-
     for y in magic_min_y+1..magic_max_y {
       for x in magic_min_x+1..magic_max_x {
         // Each cell can have one of two tiles; wall or empty. In addition it can have three
@@ -336,7 +364,8 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
             Direction::Left => ICON_DRONE_LEFT,
             Direction::Right => ICON_DRONE_RIGHT,
           }),
-          COLOR_DRONE
+          COLOR_DRONE,
+          options
         ).to_string();
 
       paint_maybe(drone.movable.x, drone.movable.y, drone_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
@@ -367,10 +396,11 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
             Direction::Left => ICON_MINER_LEFT,
             Direction::Right => ICON_MINER_RIGHT,
           }),
-          COLOR_MINER
+          COLOR_MINER,
+          options
         )
       } else {
-        add_fg_color_with_reset(&ICON_GHOST.to_string(), COLOR_GHOST)
+        add_fg_color_with_reset(&ICON_GHOST.to_string(), COLOR_GHOST, options)
       }
     };
 
@@ -406,7 +436,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   let viewport_size_h: usize = 51;
 
   let wv_width = wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1;
-  // let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h * 2) + wv_border.1 + wv_margin.1;
+  let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h) + wv_border.1 + wv_margin.1;
 
   // Create strings that form lines of margins and borders
 
@@ -483,7 +513,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
             }
           }
         }
-        str = cell_add_color(&str, tile, tile_value, pickup);
+        str = cell_add_color(&str, tile, tile_value, pickup, options);
         line.push(str);
       }
     }
@@ -543,11 +573,12 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     | SandroneState::PickingUpMiner
     | SandroneState::DeliveringMiner
     | SandroneState::Redecorating
-    => paint_maybe(biomes[0].miner.sandrone.movable.x, biomes[0].miner.sandrone.movable.y, ui_sandrone(&biomes[0].miner.sandrone), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
+    => paint_maybe(biomes[0].miner.sandrone.movable.x, biomes[0].miner.sandrone.movable.y, ui_sandrone(&biomes[0].miner.sandrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
     SandroneState::Unconstructed => {}
     SandroneState::WaitingForWater => {}
   }
 
+  // This is used to compute the position of the magic wall stars after they explode
   fn pump(post: bool, px: f32, py: f32, dd: f32) -> (i32, i32) {
     if !post { return (px as i32, py as i32); }
 
@@ -596,6 +627,22 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
     }
   }
 
+  // World is finished now.
+  // For web view, wrap all cells in a span to fix their width/height and prevent sub-pixel magic.
+
+  if options.html_mode { // Could do this with a macro but why, :shrug:
+    for y in 0..wv_height+1 {
+      let line = &mut view[y];
+      let len = line.len();
+      for x in 0..wv_width {
+        line[x] = format!("<span class='cell'>{}</span>", line[x]);
+      }
+      // Wrap the world view in another span
+      line[0] = format!("<span class='world-line'>{}", line[0]);
+      line[len - 1] = format!("{}</span>", line[len - 1]);
+    }
+  }
+
   // Draw UI
 
   // Offsets for the UI. Start at the top of the map to the right of it.
@@ -613,9 +660,9 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   view[6].push(std::iter::repeat(' ').take(143).collect::<String>());
   view[7].push(format!("   {: <150}", biomes[0].miner.helix));
   view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <15} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), get_points(&biomes[0].miner.meta.inventory), format!("{} ({})", biomes[0].miner.movable.history.len(), biomes[0].miner.movable.unique.len()), biomes[0].miner.movable.now_energy.round()).to_string());
-  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory)));
+  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory, options)));
   let t = helix_serialize(&biomes[0].miner.helix);
-  view[10].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY));
+  view[10].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY, options));
   view[11].push(std::iter::repeat(' ').take(100).collect::<String>());
 
   let so = 12;
@@ -646,13 +693,27 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   view[vlen - 1].push(format!("       mutate [{}]: g⏎   auto reset [{}] after [{}] miners: t⏎ {: <50}", if options.mutate_from_best { "overall best" } else { "last winner" }, if options.reset_after_noop { "after noop" } else { "regardless" }, options.reset_rate, ' '));
 
 
-  for row in view.iter() {
-    let border_top_str: String = row.join("");
-    println!("{}", border_top_str);
+  if options.html_mode { // Could do this with a macro but why, :shrug:
+    for y in 0..view.len() {
+      let line = &mut view[y];
+      let len = line.len();
+      // Wrap each line in a div so we can control its height proper
+      line[0] = format!("<div class='view-line'>{}", line[0]);
+      line[len - 1] = format!("{}</div>", line[len - 1]);
+    }
   }
 
+  let frame = view.iter().map(|row| {
+    return row.join("");
+  }).collect::<Vec<String>>().join(if options.html_mode{ "" } else { "\n" });
 
-  return "".to_owned();
+
+  // for row in view.iter() {
+  //   let border_top_str: String = row.join("");
+  //   println!("{}", border_top_str);
+  // }
+
+  return frame;
 }
 
 pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32) {

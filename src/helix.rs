@@ -146,7 +146,7 @@ fn mutate_slot_maybe(current: SlotKind, roll: f32, rng: &mut Lcg128Xsl64, option
   }
 }
 
-pub fn mutate_helix(rng: &mut Lcg128Xsl64, helix: Helix, options: &Options) -> Helix {
+pub fn mutate_helix(rng: &mut Lcg128Xsl64, helix: &Helix, options: &Options) -> Helix {
   // Modify each gene by up to x%, up or down. Make sure the final value does not underflow or overflow.
   let pct_roller: Uniform<f32> = Uniform::from(0.0..100.0);
 
