@@ -2,7 +2,7 @@ use std::env;
 
 use std::time::Duration;
 use std::fs;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use super::{bridge};
 use super::app_state::*;
@@ -143,7 +143,7 @@ pub fn parse_cli_args() -> Options {
   options
 }
 
-pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> bool {
+pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> bool {
   let mut waiting = true; // This is for x mode in the CLI
 
   match key.as_str() {
@@ -197,8 +197,8 @@ pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, btr
     }
     "q\n" => {
       // Save and quit.
-      println!("Serializing btree with {} entries...", btree.len());
-      let s = serde_json::to_string_pretty(&btree).unwrap();
+      println!("Serializing hash map with {} entries...", hmap.len());
+      let s = serde_json::to_string_pretty(&hmap).unwrap();
       let f = format!("./seed_{}.rson", options.seed);
       println!("Storing {} bytes to `{}`", s.len(), f);
       fs::write(f, s).expect("Unable to write file");

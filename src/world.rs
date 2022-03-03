@@ -415,7 +415,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
   paint_maybe(biome.miner.movable.x, biome.miner.movable.y, miner_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 }
 
-pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, state: &mut AppState, best_miner_str: String, btree_str: String) -> String {
+pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, state: &mut AppState, best_miner_str: String, hmap_str: String) -> String {
   // We assume a 150x80 terminal screen space (half my ultra wide)
   // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
@@ -697,7 +697,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   // Append each line to the map
   view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {: <120}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
   view[2].push(format!(" {: <150}", best_miner_str));
-  view[3].push(format!(" {: <150}", btree_str));
+  view[3].push(format!(" {: <150}", hmap_str));
   view[4].push(std::iter::repeat(' ').take(150).collect::<String>());
   view[5].push(format!(" Miner; {: <150}", ' '));
   view[6].push(std::iter::repeat(' ').take(143).collect::<String>());

@@ -17,7 +17,7 @@ use super::slot_energy_cell::*;
 use super::slot_drone_launcher::*;
 use super::slot_jacks_compass::*;
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{thread};
@@ -40,7 +40,7 @@ pub fn pre_ga_loop(options: &mut Options, state: &mut AppState, curr_root_helix:
   return biomes;
 }
 
-pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Biome>, curr_root_helix: &mut Helix, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> Helix {
+pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Biome>, curr_root_helix: &mut Helix, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> Helix {
 
   // if state.load_best_as_miner_zero {
   //   return *state.best_helix_from_file;
@@ -129,8 +129,8 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
 
     println!(
       "Binary tree mode has {} nodes with average trail len of {}. Ticks/s: {}",
-      btree.len(),
-      state.trail_lens / btree.len() as u64,
+      hmap.len(),
+      state.trail_lens / hmap.len() as u64,
       state.stats_last_ticks_sec
     );
 
@@ -156,13 +156,13 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
     bridge::log("Resetting helix...");
   }
 
-  // println!("map: {}", serde_json::to_string_pretty(&btree).unwrap());
+  // println!("map: {}", serde_json::to_string_pretty(&hmap).unwrap());
   // panic!("halt");
 
   return next_root_helix;
 }
 
-pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Vec<Biome>, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) {
+pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Vec<Biome>, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) {
   // This is basically the main game loop
 
   // log("inside loop start");
@@ -247,21 +247,11 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
           }
         }
 
-        // TODO: ugh. get rid of the trail formats in this part... I just made it work for now.
-        let has_trail: bool = btree.contains_key(format!("{}", trail).as_str());
-        // TODO: why can't it do `.get()?` ? It refuses to do the `?` thing.
         let cur_points = get_points(&biome.miner.meta.inventory);
-        let ok = btree.entry(format!("{}", trail)).or_insert((cur_points, biome.miner.movable.unique.len(), helix_serialize(&biome.miner.helix)));
-        if cur_points > ok.0 {
-          println!("Helix improved a path, from {} to {}. Helix: {}", ok.0, cur_points, biome.miner.helix);
-          ok.0 = cur_points;
-          ok.1 = biome.miner.movable.unique.len();
-          ok.2 = helix_serialize(&biome.miner.helix);
-        }
-        if has_trail {
-          // println!("This miner was already recorded...");
-        } else {
-          bridge::log(format!("This miner was new! trail has {} / {} steps and results in {} points. Tree now contains {} trails.", biome.miner.movable.unique.len(), biome.miner.movable.history.len(), cur_points, btree.len()).as_str());
+        let has_trail: bool = hmap.contains_key(&cur_points);
+        if !has_trail {
+          hmap.insert(cur_points, (cur_points, biome.miner.movable.unique.len(), helix_serialize(&biome.miner.helix)));
+          bridge::log(format!("This miner was new! Score: {} points in {} steps. Map now contains {} trails.", cur_points, biome.miner.movable.history.len(), hmap.len()).as_str());
           state.trail_lens += biome.miner.movable.unique.len() as u64;
         }
       }
@@ -281,7 +271,7 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
         options,
         state,
         format!("Best miner: Points: {}  Steps: {} ({})   Map: {}x{} ~ {}x{}  {}", state.best_miner.1, state.best_miner.2, state.best_miner.3, state.best_min_x, state.best_min_y, state.best_max_x, state.best_max_y, state.best_miner.0),
-        format!("Miner Dictionary contains {} entries. Average steps: {}. Total time: {} s, batches: {}, batch loops: {}, biome ticks: {}, ticks/s: {}", btree.len(), state.trail_lens / btree.len().max(1) as u64, dur_sec, state.stats_total_batches, state.stats_total_batch_loops, state.stats_total_biome_ticks, state.stats_last_ticks_sec),
+        format!("Miner Dictionary contains {} entries. Average steps: {}. Total time: {} s, batches: {}, batch loops: {}, biome ticks: {}, ticks/s: {}", hmap.len(), state.trail_lens / hmap.len().max(1) as u64, dur_sec, state.stats_total_batches, state.stats_total_batch_loops, state.stats_total_biome_ticks, state.stats_last_ticks_sec),
       );
       bridge::print_world(&table_str);
 

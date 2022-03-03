@@ -10,11 +10,11 @@ use rand::prelude::*;
 use rand_pcg::{Pcg64, Lcg128Xsl64};
 use rand::distributions::{Distribution, Uniform};
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 extern crate serde_json;
 
-pub fn initialize(options: &mut Options) -> (AppState, Helix, BTreeMap<String, (u64, usize, SerializedHelix)>) {
+pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64, usize, SerializedHelix)>) {
 
   // I expected a Trie to outperform a simple list but it seems that may not be the case.
   // Trie mode: Binary     It has    3179577 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      20372) out of       2260 total. Each node stores   2+2 x i32 so naive encoding totals (  2+2)*4*3179577   =   24842 kb
@@ -35,26 +35,25 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, BTreeMap<String, (
   // Binary tree mode      It has        413 nodes. It contains        413 unique paths (avg miner steps:       1721, avg search len   :       1593) out of       2260 total. Each node stores (1+2*4*len) x i32 so naive totals      i32*4*2*413*1593  =    5139 kb
   // Both in terms of serialization as well as search time, a balanced binary tree should outperform a Trie. One caveat: the Trie should outperform in terms of serialization as the number of paths grows. TBD.
 
-  // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html
-  // TODO: not relevant yet but when squeezing perf: does the btree on strings have amortized O(log2(n)+m) time rather than O(log2(n)*m) time? (does it remember string offset of previous step while traversing the tree?).
-  let mut btree: BTreeMap<String, (u64, usize, SerializedHelix)> = BTreeMap::new();
+  // https://doc.rust-lang.org/std/collections/struct.HashMap.html
+  let mut hmap: HashMap<u64, (u64, usize, SerializedHelix)> = HashMap::new();
   let mut trail_lens: u64 = 0;
 
   let mut best_points_from_file: u64 = 0;
   let mut best_steps_from_file: usize = 0;
   let mut best_helix_from_file: Helix = create_null_helix();
-  let seed_btree_file = format!("./seed_{}.rson", options.seed);
-  let seed_btree_path = Path::new(&seed_btree_file);
+  let seed_hmap_file = format!("./seed_{}.rson", options.seed);
+  let seed_hmap_path = Path::new(&seed_hmap_file);
   let mut load_best_as_miner_zero = false;
-  if options.seed > 0 && seed_btree_path.is_file() {
-    println!("Loading from file... `{}`", seed_btree_file);
-    let s = fs::read_to_string(&seed_btree_path).expect("Unable to read file");
-    println!("Parsing {} bytes into btree", s.len());
-    btree = serde_json::from_str(&s).unwrap();
+  if options.seed > 0 && seed_hmap_path.is_file() {
+    println!("Loading from file... `{}`", seed_hmap_file);
+    let s = fs::read_to_string(&seed_hmap_path).expect("Unable to read file");
+    println!("Parsing {} bytes into hash map", s.len());
+    hmap = serde_json::from_str(&s).unwrap();
 
-    let len = btree.len();
+    let len = hmap.len();
 
-    for (_key, (points, unique_steps, serialized_helix)) in btree.iter() {
+    for (_key, (points, unique_steps, serialized_helix)) in hmap.iter() {
       trail_lens += unique_steps.to_owned() as u64;
       if points.to_owned() > best_points_from_file {
         best_points_from_file = points.to_owned();
@@ -125,5 +124,5 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, BTreeMap<String, (
   let mut state = create_app_state(options, best_miner, trail_lens, instance_rng);
   state.load_best_as_miner_zero = load_best_as_miner_zero;
 
-  return (state, next_root_helix, btree);
+  return (state, next_root_helix, hmap);
 }

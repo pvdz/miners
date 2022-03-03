@@ -14,7 +14,7 @@ use std::panic;
 use wasm_bindgen::prelude::*;
 
 // temp
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use super::main_loop::*;
 use super::options::*;
@@ -71,29 +71,29 @@ async fn main_async(options: &mut Options) {
 
   log("Running async main.rs.... :)");
 
-  let (mut state, mut next_root_helix, mut btree) = initialize(options);
+  let (mut state, mut next_root_helix, mut hmap) = initialize(options);
   print_options(&serde_json::to_string_pretty(&options).unwrap());
-  ga_loop_async(options, &mut state, &mut next_root_helix, &mut btree).await;
+  ga_loop_async(options, &mut state, &mut next_root_helix, &mut hmap).await;
 }
 
-pub async fn ga_loop_async(options: &mut Options, state: &mut AppState, next_root_helix: &mut Helix, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) {
+pub async fn ga_loop_async(options: &mut Options, state: &mut AppState, next_root_helix: &mut Helix, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) {
   loop {
     if options.visual || state.startup {
       print_options(&serde_json::to_string_pretty(&options).unwrap());
     }
     state.startup = false;
-    *next_root_helix = ga_step_async(options, state, next_root_helix, btree).await;
+    *next_root_helix = ga_step_async(options, state, next_root_helix, hmap).await;
   }
 }
 
-pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> Helix {
+pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> Helix {
   let mut biomes: Vec<Biome> = pre_ga_loop(options, state, curr_root_helix);
 
   let mut ticks = 0;
 
   while state.has_energy && !state.reset {
     if options.visual {
-      suspend_app_till_next_frame(options, state, btree).await;
+      suspend_app_till_next_frame(options, state, hmap).await;
     } else {
       ticks += 1;
       if ticks > 1000 {
@@ -101,19 +101,19 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
         // thread. So we need to give it some breathing room every now and then to update the screen
         // The tick interval to do this at is arbitrary. The current setting works for me :shrug:
         ticks = 0;
-        suspend_app_till_next_frame(options, state, btree).await;
+        suspend_app_till_next_frame(options, state, hmap).await;
       }
     }
     if state.load_best_as_miner_zero || state.reset {
       break;
     }
-    go_iteration(options, state, &mut biomes, btree);
+    go_iteration(options, state, &mut biomes, hmap);
   }
 
-  return post_ga_loop(options, state, biomes, curr_root_helix, btree);
+  return post_ga_loop(options, state, biomes, curr_root_helix, hmap);
 }
 
-pub async fn suspend_app_till_next_frame(options: &mut Options, state: &mut AppState, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> bool {
+pub async fn suspend_app_till_next_frame(options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> bool {
   let str = await_next_frame().await.as_string();
 
   return match str {
@@ -121,7 +121,7 @@ pub async fn suspend_app_till_next_frame(options: &mut Options, state: &mut AppS
       if key != "" {
         log(format!("Received input: {}", key.as_str()).as_str());
       }
-      parse_input(key, options, state, btree)
+      parse_input(key, options, state, hmap)
     },
     None => false,
   };

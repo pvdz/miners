@@ -4,7 +4,7 @@
 use std::sync::mpsc::TryRecvError;
 
 extern crate serde_json;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use std::time::SystemTime;
 
@@ -20,18 +20,18 @@ pub fn main() {
   log("Running sync main_cli.rs.... :)");
 
   let mut options = parse_cli_args();
-  let (mut state, mut next_root_helix, mut btree) = initialize(&mut options);
-  ga_loop_sync(&mut options, &mut state, &mut next_root_helix, &mut btree);
+  let (mut state, mut next_root_helix, mut hmap) = initialize(&mut options);
+  ga_loop_sync(&mut options, &mut state, &mut next_root_helix, &mut hmap);
 }
 
-pub fn ga_loop_sync(options: &mut Options, state: &mut AppState, next_root_helix: &mut Helix, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) {
+pub fn ga_loop_sync(options: &mut Options, state: &mut AppState, next_root_helix: &mut Helix, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) {
   loop {
     state.startup = false;
-    *next_root_helix = ga_step_sync(options, state, next_root_helix, btree);
+    *next_root_helix = ga_step_sync(options, state, next_root_helix, hmap);
   }
 }
 
-pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix, btree: &mut BTreeMap<String, (u64, usize, SerializedHelix)>) -> Helix {
+pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> Helix {
   let mut biomes: Vec<Biome> = pre_ga_loop(options, state, curr_root_helix);
 
   while state.has_energy && !state.reset {
@@ -43,7 +43,7 @@ pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix
       match state.stdin_channel.try_recv() {
         Ok(key) => {
           // If `x` was pressed in the CLI, stop waiting for one frame. Ignored in the web. (?)
-          waiting = parse_input(key, options, state, btree);
+          waiting = parse_input(key, options, state, hmap);
         },
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
@@ -54,10 +54,10 @@ pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix
       break;
     }
 
-    go_iteration(options, state, &mut biomes, btree);
+    go_iteration(options, state, &mut biomes, hmap);
   }
 
-  return post_ga_loop(options, state, biomes, curr_root_helix, btree);
+  return post_ga_loop(options, state, biomes, curr_root_helix, hmap);
 }
 
 pub fn platform_log(s: &str) {
