@@ -17,7 +17,7 @@ pub struct Slottable {
     pub sum: f32,
 }
 
-pub const SLOT_COUNT: i32 = 9; // Must manually keep up to date with the enum ;(
+pub const SLOT_COUNT: i32 = 10; // Must manually keep up to date with the enum ;(
 #[derive(Debug, Clone, Copy)]
 pub enum SlotKind {
     BrokenGps = 0,
@@ -27,8 +27,9 @@ pub enum SlotKind {
     Emptiness = 4,
     EnergyCell = 5,
     Hammer = 6,
-    PurityScanner = 7,
-    Sandrone = 8,
+    JacksCompass = 7,
+    PurityScanner = 8,
+    Sandrone = 9,
     // Make sure to update the SLOT_COUNT!
 }
 
@@ -36,14 +37,15 @@ pub enum SlotKind {
 fn assert_size(x: &SlotKind) -> i32 {
     match x {
         | SlotKind::BrokenGps
-        | SlotKind::Windrone
-        | SlotKind::Sandrone
         | SlotKind::Drill
         | SlotKind::DroneLauncher
         | SlotKind::Emptiness
         | SlotKind::EnergyCell
         | SlotKind::Hammer
+        | SlotKind::JacksCompass
         | SlotKind::PurityScanner
+        | SlotKind::Sandrone
+        | SlotKind::Windrone
         => SLOT_COUNT, // Update SLOT_COUNT when this function updates
     }
 }
@@ -52,28 +54,30 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotKind {
     assert_size(&SlotKind::Drill);
     let slot_roller: Uniform<i32> = Uniform::from(0..SLOT_COUNT);
     return match slot_roller.sample(rng) {
-        0 => SlotKind::Drill,
-        1 => SlotKind::DroneLauncher,
-        2 => SlotKind::Hammer,
+        0 => SlotKind::BrokenGps,
+        1 => SlotKind::Drill,
+        2 => SlotKind::DroneLauncher,
         3 => SlotKind::Emptiness,
         4 => SlotKind::EnergyCell,
-        5 => SlotKind::PurityScanner,
-        6 => SlotKind::BrokenGps,
-        7 => SlotKind::Emptiness, // SlotKind::Windrone
-        8 => SlotKind::Emptiness, // SlotKind::Sandrone
+        5 => SlotKind::Hammer,
+        6 => SlotKind::PurityScanner,
+        7 => SlotKind::JacksCompass,
+        8 => SlotKind::Emptiness, // SlotKind::Windrone
+        9 => SlotKind::Emptiness, // SlotKind::Sandrone
         _ => panic!("wat?"),
     }
 }
 
 pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
     return match slot {
+        SlotKind::BrokenGps => "G".to_string(),
         SlotKind::Drill => "d".to_string(),
         SlotKind::DroneLauncher => "D".to_string(),
-        SlotKind::Hammer => "h".to_string(),
         SlotKind::Emptiness => ".".to_string(),
         SlotKind::EnergyCell => "E".to_string(),
+        SlotKind::Hammer => "h".to_string(),
+        SlotKind::JacksCompass => "J".to_string(),
         SlotKind::PurityScanner => "P".to_string(),
-        SlotKind::BrokenGps => "G".to_string(),
         SlotKind::Windrone => "B".to_string(),
         SlotKind::Sandrone => "H".to_string(),
     };
@@ -81,21 +85,22 @@ pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
 
 pub fn symbol_to_slot_type(sym: char) -> SlotKind {
     match sym {
+        'G' => SlotKind::BrokenGps,
         'd' => SlotKind::Drill,
         'D' => SlotKind::DroneLauncher,
         'h' => SlotKind::Hammer,
         '.' => SlotKind::Emptiness,
         'E' => SlotKind::EnergyCell,
+        'J' => SlotKind::JacksCompass,
         'P' => SlotKind::PurityScanner,
-        'G' => SlotKind::BrokenGps,
-        'B' => SlotKind::Windrone,
         'H' => SlotKind::Sandrone,
+        'B' => SlotKind::Windrone,
         _ => panic!("add me, {}", sym),
     }
 }
 
 pub fn create_slot_kind_counter() -> Vec<i32> {
-    assert_eq!(SLOT_COUNT, 9);
+    assert_eq!(SLOT_COUNT, 10);
     return vec![0; SLOT_COUNT as usize]; // One for every slot type value
 }
 

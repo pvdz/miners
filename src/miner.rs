@@ -12,6 +12,7 @@ use super::slot_hammer::*;
 use super::slot_drill::*;
 use super::slot_purity_scanner::*;
 use super::slot_broken_gps::*;
+use super::slot_jacks_compass::*;
 use super::inventory::*;
 use super::drone_me::*;
 use super::drone_win::*;
@@ -134,11 +135,11 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
     let kind_usize = kind as usize;
     let nth: i32 = kind_counts[kind_usize];
     match kind {
-      SlotKind::Emptiness => {
-        slots[i] = create_empty_slot(i);
+      SlotKind::BrokenGps => {
+        slots[i] = create_slot_broken_gps(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
       },
-      SlotKind::EnergyCell => {
-        slots[i] = create_slot_energy_cell(i, nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+      SlotKind::Drill => {
+        slots[i] = create_drill(i, nth);
       },
       SlotKind::DroneLauncher => {
         slots[i] = create_drone_launcher(i, nth, nth, helix.drone_gen_cooldown * 2.0_f32.powf(((nth as f32 / 2.0) + 1.0) as f32));
@@ -157,23 +158,26 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
         });
         assert_eq!(drones.len() - 1, nth as usize, "there should be as many drones as there are drone launchers");
       },
+      SlotKind::Emptiness => {
+        slots[i] = create_empty_slot(i);
+      },
+      SlotKind::EnergyCell => {
+        slots[i] = create_slot_energy_cell(i, nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+      },
       SlotKind::Hammer => {
         slots[i] = create_hammer(i, nth);
       },
-      SlotKind::Drill => {
-        slots[i] = create_drill(i, nth);
-      },
+      SlotKind::JacksCompass => {
+        slots[i] = create_slot_jacks_compass(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+      }
       SlotKind::PurityScanner => {
         slots[i] = create_slot_purity_scanner(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
       },
-      SlotKind::BrokenGps => {
-        slots[i] = create_slot_broken_gps(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
-      },
-      SlotKind::Windrone => {
-        panic!("The windrone is not a valid starting slot");
-      }
       SlotKind::Sandrone => {
         panic!("The sandrone is not a valid starting slot");
+      }
+      SlotKind::Windrone => {
+        panic!("The windrone is not a valid starting slot");
       }
     }
 

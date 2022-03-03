@@ -55,6 +55,14 @@
     <input id="$inputInput"/>
     <button id="$pressReturnButton" onclick="prepareInput()">Enter</button>
   </fieldset>
+  <fieldset style="display: inline">
+    <legend>Camera</legend>
+    <button id="$pressUp" onclick="prepareInputTo('\x1b\x5b\x41')">^</button>
+    <button id="$pressDown" onclick="prepareInputTo('\x1b\x5b\x42')">v</button>
+    <button id="$pressLeft" onclick="prepareInputTo('\x1b\x5b\x44')">&lt;</button>
+    <button id="$pressRight" onclick="prepareInputTo('\x1b\x5b\x43')">&gt;</button>
+    <button id="$pressFollow" onclick="prepareInputTo('f')">follow</button>
+  </fieldset>
 </div>
 <textarea id="$options" class="options">// Input options for the game. Must be a valid object. :shrug:
 {
@@ -135,7 +143,9 @@
   let preparedInput = '';
   let lastPreparedInput = '';
   function prepareInput() {
-    const now = $inputInput.value;
+    prepareInputTo($inputInput.value);
+  }
+  function prepareInputTo(now) {
     preparedInput = (now || lastPreparedInput) + '\n';
     if (now) lastPreparedInput = now;
     $inputInput.value = '';
@@ -205,6 +215,7 @@
           } else {
             const t = preparedInput;
             preparedInput = '';
+            if (t) console.log('Emitting', t.split('').map(s => s.charCodeAt(0)))
             r(t);
           }
         }, 1);

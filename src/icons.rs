@@ -1,3 +1,4 @@
+pub const ICON_BIRD: char = '🦅'; // 🕊️ 🦅 🐦 🦉
 pub const ICON_BLOCK_100: char = '█';
 pub const ICON_BLOCK_75: char = '▓';
 pub const ICON_BLOCK_50: char = '▒';
@@ -30,6 +31,7 @@ pub const ICON_HEAVY_DOWN: char = '🡇';
 pub const ICON_HEAVY_LEFT: char = '🡄';
 pub const ICON_NO_ENTRY: char = '🚫';
 pub const ICON_PUSH_PIN: char = '📍'; // 📍 📌
+pub const ICON_SNAKE: char = '🐍';
 pub const ICON_TRIANGLE_DOWN: char = '⮛';
 pub const ICON_TRIANGLE_LEFT: char = '⮘';
 pub const ICON_TRIANGLE_RIGHT: char = '⮚';
@@ -54,7 +56,8 @@ pub const ICON_MINER_DOWN: char = ICON_HEAVY_DOWN;
 pub const ICON_MINER_LEFT: char = ICON_HEAVY_LEFT;
 pub const ICON_GHOST: char = ICON_EYES_ONLY;
 
-pub const ICON_SANDRONE: char = ICON_SOCCER_BALL;
+pub const ICON_SANDRONE: char = ICON_SNAKE;
+pub const ICON_WINDRONE: char = ICON_BIRD;
 pub const ICON_WINDRONE_POWER: char = ICON_TORNADO;
 
 pub const ICON_PUSH: char = ICON_WORLD_MAP;

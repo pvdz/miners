@@ -37,6 +37,7 @@ pub mod slot_broken_gps;
 pub mod slot_drone_launcher;
 pub mod slot_energy_cell;
 pub mod slot_emptiness;
+pub mod slot_jacks_compass;
 pub mod tile;
 pub mod utils;
 pub mod expando;

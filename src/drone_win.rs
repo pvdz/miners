@@ -7,6 +7,8 @@ use crate::world::*;
 use super::slottable::*;
 use super::expando::*;
 use super::values::*;
+use super::color::*;
+use super::icons::*;
 
 #[derive(Debug)]
 pub enum WindroneState {
@@ -254,6 +256,10 @@ pub fn tick_windrone(windrone_slot: &mut Slottable, windrone: &mut Windrone, mx:
       // Miner tick should pick up on this one
     }
   }
+}
+
+pub fn ui_windrone(sandrone: &Windrone, options: &Options) -> String {
+  return add_fg_color_with_reset(&format!("{}", ICON_WINDRONE), COLOR_WIND, options);
 }
 
 fn move_windrone_towards(windrone: &mut Windrone, to_x: i32, to_y: i32, _biome_index: usize) -> bool {

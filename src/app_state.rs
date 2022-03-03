@@ -23,6 +23,20 @@ pub struct AppState {
   pub best_max_x: i32,
   pub best_max_y: i32,
 
+  // viewport positioning
+  pub viewport_offset_x: i32,
+  pub viewport_offset_y: i32,
+  pub viewport_size_w: usize,
+  pub viewport_size_h: usize,
+
+  // One time action, done this way cause otherwise we need to juggle the miner position everywhere
+  pub center_on_miner_next: bool,
+
+  // Always make sure the miner is in viewport?
+  pub auto_follow_miner: bool,
+  pub auto_follow_buffer_min: i32, // Once the miner moves closer than this many tiles to the border
+  pub auto_follow_buffer_max: i32, // Change the viewport to make it this many tiles instead
+
   #[cfg(not(target_arch = "wasm32"))]
   pub stdin_channel: Receiver<String>,
 
@@ -66,6 +80,17 @@ pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize
     best_min_y: 0,
     best_max_x: 0,
     best_max_y: 0,
+
+    viewport_offset_x: -25,
+    viewport_offset_y: -25,
+    viewport_size_w: 51,
+    viewport_size_h: 51,
+
+    center_on_miner_next: false,
+
+    auto_follow_miner: false,
+    auto_follow_buffer_min: 2,
+    auto_follow_buffer_max: 7,
 
     #[cfg(not(target_arch = "wasm32"))]
     stdin_channel: async_stdin::spawn_stdin_channel(),

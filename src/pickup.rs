@@ -15,8 +15,23 @@ pub enum Pickup {
   Wood,
 }
 
-pub fn pickup_to_string(tile: Pickup, _wx: i32, _wy: i32) -> String {
-  return match tile {
+pub fn pickup_to_priority(pickup: Pickup) -> u32 {
+  return match pickup {
+    Pickup::Diamond => 100,
+    Pickup::Nothing => 0,
+    // This should be higher the less energy you have
+    Pickup::Energy => 1000,
+    Pickup::Stone => 1,
+    Pickup::Expando => 0, // TBD
+    Pickup::Fountain => 0, // TBD
+    Pickup::Wind => 20,
+    Pickup::Water => 20,
+    Pickup::Wood => 20,
+  }
+}
+
+pub fn pickup_to_string(pickup: Pickup, _wx: i32, _wy: i32) -> String {
+  return match pickup {
     Pickup::Diamond => ICON_DIAMOND.to_string(),
     Pickup::Energy => ICON_ENERGY.to_string(),
     Pickup::Expando => format!("{}", ICON_EXPANDO_WATER),

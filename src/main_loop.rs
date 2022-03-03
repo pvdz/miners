@@ -15,6 +15,7 @@ use super::drone_san::*;
 use super::drone_me::*;
 use super::slot_energy_cell::*;
 use super::slot_drone_launcher::*;
+use super::slot_jacks_compass::*;
 
 use std::collections::BTreeMap;
 
@@ -213,13 +214,14 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
       for i in 0..mslots.len() {
         let slot: &mut Slottable = &mut biome.miner.slots[i];
         match slot.kind {
+          SlotKind::BrokenGps => tick_slot_broken_gps(slot, mminermovable, first_miner),
+          SlotKind::DroneLauncher => tick_slot_drone_launcher(ticks, slot, mminermovable, mdrones, mmeta, mworld, options, first_miner),
+          SlotKind::Drill => (), // noop
           SlotKind::Emptiness => (), // noop
           SlotKind::EnergyCell => tick_slot_energy_cell(slot, mminermovable, mmeta, mworld, options, first_miner),
-          SlotKind::DroneLauncher => tick_slot_drone_launcher(ticks, slot, mminermovable, mdrones, mmeta, mworld, options, first_miner),
           SlotKind::Hammer => (), // noop
-          SlotKind::Drill => (), // noop
+          SlotKind::JacksCompass => tick_slot_jacks_compass(slot, mminermovable, first_miner, mworld, options),
           SlotKind::PurityScanner => tick_slot_purity_scanner(slot, mmeta, first_miner),
-          SlotKind::BrokenGps => tick_slot_broken_gps(slot, mminermovable, first_miner),
           SlotKind::Windrone => tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, options, m),
           SlotKind::Sandrone => tick_sandrone(&mut biome.miner.sandrone, mminermovable, mmeta, mworld, options, m),
         }
@@ -277,6 +279,7 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
         &biomes[0].world,
         &biomes,
         options,
+        state,
         format!("Best miner: Points: {}  Steps: {} ({})   Map: {}x{} ~ {}x{}  {}", state.best_miner.1, state.best_miner.2, state.best_miner.3, state.best_min_x, state.best_min_y, state.best_max_x, state.best_max_y, state.best_miner.0),
         format!("Miner Dictionary contains {} entries. Average steps: {}. Total time: {} s, batches: {}, batch loops: {}, biome ticks: {}, ticks/s: {}", btree.len(), state.trail_lens / btree.len().max(1) as u64, dur_sec, state.stats_total_batches, state.stats_total_batch_loops, state.stats_total_biome_ticks, state.stats_last_ticks_sec),
       );

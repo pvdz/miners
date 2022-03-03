@@ -110,5 +110,13 @@ pub fn ui_inventory(inventory: &Inventory, options: &Options) -> String {
 }
 
 pub fn get_points(inventory: &Inventory) -> u64 {
-  return inventory.stone_white as u64 + (inventory.stone_blue as u64 * 5u64) + (inventory.stone_yellow as u64 * 10u64) + (inventory.stone_yellow as u64 * 50u64) + (inventory.diamond_white as u64 * 100u64) + (inventory.diamond_blue as u64 * 250u64) + (inventory.diamond_green as u64 * 500u64) + (inventory.diamond_yellow as u64 * 1000u64);
+  return
+    inventory.stone_white as u64 +
+    (inventory.stone_blue as u64 * 5u64) +
+    (inventory.stone_yellow as u64 * 10u64) +
+    (inventory.stone_yellow as u64 * 50u64) +
+    (inventory.diamond_white as u64 * 100u64) +
+    (inventory.diamond_blue as u64 * 250u64) +
+    (inventory.diamond_green as u64 * 500u64) +
+    (inventory.diamond_yellow as u64 * 1000u64);
 }

@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rand::distributions::{Standard};
+use crate::slot_jacks_compass::ui_slot_jacks_compass;
 
 use super::cell::*;
 use super::helix::*;
@@ -30,6 +31,7 @@ use super::slot_emptiness::*;
 use super::slot_windrone::*;
 use super::slot_sandrone::*;
 use super::expando::*;
+use super::app_state::*;
 
 // The world is procedurally generated and has no theoretical bounds.
 // The map retained in memory is only has big as has been visited. Any unvisited cell (or well, any
@@ -330,18 +332,24 @@ fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewpo
 
   // First confirm whether the actor is within the viewport anyways
   if bound_inc(x, y, viewport_offset_x, viewport_offset_y, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32) {
-    // Yes. Convert the coords to absolute (vec) indexes.
+    // Yes it is. Convert the coords to absolute (vec) indexes.
 
     // "actor view abs x/y", or "where are we painting this miner in the output data"
-    let avax = vox + if x < 0 { (viewport_offset_x - x).abs() } else { viewport_offset_x.abs() + x };
-    let avay = voy + if y < 0 { (viewport_offset_y - y).abs() } else { viewport_offset_y.abs() + y };
+    // vox/y is the offset where the top-left most tile is painted, past the margin and borders
+    let avax = vox + (x - viewport_offset_x);
+    let avay = voy + (y - viewport_offset_y);
 
-    // If the actor coord is negative, then subtract it from the viewport. Otherwise add the
-    // absolute viewport coord plus one (for the 0,0 cell because the range is inclusive).
-    // <-10, -10> and <-7, 3>:
-    // x: (-10 - -7).abs() = -3
-    // y: (-10).abs() + 1 + 3 = 14
-    // -> <-3, 14>
+    if view.len() <= avay as usize {
+      let v = view.iter().map(|x| x.len()).collect::<Vec<_>>();
+      panic!(
+        "okay wtf1? pos: {}x{} ava: {}x{} min: {}x{} lens: ?x{} voyx: {}x{} max: {}x{}, {:?}",
+        x, y, avax, avay, viewport_offset_x, viewport_offset_y, view.len(), vox, voy, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32,
+        v
+      );
+    }
+    if view[avay as usize].len() <= avax as usize {
+      panic!("okay wtf2? {}x{} {}x{} {}x{} {}x{} voyx: {}x{} {}x{}", x, y, avax, avay, viewport_offset_x, viewport_offset_y, view[avay as usize].len(), view.len(), vox, voy, viewport_offset_x + viewport_size_w as i32, viewport_offset_y + viewport_size_h as i32);
+    }
 
     view[avay as usize][avax as usize] = what;
   }
@@ -407,7 +415,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
   paint_maybe(biome.miner.movable.x, biome.miner.movable.y, miner_visual, view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 }
 
-pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, best_miner_str: String, btree_str: String) -> String {
+pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, state: &mut AppState, best_miner_str: String, btree_str: String) -> String {
   // We assume a 150x80 terminal screen space (half my ultra wide)
   // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
 
@@ -429,11 +437,44 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   // assert!(wv_border.2 >= 0);
   // assert!(wv_border.3 >= 0);
 
+  let viewport_size_w = state.viewport_size_w;
+  let viewport_size_h = state.viewport_size_h;
+
+  if state.center_on_miner_next {
+    state.viewport_offset_x = biomes[0].miner.movable.x - (viewport_size_w as i32) / 2;
+    state.viewport_offset_y = biomes[0].miner.movable.y - (viewport_size_h as i32) / 2;
+    state.center_on_miner_next = false;
+  }
+
+  if state.auto_follow_miner {
+    // Force the miner to be painted at least m and at most n tiles away from any viewport edge
+    let x = biomes[0].miner.movable.x;
+    let y = biomes[0].miner.movable.y;
+
+    if x < state.viewport_offset_x + state.auto_follow_buffer_min {
+      // Move viewport to make sure the miner is max tiles away from the left
+      state.viewport_offset_x = x - state.auto_follow_buffer_max;
+    }
+
+    if y < state.viewport_offset_y + state.auto_follow_buffer_min {
+      // Move viewport to make sure the miner is max tiles away from the top
+      state.viewport_offset_y = y - state.auto_follow_buffer_max;
+    }
+
+    if x > state.viewport_offset_x + (state.viewport_size_w as i32) - state.auto_follow_buffer_min {
+      // Move viewport to make sure the miner is max tiles away from the right
+      state.viewport_offset_x = x - ((state.viewport_size_w as i32) - state.auto_follow_buffer_max);
+    }
+
+    if y > state.viewport_offset_y + (state.viewport_size_h as i32) - state.auto_follow_buffer_min {
+      // Move viewport to make sure the miner is max tiles away from the bottom
+      state.viewport_offset_y = y - ((state.viewport_size_h as i32) - state.auto_follow_buffer_max);
+    }
+  }
+
   // World coordinates for the viewport:
-  let viewport_offset_x: i32 = -25; // (TODO: this should make sure the character location is included in the viewport)
-  let viewport_offset_y: i32 = -25; // Same ^
-  let viewport_size_w: usize = 51;
-  let viewport_size_h: usize = 51;
+  let viewport_offset_x = state.viewport_offset_x;
+  let viewport_offset_y = state.viewport_offset_y;
 
   let wv_width = wv_margin.3 + wv_border.3 + viewport_size_w + wv_border.1 + wv_margin.1;
   let wv_height = wv_margin.3 + wv_border.3 + (viewport_size_h) + wv_border.1 + wv_margin.1;
@@ -563,7 +604,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   // Paint the windrone, if it's in flight
   // The windrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top.
   if matches!(biomes[0].miner.windrone.state, WindroneState::FlyingToGoal) || matches!(biomes[0].miner.windrone.state, WindroneState::FlyingHome) {
-    paint_maybe(biomes[0].miner.windrone.movable.x, biomes[0].miner.windrone.movable.y, "##".to_string(), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+    paint_maybe(biomes[0].miner.windrone.movable.x, biomes[0].miner.windrone.movable.y, ui_windrone(&biomes[0].miner.windrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
   }
 
   // Paint the sandrone, if it's moving
@@ -671,29 +712,32 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, b
   for n in 0..biomes[0].miner.slots.len() {
     let slot: &Slottable = &biomes[0].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
-      SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
-      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.sand),
+      SlotKind::BrokenGps => ui_slot_broken_gps(slot),
       SlotKind::Drill => ui_slot_drill(slot),
       SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
-      SlotKind::Hammer => ui_slot_hammer(slot),
       SlotKind::Emptiness => ui_slot_emptiness(slot),
       SlotKind::EnergyCell => ui_slot_energy_cell(slot),
+      SlotKind::Hammer => ui_slot_hammer(slot),
+      SlotKind::JacksCompass => ui_slot_jacks_compass(slot),
       SlotKind::PurityScanner => ui_slot_purity_scanner(slot),
-      SlotKind::BrokenGps => ui_slot_broken_gps(slot),
+      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.sand),
+      SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
     };
     view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
-  for y in so + biomes[0].miner.slots.len()..vlen - 5 {
+  let mut input_hint_lines = 7;
+
+  for y in so + biomes[0].miner.slots.len()..vlen - input_hint_lines {
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
   }
 
-  view[vlen - 5].push(format!(" Keys: toggle visual: v⏎   save and quite: q⏎  speed [{}]  faster: -⏎   slower: +⏎   return-stepper: x⏎ {: <50}", options.speed, ' '));
-  view[vlen - 4].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎ {: <50}", options.mutation_rate_genes, ' '));
-  view[vlen - 3].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ {: <50}", options.mutation_rate_slots, ' '));
-  view[vlen - 2].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎ {: <50}", options.batch_size, ' '));
-  view[vlen - 1].push(format!("       mutate [{}]: g⏎   auto reset [{}] after [{}] miners: t⏎ {: <50}", if options.mutate_from_best { "overall best" } else { "last winner" }, if options.reset_after_noop { "after noop" } else { "regardless" }, options.reset_rate, ' '));
-
+  view[vlen - 6].push(format!(" Keys: toggle visual: v⏎   save and quite: q⏎  speed [{}]  faster: -⏎   slower: +⏎   return-stepper: x⏎ {: <50}", options.speed, ' '));
+  view[vlen - 5].push(format!("       gene mutation rate [{}]  up: o⏎   up 5: oo⏎   down: p⏎   down 5: pp⏎ {: <50}", options.mutation_rate_genes, ' '));
+  view[vlen - 4].push(format!("       slot mutation rate [{}]  up: l⏎   up 5: ll⏎   down: k⏎   down 5: kk⏎ {: <50}", options.mutation_rate_slots, ' '));
+  view[vlen - 3].push(format!("       batch size [{}]  up: m⏎   down: n⏎   restart with random helix: r⏎   restart from best: b⏎ {: <50}", options.batch_size, ' '));
+  view[vlen - 2].push(format!("       mutate [{}]: g⏎   auto reset [{}] after [{}] miners: t⏎ {: <50}", if options.mutate_from_best { "overall best" } else { "last winner" }, if options.reset_after_noop { "after noop" } else { "regardless" }, options.reset_rate, ' '));
+  view[vlen - 1].push(format!("       arrow keys move viewport. c: center. f: toggle auto-follow. h: home"));
 
   if options.html_mode { // Could do this with a macro but why, :shrug:
     for y in 0..view.len() {

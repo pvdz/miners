@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::fs;
 use std::collections::BTreeMap;
 
+use super::{bridge};
 use super::app_state::*;
 use super::helix::*;
 
@@ -77,7 +78,7 @@ pub fn parse_cli_args() -> Options {
     reset_rate: 500,
     reset_after_noop: true,
     return_to_move: false,
-    visual: true, // Can be set through --visual and --no-visual
+    visual: false, // Can be set through --visual and --no-visual
 
     sandrone_pickup_count: 200,
     sandcastle_area_limit: 500,
@@ -180,19 +181,19 @@ pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, btr
     "m\n" => options.batch_size = options.batch_size + 1,
     "r\n" => {
       state.reset = true;
-      println!("Manual reset requested...");
+      bridge::log("Manual reset requested...");
     },
     "b\n" => {
       state.load_best_as_miner_zero = true;
-      println!("Aborting current run and loading best as miner now...");
+      bridge::log("Aborting current run and loading best as miner now...");
     }
     "g\n" => {
       options.mutate_from_best = !options.mutate_from_best;
-      println!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best);
+      bridge::log(format!("Swapping options.mutate_from_best; now: {}", options.mutate_from_best).as_str());
     }
     "t\n" => {
       options.reset_after_noop = !options.reset_after_noop;
-      println!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop);
+      bridge::log(format!("Swapping options.reset_after_noop; now: {}", options.reset_after_noop).as_str());
     }
     "q\n" => {
       // Save and quit.
@@ -204,7 +205,40 @@ pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, btr
       println!("Finished writing. Exiting now...");
       panic!("Quit after request");
     },
-    _ => (),
+    "\x1b\x5b\x41\n" => {
+      // [27, 91, 67, 10]
+      // Up
+      state.viewport_offset_y -= 1;
+    },
+    "\x1b\x5b\x43\n" => {
+      // [27, 91, 67, 10]
+      // Right
+      state.viewport_offset_x += 1;
+    },
+    "\x1b\x5b\x42\n" => {
+      // [27, 91, 67, 10]
+      // Down
+      state.viewport_offset_y += 1;
+    },
+    "\x1b\x5b\x44\n" => {
+      // [27, 91, 67, 10]
+      // Left
+      state.viewport_offset_x -= 1;
+    },
+    "h\n" => {
+      bridge::log("Centering viewport to 0x0");
+      state.viewport_offset_x = -(state.viewport_size_w as i32)/2;
+      state.viewport_offset_y = -(state.viewport_size_h as i32)/2;
+    },
+    "c\n" => {
+      bridge::log("Centering viewport to miner position");
+      state.center_on_miner_next = true;
+    },
+    "f\n" => {
+      state.auto_follow_miner = !state.auto_follow_miner;
+      bridge::log(format!("Toggled auto-follow mode: {}", if state.auto_follow_miner { "on" } else { "off" }).as_str());
+    },
+    e => if e != "" { bridge::log(format!("Input {:?} had no effect", e.as_bytes()).as_str()) },
   }
 
   return waiting;
