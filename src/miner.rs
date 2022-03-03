@@ -168,7 +168,7 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
         slots[i] = create_hammer(i, nth);
       },
       SlotKind::JacksCompass => {
-        slots[i] = create_slot_jacks_compass(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+        slots[i] = create_slot_jacks_compass(i, nth, 40.0 * 2.0_f32.powf((nth + 1) as f32));
       }
       SlotKind::PurityScanner => {
         slots[i] = create_slot_purity_scanner(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));

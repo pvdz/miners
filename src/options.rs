@@ -15,7 +15,7 @@ use serde_derive::{Serialize, Deserialize};
 #[derive(Debug)]
 pub struct Options {
   pub batch_size: u8,
-  pub inial_miner_code: String,
+  pub initial_miner_code: String,
   pub mutation_rate_genes: f32,
   pub mutation_rate_slots: f32,
   pub mutate_from_best: bool,
@@ -67,7 +67,7 @@ pub fn parse_cli_args() -> Options {
   // Defaults:
   let mut options = Options {
     batch_size: 10, // Can be controlled through --batch-size
-    inial_miner_code: "".to_string(),
+    initial_miner_code: "".to_string(),
     mutation_rate_genes: 5.0,
     mutation_rate_slots: 5.0,
     mutate_from_best: false,
@@ -129,7 +129,7 @@ pub fn parse_cli_args() -> Options {
       }
       "--miner" => {
         index += 1;
-        options.inial_miner_code = args[index].trim().parse::<String>().unwrap_or("".to_string());
+        options.initial_miner_code = args[index].trim().parse::<String>().unwrap_or("".to_string());
       }
       _ => {
         println!("Unknown parameter: {}", args[index]);

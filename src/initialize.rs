@@ -85,7 +85,7 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, BTreeMap<String, (
   println!("Miner seed: {}", options.seed);
   let new_inv = create_inventory();
   let best_miner: (Helix, u64, usize, usize, Inventory) =
-    if options.inial_miner_code.len() != 0 {
+    if options.initial_miner_code.len() != 0 {
       let x: (
         u64, // seed
         f32, // drone_gen_cooldown
@@ -94,7 +94,7 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, BTreeMap<String, (
         f32, // block_bump_cost
         f32, // multiplier_energy_pickup
         String // slots: [SlotKind; 32]
-      ) = serde_json::from_str(&options.inial_miner_code).unwrap();
+      ) = serde_json::from_str(&options.initial_miner_code).unwrap();
       let y = helix_deserialize(&x);
       (
         y,
