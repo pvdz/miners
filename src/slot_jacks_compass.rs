@@ -59,6 +59,7 @@ pub fn tick_slot_jacks_compass(slot: &mut Slottable, miner_movable: &mut Movable
 
     if highest > 0 {
       slot.sum += 1.0;
+      slot.val = highest as f32;
 
       miner_movable.dir =
         if (mx - tox).abs() < (my - toy).abs() {
@@ -82,6 +83,6 @@ pub fn ui_slot_jacks_compass(slot: &Slottable) -> (String, String, String) {
   return (
     TITLE_JACKS_COMPASS.to_string(),
     progress_bar(20, slot.cur_cooldown, slot.max_cooldown, false),
-    format!("Activated: {} times. Last dir: {}", slot.sum, if slot.val == 1.0 { "Clockwise" } else { "Counter Clockwise" })
+    format!("Activated: {} times. Last prio: {}", slot.sum, slot.val as u32)
   );
 }

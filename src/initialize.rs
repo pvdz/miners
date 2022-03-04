@@ -15,26 +15,6 @@ use std::collections::HashMap;
 extern crate serde_json;
 
 pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64, usize, SerializedHelix)>) {
-
-  // I expected a Trie to outperform a simple list but it seems that may not be the case.
-  // Trie mode: Binary     It has    3179577 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      20372) out of       2260 total. Each node stores   2+2 x i32 so naive encoding totals (  2+2)*4*3179577   =   24842 kb
-  // Trie mode: B3         It has    2371508 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      15321) out of       2260 total. Each node stores   3+2 x i32 so naive encoding totals (  3+2)*4*2371508   =   18530 kb
-  // Trie mode: B4         It has    2087966 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      13537) out of       2260 total. Each node stores   4+2 x i32 so naive encoding totals (  4+2)*4*2087966   =   16316 kb
-  // Trie mode: B5         It has    1937885 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      12620) out of       2260 total. Each node stores   5+2 x i32 so naive encoding totals (  5+2)*4*1937885   =   15144 kb
-  // Trie mode: B6         It has    1853207 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      12094) out of       2260 total. Each node stores   6+2 x i32 so naive encoding totals (  6+2)*4*1853207   =   14484 kb
-  // Trie mode: B7         It has    1777314 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      11608) out of       2260 total. Each node stores   7+2 x i32 so naive encoding totals (  7+2)*4*1777314   =   13892 kb
-  // Trie mode: Octal      It has    3831644 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      26593) out of       2260 total. Each node stores   8+2 x i32 so naive encoding totals (  8+2)*4*3831644   =   29942 kb
-  // Trie mode: Decimal    It has    1639810 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      10765) out of       2260 total. Each node stores  10+2 x i32 so naive encoding totals ( 10+2)*4*1639810   =   12821 kb
-  // Trie mode: B15        It has    1577534 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8304) out of       2260 total. Each node stores  15+2 x i32 so naive encoding totals ( 15+2)*4*1577534   =   12339 kb
-  // Trie mode: Hex        It has    2787106 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:      19544) out of       2260 total. Each node stores  16+2 x i32 so naive encoding totals ( 16+2)*4*2787106   =   21790 kb
-  // Trie mode: Alpha      It has    1488812 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       9785) out of       2260 total. Each node stores  26+2 x i32 so naive encoding totals ( 26+2)*4*1488812   =   11657 kb
-  // Trie mode: Alnum      It has    1427520 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       9416) out of       2260 total. Each node stores  36+2 x i32 so naive encoding totals ( 36+2)*4*1427520   =   11188 kb
-  // Trie mode: AlUp       It has    1311942 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8709) out of       2260 total. Each node stores  62+2 x i32 so naive encoding totals ( 62+2)*4*1311942   =   10311 kb
-  // Trie mode: B125       It has    1240957 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       8304) out of       2260 total. Each node stores 125+2 x i32 so naive encoding totals (125+2)*4*1240957   =    9819 kb
-  // Trie mode: BYTE       It has    1943041 nodes. It contains        413 unique paths (avg miner steps:       1721, avg trie path len:       1593) out of       2260 total. Each node stores 256+1 x i32 so naive encoding totals (256+1)*4*1943041   = 1950631 kb
-  // Binary tree mode      It has        413 nodes. It contains        413 unique paths (avg miner steps:       1721, avg search len   :       1593) out of       2260 total. Each node stores (1+2*4*len) x i32 so naive totals      i32*4*2*413*1593  =    5139 kb
-  // Both in terms of serialization as well as search time, a balanced binary tree should outperform a Trie. One caveat: the Trie should outperform in terms of serialization as the number of paths grows. TBD.
-
   // https://doc.rust-lang.org/std/collections/struct.HashMap.html
   let mut hmap: HashMap<u64, (u64, usize, SerializedHelix)> = HashMap::new();
   let mut trail_lens: u64 = 0;

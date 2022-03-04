@@ -31,7 +31,7 @@ pub fn pre_ga_loop(options: &mut Options, state: &mut AppState, curr_root_helix:
 
   let biomes: Vec<Biome> = generate_biomes(options, state, curr_root_helix);
 
-  bridge::log("loaded");
+  // bridge::log("loaded");
 
   // Move it move it
   state.batch_loops = 0; // How many iterations for the current GA step
@@ -128,7 +128,7 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
     }
 
     println!(
-      "Binary tree mode has {} nodes with average trail len of {}. Ticks/s: {}",
+      "Hash Map has {} nodes with average trail len of {}. Ticks/s: {}",
       hmap.len(),
       state.trail_lens / hmap.len() as u64,
       state.stats_last_ticks_sec

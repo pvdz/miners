@@ -157,13 +157,13 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
       // TODO: do we take the windrone approach of ghosting or do we make it move in the real world or maybe drill through anything it encounters in its path towards 0x0 or smth?
 
       if move_sandrone_towards(sandrone, 0, 0, biome_index) {
-        println!("Convert 0x0 to a push tile and start generating an sand castle");
+        // println!("Convert 0x0 to a push tile and start generating an sand castle");
         set_cell_tile_at(options, world, 0, 0, Tile::Push);
         sandrone.push_tiles.push((0, 0));
         set_sandrone_state(sandrone, SandroneState::MovingToNeighborCell);
 
         if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
-          println!("Shutting down the sandrone");
+          // println!("Shutting down the sandrone");
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
           // options.visual = true;
           sandrone.air_lifting = true;
@@ -367,7 +367,7 @@ pub fn tick_sandrone(sandrone: &mut Sandrone, mminermovable: &mut Movable, meta:
 
       if ((sandrone.expansion_max_x - sandrone.expansion_min_x) * (sandrone.expansion_max_y - sandrone.expansion_min_y)) as u32 > options.sandcastle_area_limit {
         options.visual = true;
-        println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
+        // println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
         sandrone.status_desc = format!("Idle. Waiting for completed castle.");
         sandrone.found_end = true;
         sandrone.seeking = false;
