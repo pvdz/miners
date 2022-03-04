@@ -276,7 +276,8 @@ fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32,
 }
 
 fn bump_wall(strength: i32, world: &mut World, options: &Options, movable: &mut Movable, hammers: i32, drills: i32, pickup: Pickup, tile_value: u32, pickup_value: u32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize, meta: &mut MinerMeta, _building_sandcastle: bool, _magic_min_x: i32, _magic_min_y: i32, _magic_max_x: i32, _magic_max_y: i32) {
-  let n = strength - if movable.what == WHAT_MINER { hammers } else { 1 };
+  let n = strength - (1 + if movable.what == WHAT_MINER { hammers } else { 0 });
+
   world.tiles[unexty][unextx] = match n.max(0) {
     3 => create_cell(Tile::Wall3, pickup, tile_value, pickup_value),
     2 => create_cell(Tile::Wall2, pickup, tile_value, pickup_value),

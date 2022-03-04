@@ -85,7 +85,7 @@ pub fn parse_cli_args() -> Options {
 
     html_mode: false,
 
-    show_biomes: false,
+    show_biomes: true,
 
     // Debug
     paint_ten_lines: false,

@@ -88,9 +88,9 @@ pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize
 
     center_on_miner_next: false,
 
-    auto_follow_miner: false,
+    auto_follow_miner: true,
     auto_follow_buffer_min: 2,
-    auto_follow_buffer_max: 7,
+    auto_follow_buffer_max: 10,
 
     #[cfg(not(target_arch = "wasm32"))]
     stdin_channel: async_stdin::spawn_stdin_channel(),
