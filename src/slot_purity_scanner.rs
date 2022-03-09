@@ -1,7 +1,7 @@
 use super::utils::*;
 use super::slottable::*;
-use super::miner::*;
-// use super::cell_contents::*;
+use super::biome::*;
+use super::options::*;
 
 pub const TITLE_PURITY_SCANNER: &str = "Purity Scanner";
 
@@ -23,7 +23,8 @@ pub fn create_slot_purity_scanner(slot_index: usize, nth: i32, max_cooldown: f32
     };
 }
 
-pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta, _first_miner: bool) {
+pub fn tick_slot_purity_scanner(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+    let slot: &mut Slottable = &mut biome.miner.slots[slot_index];
     if slot.cur_cooldown < slot.max_cooldown {
         slot.cur_cooldown += 1.0;
     } else {
@@ -34,7 +35,7 @@ pub fn tick_slot_purity_scanner(slot: &mut Slottable, miner_meta: &mut MinerMeta
     // We translate to "any such item that was acquired in this tick gets its quality bumped by one"
 
     // todo: points_last_move moet laatste item(s) weergeven. vec?
-    if slot.cur_cooldown >= slot.max_cooldown && miner_meta.points_last_move > 0 {
+    if slot.cur_cooldown >= slot.max_cooldown && biome.miner.meta.points_last_move > 0 {
         slot.sum += 1.0;
         slot.cur_cooldown = 0.0;
     }

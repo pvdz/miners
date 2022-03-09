@@ -1,6 +1,8 @@
 use super::utils::*;
 use super::movable::*;
 use super::slottable::*;
+use super::biome::*;
+use super::options::*;
 
 pub const TITLE_BROKEN_GPS: &str = "Broken GPS";
 
@@ -22,10 +24,13 @@ pub fn create_slot_broken_gps(slot_index: usize, nth: i32, max_cooldown: f32) ->
     };
 }
 
-pub fn tick_slot_broken_gps(slot: &mut Slottable, miner_movable: &mut Movable, _first_miner: bool) {
+pub fn tick_slot_broken_gps(options: &Options, biome: &mut Biome, slot_index: usize) {
+
+    let slot = &mut biome.miner.slots[slot_index];
+
     slot.cur_cooldown += 1.0;
     if slot.cur_cooldown >= slot.max_cooldown {
-        miner_movable.dir = match miner_movable.dir {
+        biome.miner.movable.dir = match biome.miner.movable.dir {
             Direction::Up => if slot.val < 0.0 { Direction::Right } else { Direction::Left },
             Direction::Right => if slot.val < 0.0 { Direction::Down } else { Direction::Up },
             Direction::Down => if slot.val < 0.0 { Direction::Left } else { Direction::Right },

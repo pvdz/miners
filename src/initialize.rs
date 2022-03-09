@@ -33,17 +33,15 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
 
     let len = hmap.len();
 
-    for (_key, (points, unique_steps, serialized_helix)) in hmap.iter() {
-      trail_lens += unique_steps.to_owned() as u64;
+    for (_key, (points, _unique_steps, serialized_helix)) in hmap.iter() {
       if points.to_owned() > best_points_from_file {
         best_points_from_file = points.to_owned();
-        best_steps_from_file = unique_steps.to_owned() as usize;
         best_helix_from_file = helix_deserialize(serialized_helix);
         load_best_as_miner_zero = true;
       }
     }
 
-    println!("Loaded {} miners from disk. Average unique path len: {}. Most points: {}, with {} unique steps. Best helix: {}", len, trail_lens / len as u64, best_points_from_file, best_steps_from_file, best_helix_from_file);
+    println!("Loaded {} miners from disk. Most points: {}. Best helix: {}", len, best_points_from_file, best_helix_from_file);
   }
 
   if options.seed == 0 {

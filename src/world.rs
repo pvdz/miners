@@ -208,22 +208,24 @@ pub fn generate_world(options: &Options) -> World {
   return world;
 }
 
-pub fn tick_world(world: &mut World, options: &Options, sandrone: &Sandrone) {
+pub fn tick_world(options: &mut Options, state: &mut AppState, biome: &mut Biome) {
+  // world: &mut World, options: &Options, sandrone: &Sandrone
+
   // Walk backwards because they may be removed when they become depleted
-  for n in (0..world.expandos.len()).rev() {
-    tick_expando(n, world, options);
+  for n in (0..biome.world.expandos.len()).rev() {
+    tick_expando(n, &mut biome.world, options);
   }
-  for n in (0..world.fountains.len()).rev() {
-    tick_fountain(n, world, options);
+  for n in (0..biome.world.fountains.len()).rev() {
+    tick_fountain(n, &mut biome.world, options);
   }
 
   // Roll the castle
-  if false && sandrone.post_castle > 0 {
+  if false && biome.miner.sandrone.post_castle > 0 {
     // Figure out the rectangle and CA them
-    let magic_min_x = sandrone.expansion_min_x;
-    let magic_min_y = sandrone.expansion_min_y;
-    let magic_max_x = sandrone.expansion_max_x;
-    let magic_max_y = sandrone.expansion_max_y;
+    let magic_min_x = biome.miner.sandrone.expansion_min_x;
+    let magic_min_y = biome.miner.sandrone.expansion_min_y;
+    let magic_max_x = biome.miner.sandrone.expansion_max_x;
+    let magic_max_y = biome.miner.sandrone.expansion_max_y;
 
     for y in magic_min_y+1..magic_max_y {
       for x in magic_min_x+1..magic_max_x {
@@ -235,15 +237,15 @@ pub fn tick_world(world: &mut World, options: &Options, sandrone: &Sandrone) {
         // def
         // ghi
 
-        let a = matches!(get_cell_tile_at(options, world, x - 1, y - 1), Tile::Push);
-        let b = matches!(get_cell_tile_at(options, world, x + 0, y - 1), Tile::Push);
-        let c = matches!(get_cell_tile_at(options, world, x + 1, y - 1), Tile::Push);
-        let d = matches!(get_cell_tile_at(options, world, x - 1, y + 0), Tile::Push);
-        let e = matches!(get_cell_tile_at(options, world, x + 0, y + 0), Tile::Push);
-        let f = matches!(get_cell_tile_at(options, world, x + 1, y + 0), Tile::Push);
-        let g = matches!(get_cell_tile_at(options, world, x - 1, y + 1), Tile::Push);
-        let h = matches!(get_cell_tile_at(options, world, x + 0, y + 1), Tile::Push);
-        let i = matches!(get_cell_tile_at(options, world, x + 1, y + 1), Tile::Push);
+        let a = matches!(get_cell_tile_at(options, &biome.world, x - 1, y - 1), Tile::Push);
+        let b = matches!(get_cell_tile_at(options, &biome.world, x + 0, y - 1), Tile::Push);
+        let c = matches!(get_cell_tile_at(options, &biome.world, x + 1, y - 1), Tile::Push);
+        let d = matches!(get_cell_tile_at(options, &biome.world, x - 1, y + 0), Tile::Push);
+        let e = matches!(get_cell_tile_at(options, &biome.world, x + 0, y + 0), Tile::Push);
+        let f = matches!(get_cell_tile_at(options, &biome.world, x + 1, y + 0), Tile::Push);
+        let g = matches!(get_cell_tile_at(options, &biome.world, x - 1, y + 1), Tile::Push);
+        let h = matches!(get_cell_tile_at(options, &biome.world, x + 0, y + 1), Tile::Push);
+        let i = matches!(get_cell_tile_at(options, &biome.world, x + 1, y + 1), Tile::Push);
 
         // Find patterns, including rotations and mirrors
 
@@ -258,7 +260,7 @@ pub fn tick_world(world: &mut World, options: &Options, sandrone: &Sandrone) {
         //   //  oox   xox   xoo   xox      oox   xox   xoo   xox      oox   xox   xoo   xox      oox   xox   xoo   xox
         //   //  xxx   xxx   xxx   xox      oxx   xxx   xxx   xoo      xxx   xxx   xxo   oox      oxx   xxx   xxo   ooo
         //
-        //   set_cell_tile_at(options, world, x, y, Tile::Impassible);
+        //   set_cell_tile_at(options, &mut biome.world, x, y, Tile::Impassible);
         // }
 
         // Game of life, part 1
@@ -271,15 +273,15 @@ pub fn tick_world(world: &mut World, options: &Options, sandrone: &Sandrone) {
         } else {
           if n == 3 { 1 } else { 0 }
         };
-        set_cell_tile_value_at(options, world, x, y, v);
+        set_cell_tile_value_at(options, &mut biome.world, x, y, v);
       }
     }
 
     for y in magic_min_y+1..magic_max_y {
       for x in magic_min_x+1..magic_max_x {
         // Game of life; part 2
-        let v = if get_cell_tile_value_at(options, world, x, y) == 0 { Tile::Impassible } else { Tile::Push };
-        set_cell_tile_at(options, world, x, y, v);
+        let v = if get_cell_tile_value_at(options, &biome.world, x, y) == 0 { Tile::Impassible } else { Tile::Push };
+        set_cell_tile_at(options, &mut biome.world, x, y, v);
       }
     }
   }
@@ -355,8 +357,8 @@ fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewpo
   }
 }
 
-fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
-  if biome_index == 0 {
+fn paint_biome_actors(biome: &Biome, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
+  if biome.index == 0 {
     // Paint the drones first. This way the miner goes on top in case of overlap.
     for drone in &biome.miner.drones {
       if drone.movable.now_energy == 0.0 {
@@ -382,7 +384,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
 
   let miner_visual =
     if options.paint_miner_ids {
-      match biome_index {
+      match biome.index {
         0 => "00".to_string(),
         1 => "11".to_string(),
         2 => "22".to_string(),
@@ -396,7 +398,7 @@ fn paint_biome_actors(biome: &Biome, biome_index: usize, options: &Options, view
         _ => "@@".to_string(),
       }
     } else {
-      if biome_index == 0 {
+      if biome.index == 0 {
         add_fg_color_with_reset(
           &format!("{} ", match biome.miner.movable.dir {
             Direction::Up => ICON_MINER_UP,
@@ -423,7 +425,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
 
   // Start by painting the world. Give it a border too (annoying with calculations but worth it)
 
-  let ticks0 = biomes[0].ticks;
+  let ticks0 = biomes[options.visible_index].ticks;
 
   // Note: top has a forced empty line.
   let wv_margin: (usize, usize, usize, usize) = (2, 1, 1, 1);
@@ -441,15 +443,15 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   let viewport_size_h = state.viewport_size_h;
 
   if state.center_on_miner_next {
-    state.viewport_offset_x = biomes[0].miner.movable.x - (viewport_size_w as i32) / 2;
-    state.viewport_offset_y = biomes[0].miner.movable.y - (viewport_size_h as i32) / 2;
+    state.viewport_offset_x = biomes[options.visible_index].miner.movable.x - (viewport_size_w as i32) / 2;
+    state.viewport_offset_y = biomes[options.visible_index].miner.movable.y - (viewport_size_h as i32) / 2;
     state.center_on_miner_next = false;
   }
 
   if state.auto_follow_miner {
     // Force the miner to be painted at least m and at most n tiles away from any viewport edge
-    let x = biomes[0].miner.movable.x;
-    let y = biomes[0].miner.movable.y;
+    let x = biomes[options.visible_index].miner.movable.x;
+    let y = biomes[options.visible_index].miner.movable.y;
 
     if x < state.viewport_offset_x + state.auto_follow_buffer_min {
       // Move viewport to make sure the miner is max tiles away from the left
@@ -594,29 +596,29 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
 
   assert!(biomes.len() >= 1, "there should be at least one biome");
   if options.show_biomes {
-    for (i, biome) in biomes.iter().enumerate() {
+    for (i, biome) in &mut biomes.iter().enumerate() {
       if i == 0 { continue; }
-      paint_biome_actors(biome, i, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+      paint_biome_actors(biome, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
     }
   }
-  paint_biome_actors(&biomes[0], 0, options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+  paint_biome_actors(&biomes[options.visible_index], options, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 
   // Paint the windrone, if it's in flight
   // The windrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top.
-  if matches!(biomes[0].miner.windrone.state, WindroneState::FlyingToGoal) || matches!(biomes[0].miner.windrone.state, WindroneState::FlyingHome) {
-    paint_maybe(biomes[0].miner.windrone.movable.x, biomes[0].miner.windrone.movable.y, ui_windrone(&biomes[0].miner.windrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
+  if matches!(biomes[options.visible_index].miner.windrone.state, WindroneState::FlyingToGoal) || matches!(biomes[options.visible_index].miner.windrone.state, WindroneState::FlyingHome) {
+    paint_maybe(biomes[options.visible_index].miner.windrone.movable.x, biomes[options.visible_index].miner.windrone.movable.y, ui_windrone(&biomes[options.visible_index].miner.windrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
   }
 
   // Paint the sandrone, if it's moving
   // The sandrone is incorporeal (like a ghost, unable to collide with objects or whatever). Paint on top. (TODO: incorporeal is tbd)
-  match biomes[0].miner.sandrone.state {
+  match biomes[options.visible_index].miner.sandrone.state {
     | SandroneState::MovingToOrigin
     | SandroneState::MovingToNeighborCell
     | SandroneState::BuildingArrowCell
     | SandroneState::PickingUpMiner
     | SandroneState::DeliveringMiner
     | SandroneState::Redecorating
-    => paint_maybe(biomes[0].miner.sandrone.movable.x, biomes[0].miner.sandrone.movable.y, ui_sandrone(&biomes[0].miner.sandrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
+    => paint_maybe(biomes[options.visible_index].miner.sandrone.movable.x, biomes[options.visible_index].miner.sandrone.movable.y, ui_sandrone(&biomes[options.visible_index].miner.sandrone, options), &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy),
     SandroneState::Unconstructed => {}
     SandroneState::WaitingForWater => {}
   }
@@ -644,27 +646,27 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   let a = '🍁';
   let b = '🌟';
   let speed = 0.4;
-  let time_since_castle_complete = (ticks0 - biomes[0].miner.sandrone.post_castle) as f32;
+  let time_since_castle_complete = (ticks0 - biomes[options.visible_index].miner.sandrone.post_castle) as f32;
   let dd = time_since_castle_complete * speed;
 
-  let lifted = biomes[0].miner.sandrone.air_lifted;
-  let post = biomes[0].miner.sandrone.post_castle > 0;
+  let lifted = biomes[options.visible_index].miner.sandrone.air_lifted;
+  let post = biomes[options.visible_index].miner.sandrone.post_castle > 0;
   if lifted || (post && time_since_castle_complete < 50.0) {
     // Paint the castle rectangle. Once the castle is finished, the magic wall "explodes"
-    for i in biomes[0].miner.sandrone.expansion_min_x-1..biomes[0].miner.sandrone.expansion_max_x+1 {
+    for i in biomes[options.visible_index].miner.sandrone.expansion_min_x-1..biomes[options.visible_index].miner.sandrone.expansion_max_x+1 {
       if lifted || i % 3 == 0 {
-        let p = pump(post, i as f32, (biomes[0].miner.sandrone.expansion_min_y - 1) as f32, dd);
+        let p = pump(post, i as f32, (biomes[options.visible_index].miner.sandrone.expansion_min_y - 1) as f32, dd);
         paint_maybe(p.0, p.1, if ticks0 % 2 == 1 {a.to_string() } else {b.to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
 
-        let q = pump(post, i as f32, (biomes[0].miner.sandrone.expansion_max_y + 1) as f32, dd);
+        let q = pump(post, i as f32, (biomes[options.visible_index].miner.sandrone.expansion_max_y + 1) as f32, dd);
         paint_maybe(q.0, q.1, if ticks0 % 2 == 1 {a.to_string() } else {b.to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
       }
     }
-    for j in biomes[0].miner.sandrone.expansion_min_y-1..biomes[0].miner.sandrone.expansion_max_y + 2 {
+    for j in biomes[options.visible_index].miner.sandrone.expansion_min_y-1..biomes[options.visible_index].miner.sandrone.expansion_max_y + 2 {
       if lifted || j % 3 == 0 {
-        let p = pump(post, (biomes[0].miner.sandrone.expansion_min_x - 1) as f32, j as f32, dd);
+        let p = pump(post, (biomes[options.visible_index].miner.sandrone.expansion_min_x - 1) as f32, j as f32, dd);
         paint_maybe(p.0, p.1, if ticks0 % 2 == 1 {a.to_string() } else {b.to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
-        let q = pump(post, (biomes[0].miner.sandrone.expansion_max_x + 1) as f32, j as f32, dd);
+        let q = pump(post, (biomes[options.visible_index].miner.sandrone.expansion_max_x + 1) as f32, j as f32, dd);
         paint_maybe(q.0, q.1, if ticks0 % 2 == 1 {a.to_string() } else {b.to_string()}, &mut view, viewport_offset_x, viewport_offset_y, viewport_size_w, viewport_size_h, vox, voy);
       }
     }
@@ -701,34 +703,34 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   view[4].push(std::iter::repeat(' ').take(150).collect::<String>());
   view[5].push(format!(" Miner; {: <150}", ' '));
   view[6].push(std::iter::repeat(' ').take(143).collect::<String>());
-  view[7].push(format!("   {: <150}", biomes[0].miner.helix));
-  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Steps: {: <15} Energy {: <10}", biomes[0].miner.movable.x, biomes[0].miner.movable.y, progress_bar(30, biomes[0].miner.movable.now_energy, biomes[0].miner.movable.init_energy, true), get_points(&biomes[0].miner.meta.inventory), format!("{} ({})", biomes[0].miner.movable.history.len(), biomes[0].miner.movable.unique.len()), biomes[0].miner.movable.now_energy.round()).to_string());
-  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[0].miner.meta.inventory, options)));
-  let t = helix_serialize(&biomes[0].miner.helix);
+  view[7].push(format!("   {: <150}", biomes[options.visible_index].miner.helix));
+  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Energy {: <10}", biomes[options.visible_index].miner.movable.x, biomes[options.visible_index].miner.movable.y, progress_bar(30, biomes[options.visible_index].miner.movable.now_energy, biomes[options.visible_index].miner.movable.init_energy, true), get_points(&biomes[options.visible_index].miner.meta.inventory), biomes[options.visible_index].miner.movable.now_energy.round()).to_string());
+  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[options.visible_index].miner.meta.inventory, options)));
+  let t = helix_serialize(&biomes[options.visible_index].miner.helix);
   view[10].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY, options));
   view[11].push(std::iter::repeat(' ').take(100).collect::<String>());
 
   let so = 12;
-  for n in 0..biomes[0].miner.slots.len() {
-    let slot: &Slottable = &biomes[0].miner.slots[n];
+  for n in 0..biomes[options.visible_index].miner.slots.len() {
+    let slot: &Slottable = &biomes[options.visible_index].miner.slots[n];
     let (head, progress, tail) = match slot.kind {
       SlotKind::BrokenGps => ui_slot_broken_gps(slot),
       SlotKind::Drill => ui_slot_drill(slot),
-      SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[0].miner.drones[slot.nth as usize]),
+      SlotKind::DroneLauncher => ui_slot_drone_launcher(slot, &biomes[options.visible_index].miner.drones[slot.nth as usize]),
       SlotKind::Emptiness => ui_slot_emptiness(slot),
       SlotKind::EnergyCell => ui_slot_energy_cell(slot),
       SlotKind::Hammer => ui_slot_hammer(slot),
       SlotKind::JacksCompass => ui_slot_jacks_compass(slot),
       SlotKind::PurityScanner => ui_slot_purity_scanner(slot),
-      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[0].miner.sandrone, biomes[0].miner.meta.inventory.sand),
-      SlotKind::Windrone => ui_slot_windrone(slot, &biomes[0].miner.windrone, biomes[0].miner.meta.inventory.wind),
+      SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[options.visible_index].miner.sandrone, biomes[options.visible_index].miner.meta.inventory.sand),
+      SlotKind::Windrone => ui_slot_windrone(slot, &biomes[options.visible_index].miner.windrone, biomes[options.visible_index].miner.meta.inventory.wind),
     };
     view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
   let mut input_hint_lines = 7;
 
-  for y in so + biomes[0].miner.slots.len()..vlen - input_hint_lines {
+  for y in so + biomes[options.visible_index].miner.slots.len()..vlen - input_hint_lines {
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
   }
 
@@ -848,7 +850,7 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
   assert_world_dimensions(world);
 }
 
-pub fn create_cell(tile: Tile, pickup: Pickup, tile_value: u32, pickup_value: u32) -> Cell {
+pub fn create_unvisited_cell(tile: Tile, pickup: Pickup, tile_value: u32, pickup_value: u32) -> Cell {
   return Cell { tile, pickup, tile_value, pickup_value, visited: 0 };
 }
 
@@ -978,7 +980,7 @@ pub fn set_cell_tile_at(_options: &Options, world: &mut World, wx: i32, wy: i32,
 
   world.tiles[ay as usize][ax as usize].tile = tile;
 }
-pub fn get_cell_tile_value_at(_options: &Options, world: &mut World, wx: i32, wy: i32) -> u32 {
+pub fn get_cell_tile_value_at(_options: &Options, world: &World, wx: i32, wy: i32) -> u32 {
   let ax = world.min_x.abs() + wx;
   let ay = world.min_y.abs() + wy;
 

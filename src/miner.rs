@@ -1,8 +1,13 @@
 use super::slottable::*;
+use super::expando::*;
+use super::cell::*;
 use super::drone_san::*;
+use super::options::*;
+use super::biome::*;
 use super::slot_windrone::*;
 use super::slot_sandrone::*;
 use super::slot_emptiness::*;
+use super::world::*;
 use super::slot_drone_launcher::*;
 use super::slot_energy_cell::*;
 use super::values::*;
@@ -16,6 +21,8 @@ use super::slot_jacks_compass::*;
 use super::inventory::*;
 use super::drone_me::*;
 use super::drone_win::*;
+use super::tile::*;
+use super::pickup::*;
 
 pub type MinerSlots = Vec<Slottable>;
 
@@ -151,8 +158,6 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
             dir: Direction::Up,
             now_energy: 0.0,
             init_energy: 0.0,
-            history: vec!((0, 0)),
-            unique: vec!((0, 0)),
             disabled: false,
           },
         });
@@ -193,8 +198,6 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
       dir: Direction::Up,
       now_energy: max_energy,
       init_energy: max_energy,
-      history: vec!((0, 0)),
-      unique: vec!((0, 0)),
       disabled: false,
     },
     meta: MinerMeta {
@@ -221,7 +224,9 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
   };
 }
 
-fn can_craft_windrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
+fn can_craft_windrone(miner: &Miner) -> bool {
+  let meta = &miner.meta;
+  let slots = &miner.slots;
   let mut has_empty = false;
   for i in 0..slots.len() {
     match slots[i].kind {
@@ -254,7 +259,7 @@ fn can_craft_sandrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
   return meta.inventory.wood > 5 && meta.inventory.water > 10 && (/*meta.inventory.stone_white + */meta.inventory.stone_blue + meta.inventory.stone_green + meta.inventory.stone_yellow) > 5;
 }
 
-pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut MinerSlots, windrone: &mut Windrone, sandrone: &mut Sandrone) {
+pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
   // If;
   // - There are slots available
   // - The build drone was built
@@ -266,38 +271,38 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
 
   // For now the drone can phase through walls but later we'll want to add some pathfinding.
 
-  match windrone.state {
+  match biome.miner.windrone.state {
     WindroneState::Unconstructed => {
-      if can_craft_windrone(meta, slots) {
+      if can_craft_windrone(&biome.miner) {
         // Deduct materials
-        meta.inventory.wood -= 5;
+        biome.miner.meta.inventory.wood -= 5;
         let mut left = 5;
-        let mut next = meta.inventory.stone_white.min(left);
+        let mut next = biome.miner.meta.inventory.stone_white.min(left);
         left -= next;
-        meta.inventory.stone_white -= next;
+        biome.miner.meta.inventory.stone_white -= next;
         if left > 0 {
-          next = meta.inventory.stone_blue.min(left);
+          next = biome.miner.meta.inventory.stone_blue.min(left);
           left -= next;
-          meta.inventory.stone_blue -= next;
+          biome.miner.meta.inventory.stone_blue -= next;
         }
         if left > 0 {
-          next = meta.inventory.stone_green.min(left);
+          next = biome.miner.meta.inventory.stone_green.min(left);
           left -= next;
-          meta.inventory.stone_green -= next;
+          biome.miner.meta.inventory.stone_green -= next;
         }
         if left > 0 {
-          next = meta.inventory.stone_yellow.min(left);
+          next = biome.miner.meta.inventory.stone_yellow.min(left);
           left -= next;
-          meta.inventory.stone_yellow -= next;
+          biome.miner.meta.inventory.stone_yellow -= next;
         }
         assert_eq!(left, 0, "we asserted that there were enough stones, so we should have consumed that many stones now");
 
         // Add a windrone to the first empty slot
-        let len = slots.len();
+        let len = biome.miner.slots.len();
         for i in 0..len {
-          if matches!(slots[i].kind, SlotKind::Emptiness) {
-            slots[i] = create_slot_windrone(i, 1);
-            windrone.state = WindroneState::WaitingForWind;
+          if matches!(biome.miner.slots[i].kind, SlotKind::Emptiness) {
+            biome.miner.slots[i] = create_slot_windrone(i, 1);
+            biome.miner.windrone.state = WindroneState::WaitingForWind;
             break;
           }
           assert!(i < len - 1, "should have asserted beforehand that the windrone would fit somewhere");
@@ -308,53 +313,53 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
     WindroneState::WaitingForGoal => {}
     WindroneState::ReadyForTakeOff => {
       // The windrone has enough wind and at least one target to go to. Deduct the wind and go.
-      set_windrone_state(windrone, WindroneState::FlyingToGoal);
-      meta.inventory.wind -= 10;
+      set_windrone_state(biome, WindroneState::FlyingToGoal);
+      biome.miner.meta.inventory.wind -= 10;
     }
     WindroneState::FlyingToGoal => {}
     WindroneState::FlyingHome => {}
     WindroneState::ReturnedHome => {
       // The windrone just returned home. The windrone resets, waiting for its next task.
       // It gives you an energy boost for completing a task (50% of your missing energy).
-      set_windrone_state(windrone, WindroneState::WaitingForWind);
-      movable.now_energy += (movable.init_energy - movable.now_energy) * 0.5;
+      set_windrone_state(biome, WindroneState::WaitingForWind);
+      biome.miner.movable.now_energy += (biome.miner.movable.init_energy - biome.miner.movable.now_energy) * 0.5;
     }
   }
 
-  match sandrone.state {
+  match biome.miner.sandrone.state {
     SandroneState::Unconstructed => {
-      if can_craft_sandrone(meta, slots) {
+      if can_craft_sandrone(&mut biome.miner.meta, &mut biome.miner.slots) {
         // Deduct materials
-        meta.inventory.wood -= 5;
-        meta.inventory.water -= 10;
+        biome.miner.meta.inventory.wood -= 5;
+        biome.miner.meta.inventory.water -= 10;
         let mut left = 5;
-        let mut next = meta.inventory.stone_white.min(left);
+        let mut next = biome.miner.meta.inventory.stone_white.min(left);
         left -= next;
         // Do not allow the white stones. Only use more expensive stones to build a sandrone.
-        // meta.inventory.stone_white -= next;
+        // biome.miner.meta.inventory.stone_white -= next;
         // if left > 0 {
-          next = meta.inventory.stone_blue.min(left);
+          next = biome.miner.meta.inventory.stone_blue.min(left);
           left -= next;
-          meta.inventory.stone_blue -= next;
+          biome.miner.meta.inventory.stone_blue -= next;
         // }
         if left > 0 {
-          next = meta.inventory.stone_green.min(left);
+          next = biome.miner.meta.inventory.stone_green.min(left);
           left -= next;
-          meta.inventory.stone_green -= next;
+          biome.miner.meta.inventory.stone_green -= next;
         }
         if left > 0 {
-          next = meta.inventory.stone_yellow.min(left);
+          next = biome.miner.meta.inventory.stone_yellow.min(left);
           left -= next;
-          meta.inventory.stone_yellow -= next;
+          biome.miner.meta.inventory.stone_yellow -= next;
         }
         assert_eq!(left, 0, "we asserted that there were enough stones, so we should have consumed that many stones now");
 
         // Add a sandrone to the first empty slot
-        let len = slots.len();
+        let len = biome.miner.slots.len();
         for i in 0..len {
-          if matches!(slots[i].kind, SlotKind::Emptiness) {
-            slots[i] = create_slot_sandrone(i, 1);
-            set_sandrone_state(sandrone, SandroneState::WaitingForWater);
+          if matches!(biome.miner.slots[i].kind, SlotKind::Emptiness) {
+            biome.miner.slots[i] = create_slot_sandrone(i, 1);
+            set_sandrone_state(&mut biome.miner.sandrone, SandroneState::WaitingForWater);
             break;
           }
           assert!(i < len - 1, "should have asserted beforehand that the sandrone would fit somewhere");
@@ -369,4 +374,376 @@ pub fn tick_miner(movable: &mut Movable, meta: &mut MinerMeta, slots: &mut Miner
     SandroneState::DeliveringMiner => {}
     SandroneState::Redecorating => {}
   }
+
+  if !biome.miner.sandrone.air_lifting {
+    move_miner(options, biome);
+  }
+}
+
+pub fn move_miner(options: &mut Options, biome: &mut Biome) {
+  biome.miner.meta.points_last_move = 0;
+
+  let (deltax, deltay) = dir_to_move_delta(biome.miner.movable.dir);
+  let nextx = biome.miner.movable.x + deltax;
+  let nexty = biome.miner.movable.y + deltay;
+
+  // If this move would go OOB, expand the world to make sure that does not happen
+  ensure_cell_in_world(&mut biome.world, options, nextx, nexty);
+
+  let unextx = (biome.world.min_x.abs() + nextx) as usize;
+  let unexty = (biome.world.min_y.abs() + nexty) as usize;
+
+  let mut fill_current_cell = false;
+  let mut fill_current_x = 0;
+  let mut fill_current_y = 0;
+
+  if biome.miner.sandrone.air_lifted { // TODO: rename
+    // If at least one corner is non-zero then assume the ring is active and the miner cannot escape it
+    if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+      // Mark to be filled
+      fill_current_cell = true;
+      fill_current_x = biome.miner.movable.x;
+      fill_current_y = biome.miner.movable.y;
+    }
+
+    if oob(nextx, nexty, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+      // The miner is about to step OOB. Force it to turn.
+      // println!("Forcing miner to turn away from the magic ring.");
+
+      // So forward is blocked because it's OOB of the magic castle wall. Check which of
+      // the other three directions are available. Prefer left or right and otherwise turn
+      // around. Only when the miner is completely stuck do we destroy the magic wall.
+
+      let avail_left = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x + deltay, biome.miner.movable.y - deltax) && !oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+      let avail_right = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x - deltay, biome.miner.movable.y + deltax) && !oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+
+      if avail_left && avail_right {
+        // flip-flop (each time you visit this tile take left then right then left in repeat)
+
+        let v = get_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, );
+        set_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, if v == 1 { 0 } else { 1 });
+
+        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, v == 1);
+      } else if avail_left {
+        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, true);
+      } else if avail_right {
+        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, false);
+      } else {
+        // Can't go left or right. Check back.
+        // In practice the back should not be oob but in theory that's possible :shrug:
+        let avail_back = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x - deltax, biome.miner.movable.y - deltay) && !oob(biome.miner.movable.x - deltax, biome.miner.movable.y - deltay, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+        if avail_back {
+          // Turn around
+          biome.miner.movable.dir = turn_back(biome.miner.movable.dir);
+        } else {
+          // println!("stuck now...");
+
+          fill_current_cell = true;
+          fill_current_x = biome.miner.movable.x;
+          fill_current_y = biome.miner.movable.y;
+
+          set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
+
+          // options.return_to_move = true;
+          options.visual = true;
+
+          biome.miner.sandrone.post_castle = biome.ticks;
+          biome.miner.sandrone.air_lifted = false;
+
+          // Change tiles for the grid. Reset values and everything.
+          // Special case the stuck drones?
+          for y in biome.miner.sandrone.expansion_min_y..biome.miner.sandrone.expansion_max_y+1 {
+            for x in biome.miner.sandrone.expansion_min_x..biome.miner.sandrone.expansion_max_x+1 {
+              if matches!(get_cell_tile_at(options, &mut biome.world, x, y), Tile::Impassible) {
+                // Change the tile so we can enable special drawing mode for it
+                // TODO: if a drone was stuck in it perhaps it enables a special super soil?
+                set_cell_tile_at(options, &mut biome.world, x, y, Tile::Soil);
+              }
+              set_cell_tile_value_at(options, &mut biome.world, x, y, 0);
+              set_cell_pickup_at(options, &mut biome.world, x, y, Pickup::Nothing);
+              set_cell_pickup_value_at(options, &mut biome.world, x, y, 0);
+            }
+          }
+        }
+      }
+
+      // Do not move the miner, just turn it. This should prevent it from going OOB.
+      return;
+    }
+  }
+
+  // let (newx, newy, fill_current_cell, fill_current_x, fill_current_y) = move_miner_xy(
+  //   options, biome, What::Miner, biome.miner.movable.x + dx, biome.miner.movable.y + dy, dx, dy
+  // );
+
+  // Do not remove an expando when moving over it.
+  // if !matches!(world.tiles[unexty][unextx].tile, Tile::ExpandoWater) {
+  match biome.world.tiles[unexty][unextx] {
+    Cell {tile: Tile::Empty, pickup: Pickup::Expando, pickup_value, ..} => {
+      // This must have been an expando that was just revealed.
+      // Set the cell to water tile and add the expando to the world so it can flow.
+      biome.world.tiles[unexty][unextx].tile = Tile::ExpandoWater;
+      biome.world.expandos.push(create_expando(nextx, nexty, pickup_value));
+    },
+    _ => {},
+  }
+  // }
+
+
+  // let building_sandcastle = biome.miner.sandrone.air_lifted; // TODO: rename
+  // let post_castle = biome.miner.sandrone.post_castle > 0;
+  // move_miner_xy(
+  //   ticks, biome.miner.movable, mslots_maybe, meta, world, options, biome.miner.movable.x + dx, biome.miner.movable.y + dy, dx, dy, &biome.miner.sandrone, building_sandcastle, post_castle,
+  //   biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+
+  let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
+
+  // If this move would go OOB, expand the world to make sure that does not happen
+
+  let mut fill_current_cell = false;
+  let mut fill_current_x = 0;
+  let mut fill_current_y = 0;
+
+  // let drills = biome.miner.meta.kind_counts[SlotKind::Drill as usize];
+  // let hammers = biome.miner.meta.kind_counts[SlotKind::Hammer as usize];
+  let tile = biome.world.tiles[unexty][unextx].tile;
+  match tile {
+    Tile::Wall4 => bump_wall_miner(options, biome, 4, nextx, nexty, deltax, deltay, unextx, unexty),
+    Tile::Wall3 => bump_wall_miner(options, biome, 3, nextx, nexty, deltax, deltay, unextx, unexty),
+    Tile::Wall2 => bump_wall_miner(options, biome, 2, nextx, nexty, deltax, deltay, unextx, unexty),
+    Tile::Wall1 => bump_wall_miner(options, biome, 1, nextx, nexty, deltax, deltay, unextx, unexty),
+
+    | Tile::Push
+    | Tile::Impassible
+    => {
+      // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
+      // not to send the movable into an infinite loop.
+      let ( tx, ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, false) ;
+
+      if biome.miner.sandrone.air_lifted && fill {
+        fill_current_cell = true;
+        fill_current_x = biome.miner.movable.x;
+        fill_current_y = biome.miner.movable.y;
+      }
+
+      // We have the new delta xy for the turn. Act accordingly. If they're 0 flip-flop. The normal rule has a reasonable chance to loop so flip-flopping is more efficient.
+      biome.miner.movable.dir = match (tx, ty) {
+        (-1, 0) => Direction::Left,
+        (1, 0) => Direction::Right,
+        (0, 1) => Direction::Down,
+        (0, -1) => Direction::Up,
+        (0, 0) => {
+          // Must check whether left or right is oob. If so, force the other way.
+          // Check for oobs. Prevents annoying flip-flop patterns for one-way-streets
+          if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+            // Do not turn this way. Turn the other way.
+            // Turn clockwise
+            match biome.miner.movable.dir {
+              Direction::Up => Direction::Right,
+              Direction::Right => Direction::Down,
+              Direction::Down => Direction::Left,
+              Direction::Left => Direction::Up,
+            }
+          } else if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+            // Do not turn this way, turn the other way
+            // Turn counter-clockwise
+            match biome.miner.movable.dir {
+              Direction::Up => Direction::Left,
+              Direction::Right => Direction::Up,
+              Direction::Down => Direction::Right,
+              Direction::Left => Direction::Down,
+            }
+          } else {
+            let v = get_cell_tile_value_at(options, &biome.world, biome.miner.movable.x, biome.miner.movable.y, );
+            set_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, if v == 1 { 0 } else { 1 });
+
+            match biome.miner.movable.dir {
+              Direction::Up => if v == 1 { Direction::Left } else { Direction::Right },
+              Direction::Right => if v == 1 { Direction::Up } else { Direction::Down },
+              Direction::Down => if v == 1 { Direction::Right } else { Direction::Left },
+              Direction::Left => if v == 1 { Direction::Down } else { Direction::Up },
+            }
+          }
+        },
+        _ => panic!("This delta should not be possible {},{}", tx, ty),
+      };
+
+      //biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost;
+    }
+
+    // The rest is considered an empty or at least passable tile
+    | Tile::Fountain
+    | Tile::Soil
+    | Tile::ZeroZero
+    | Tile::TenLine
+    | Tile::HideWorld
+    | Tile::Test2
+    | Tile::Test3
+    | Tile::Empty
+    | Tile::ExpandoWater
+    => {
+      if biome.miner.sandrone.air_lifted {
+        let blocked_back = matches!(get_cell_tile_at(options, &biome.world, biome.miner.movable.x + -deltax, biome.miner.movable.y + -deltay), Tile::Push | Tile::Impassible);
+        if blocked_back {
+          let ( _tx, _ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, true) ;
+          if fill {
+            fill_current_cell = true;
+            fill_current_x = biome.miner.movable.x;
+            fill_current_y = biome.miner.movable.y;
+          }
+        }
+      }
+
+      was_boring = move_miner_pickup_from_empty_tile(options, biome, unextx, unexty);
+      biome.miner.movable.x = nextx;
+      biome.miner.movable.y = nexty;
+    },
+  }
+
+  if biome.miner.movable.now_energy < 0.0 {
+    biome.miner.movable.now_energy = 0.0;
+  }
+
+  // return (fill_current_cell, fill_current_x, fill_current_y);
+
+  // biome.miner.movable.x = newx;
+  // biome.miner.movable.x = newy;
+
+  // Allow to fill if it's not the top castle cell at x=0
+  if fill_current_cell && (fill_current_x != 0 || fill_current_y - 1 >= biome.miner.sandrone.expansion_min_y) {
+    set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
+    biome.miner.sandrone.impassable_tiles.push((fill_current_x, fill_current_y));
+  }
+
+  // Cannot be in an infinite loop while building the sand castle
+  if was_boring && !biome.miner.sandrone.air_lifted /*&& !post_castle*/ {
+    // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
+    biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.boredom_level as f32;
+    // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
+    biome.miner.meta.boredom_level = biome.miner.meta.boredom_level + 1;
+  } else {
+    biome.miner.meta.boredom_level = 0;
+  }
+}
+
+pub fn bump_wall_miner(options: &mut Options, biome: &mut Biome, strength: i32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize) {
+  let cell = &mut biome.world.tiles[unexty][unextx];
+
+  let hammers = biome.miner.meta.kind_counts[SlotKind::Hammer as usize];
+  let drills = biome.miner.meta.kind_counts[SlotKind::Drill as usize];
+
+  let n = strength - (1 + hammers);
+
+  biome.world.tiles[unexty][unextx] = match n.max(0) {
+    3 => create_unvisited_cell(Tile::Wall3, cell.pickup, cell.tile_value, cell.pickup_value),
+    2 => create_unvisited_cell(Tile::Wall2, cell.pickup, cell.tile_value, cell.pickup_value),
+    1 => create_unvisited_cell(Tile::Wall1, cell.pickup, cell.tile_value, cell.pickup_value),
+    0 => create_unvisited_cell(Tile::Empty, cell.pickup, cell.tile_value, cell.pickup_value),
+    // always at least -1
+    _ => panic!("A bump should always at least decrease the wall by one so it can never stay 4: {}", n),
+  };
+  if n <= 0 {
+    // Broke a wall. Add sand.
+    // TODO: what about the drill? What about bonuses? Should it be u32 or f32?
+    biome.miner.meta.inventory.sand += 1;
+  }
+
+  if drills > 0 {
+    drill_deeper(drills, hammers, nextx, nexty, deltax, deltay, &mut biome.world, options);
+  }
+  biome.miner.meta.prev_move_bumped = true;
+
+  biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost;
+  // TODO: should drones use same "prefer visited tiles" heuristic as miner?
+  biome.miner.movable.dir = get_most_visited_dir_from_xydir(options, &mut biome.world, nextx, nexty, biome.miner.movable.dir);
+}
+
+pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, unextx: usize, unexty: usize) -> bool {
+  match biome.world.tiles[unexty][unextx].pickup {
+    Pickup::Diamond => {
+      let mut primed = 0;
+      // Do we have any purity scanners primed? Bump the value by that many.
+      // Note: purity scanner only works for the miner itself.
+      for n in &mut biome.miner.slots {
+        if matches!(n.kind, SlotKind::PurityScanner) && n.cur_cooldown >= n.max_cooldown {
+          primed += 1;
+        }
+      }
+
+      // Different gems with different points.
+      // Miners could have properties or powerups to affect this, too.
+      let gv: i32 = (biome.world.tiles[unexty][unextx].pickup_value + primed).min(3) as i32;
+      match gv {
+        0 => biome.miner.meta.inventory.diamond_white += 1,
+        1 => biome.miner.meta.inventory.diamond_green += 1,
+        2 => biome.miner.meta.inventory.diamond_blue += 1,
+        3 => biome.miner.meta.inventory.diamond_yellow += 1,
+        _ => panic!("what value did this diamond have: {:?}", biome.world.tiles[unexty][unextx]),
+      };
+      let gem_value: i32 = gv + 1;
+
+      if biome.miner.movable.what == WHAT_MINER {
+        biome.miner.meta.points_last_move = gem_value;
+        biome.world.tiles[unexty][unextx].visited += 1;
+      }
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited);
+    },
+    Pickup::Energy => {
+      biome.miner.movable.now_energy = biome.miner.movable.now_energy + (E_VALUE as f64 * ((100.0 + biome.miner.meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
+      if biome.miner.movable.now_energy > biome.miner.meta.max_energy {
+        biome.miner.movable.now_energy = biome.miner.meta.max_energy;
+        biome.world.tiles[unexty][unextx].visited += 1;
+      }
+      biome.miner.meta.inventory.energy += 1;
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited);
+    },
+    Pickup::Stone => {
+      // Do we have any purity scanners primed? Bump the value by that many.
+      // Note: purity scanner only works for the miner itself. For drones, slots is empty
+      let mut primed = 0;
+      for n in &mut biome.miner.slots {
+        match n.kind {
+          SlotKind::PurityScanner => if n.cur_cooldown >= n.max_cooldown {
+            primed += 1;
+          },
+          _ => ()
+        }
+      }
+
+      // println!("picking up a stone, value: {}, primed: {}", value, primed);
+
+      match (biome.world.tiles[unexty][unextx].pickup_value + primed).min(3) {
+        0 => biome.miner.meta.inventory.stone_white += 1,
+        1 => biome.miner.meta.inventory.stone_green += 1,
+        2 => biome.miner.meta.inventory.stone_blue += 1,
+        3 => biome.miner.meta.inventory.stone_yellow += 1,
+        _ => panic!("what value did this stone have: {:?}", biome.world.tiles[unexty][unextx]),
+      }
+      biome.miner.meta.points_last_move = biome.world.tiles[unexty][unextx].pickup_value as i32;
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+    },
+    Pickup::Wind => {
+      biome.miner.meta.inventory.wind += 1;
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+    },
+    Pickup::Water => {
+      biome.miner.meta.inventory.water += 1;
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+    },
+    Pickup::Wood => {
+      biome.miner.meta.inventory.wood += 1;
+      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+    },
+    | Pickup::Nothing
+    | Pickup::Expando // Ignore, fake pickup
+    | Pickup::Fountain // Ignore, fake pickup... TODO: probably some special behavior?
+    => {
+      // Ignore "pickup"
+      biome.world.tiles[unexty][unextx].visited += 1;
+      return true; // "boring"
+    },
+  }
+
+  // Was not boring
+  return false; // "not boring"
 }

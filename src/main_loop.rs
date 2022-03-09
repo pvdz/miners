@@ -1,8 +1,3 @@
-use super::slot_broken_gps::*;
-use super::slot_purity_scanner::*;
-use super::slottable::*;
-use super::movable::*;
-use super::miner::*;
 use super::world::*;
 use super::biome::*;
 use super::helix::*;
@@ -10,12 +5,6 @@ use super::options::*;
 use super::app_state::*;
 use super::inventory::*;
 use super::{bridge};
-use super::drone_win::*;
-use super::drone_san::*;
-use super::drone_me::*;
-use super::slot_energy_cell::*;
-use super::slot_drone_launcher::*;
-use super::slot_jacks_compass::*;
 
 use std::collections::HashMap;
 
@@ -49,17 +38,18 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
   let mut next_root_helix = *curr_root_helix;
 
   if !state.reset {
-    let points = get_points(&biomes[0].miner.meta.inventory);
-    let inv = clone_inventory(&biomes[0].miner.meta.inventory);
+    let points = get_points(&biomes[options.visible_index].miner.meta.inventory);
+    let inv = clone_inventory(&biomes[options.visible_index].miner.meta.inventory);
     let mut winner: (Helix, u64, &World, usize, usize, Inventory) = (
-      biomes[0].miner.helix,
+      biomes[options.visible_index].miner.helix,
       points as u64,
-      &biomes[0].world,
-      biomes[0].miner.movable.history.len(),
-      biomes[0].miner.movable.unique.len(),
+      &biomes[options.visible_index].world,
+      0,
+      0,
       inv,
     );
 
+    // Find best biome
     for m in 1..biomes.len() { // 1 because zero is used as init above
       let biome: &Biome = &biomes[m];
       let points = get_points(&biome.miner.meta.inventory) as u64;
@@ -69,8 +59,8 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
           biome.miner.helix,
           points,
           &biome.world,
-          biome.miner.movable.history.len(),
-          biome.miner.movable.unique.len(),
+          0,
+          0,
           inv,
         )
       }
@@ -81,8 +71,8 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
         let biome: &Biome = &biomes[m];
         let points = get_points(&biome.miner.meta.inventory) as u64;
         println!(
-          "- Biome {: <2}: Points: {: <6} Steps: {: <5} Unique: {: <5} [{: >4}x{: <4} , {: >4}x{: <4}] :: {}{: <100}",
-          m, points, biome.miner.movable.history.len(), biome.miner.movable.unique.len(),
+          "- Biome {: <2}: Points: {: <6} [{: >4}x{: <4} , {: >4}x{: <4}] :: {}{: <100}",
+          m, points,
           biome.world.min_x, biome.world.min_y, biome.world.max_x, biome.world.max_y,
           biome.miner.helix,
           ' '
@@ -174,99 +164,18 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
   state.has_energy = false;
   for m in 0..biomes.len() {
     let biome = &mut biomes[m];
-    if biome.miner.movable.now_energy > 0.0 {
-      let miner_disabled = biome.miner.movable.disabled;
-      biome.ticks += 1;
-      let ticks = biome.ticks;
-      state.stats_total_biome_ticks += 1;
-
-      let first_miner = m == 0;
-
-      let mminermovable: &mut Movable = &mut biome.miner.movable;
-      let mslots: &mut MinerSlots = &mut biome.miner.slots;
-      let mmeta: &mut MinerMeta = &mut biome.miner.meta;
-      let mwindrone: &mut Windrone = &mut biome.miner.windrone;
-      let msandrone: &mut Sandrone = &mut biome.miner.sandrone;
-      let mdrones: &mut Vec<MeDrone> = &mut biome.miner.drones;
-      let mworld: &mut World = &mut biome.world;
-
-      tick_world(mworld, &options, msandrone);
-      if !miner_disabled {
-        tick_miner(mminermovable, mmeta, mslots, mwindrone, msandrone);
-      }
-
-      let post_castle = msandrone.post_castle > 0;
-      if msandrone.air_lifting {
-        // Do not "move" the miner. It is being moved by the sandrone.
-      } else if msandrone.air_lifted {
-        // The magic castle wall is enabled
-        let magic_min_x = msandrone.expansion_min_x;
-        let magic_min_y = msandrone.expansion_min_y;
-        let magic_max_x = msandrone.expansion_max_x;
-        let magic_max_y = msandrone.expansion_max_y;
-
-        move_movable(ticks, mminermovable, mslots, mmeta, mworld, options, Some(msandrone), true, post_castle, magic_min_x, magic_min_y, magic_max_x, magic_max_y);
-      } else {
-        // No magic castle wall
-        move_movable(ticks, mminermovable, mslots, mmeta, mworld, options, None, false, post_castle, 0, 0, 0, 0);
-      }
-
-      for i in 0..mslots.len() {
-        let slot: &mut Slottable = &mut biome.miner.slots[i];
-        match slot.kind {
-          SlotKind::BrokenGps => tick_slot_broken_gps(slot, mminermovable, first_miner),
-          SlotKind::DroneLauncher => tick_slot_drone_launcher(ticks, slot, mminermovable, mdrones, mmeta, mworld, options, first_miner),
-          SlotKind::Drill => (), // noop
-          SlotKind::Emptiness => (), // noop
-          SlotKind::EnergyCell => tick_slot_energy_cell(slot, mminermovable, mmeta, mworld, options, first_miner),
-          SlotKind::Hammer => (), // noop
-          SlotKind::JacksCompass => tick_slot_jacks_compass(slot, mminermovable, first_miner, mworld, options),
-          SlotKind::PurityScanner => tick_slot_purity_scanner(slot, mmeta, first_miner),
-          SlotKind::Windrone => tick_windrone(slot, &mut biome.miner.windrone, mminermovable.x, mminermovable.y, mmeta.inventory.wind, mworld, options, m),
-          SlotKind::Sandrone => tick_sandrone(&mut biome.miner.sandrone, mminermovable, mmeta, mworld, options, m),
-        }
-      }
-
-      // Does this miner still have energy left?
-      if biome.miner.movable.now_energy > 0.0 {
-        state.has_energy = true;
-      } else {
-        // This miner stopped now
-
-        // Note: this generates super verbose strings (every pair is an array, every array is spread over four lines). Something to optimize later.
-        // let trail: String = serde_json::to_string_pretty(&biome.miner.movable.unique).unwrap();
-        let mut trail: String = String::new();
-
-        for (i, (x, y)) in biome.miner.movable.unique.iter().enumerate() {
-          if i == 0 {
-            let s = format!("{} {}", x, y);
-            trail.push_str(s.as_str());
-          } else {
-            let s = format!(" {} {}", x, y);
-            trail.push_str(s.as_str());
-          }
-        }
-
-        let cur_points = get_points(&biome.miner.meta.inventory);
-        let has_trail: bool = hmap.contains_key(&cur_points);
-        if !has_trail {
-          hmap.insert(cur_points, (cur_points, biome.miner.movable.unique.len(), helix_serialize(&biome.miner.helix)));
-          bridge::log(format!("This miner was new! Score: {} points in {} steps. Map now contains {} trails.", cur_points, biome.miner.movable.history.len(), hmap.len()).as_str());
-          state.trail_lens += biome.miner.movable.unique.len() as u64;
-        }
-      }
-    }
+    tick_biome(options, state, biome, hmap);
   }
 
   // Stop drawing the world when the main miner is out of energy. Speed things up visually.
   let dur_sec = bridge::date_now() - state.start_time;
-  if options.visual && biomes[0].miner.movable.now_energy > 0.0 {
+  if options.visual && biomes[options.visible_index].miner.movable.now_energy > 0.0 {
     options.frames_now += 1;
     if options.frames_now > options.frame_skip {
       options.frames_now = 0;
 
       let table_str: String = serialize_world(
-        &biomes[0].world,
+        &biomes[options.visible_index].world,
         &biomes,
         options,
         state,

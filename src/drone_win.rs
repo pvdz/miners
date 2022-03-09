@@ -1,9 +1,10 @@
 use super::movable::*;
-use crate::fountain::*;
-use crate::tile::*;
-use crate::options::*;
-use crate::pickup::*;
-use crate::world::*;
+use super::fountain::*;
+use super::tile::*;
+use super::options::*;
+use super::pickup::*;
+use super::world::*;
+use super::biome::*;
 use super::slottable::*;
 use super::expando::*;
 use super::values::*;
@@ -48,15 +49,13 @@ pub fn create_windrone() -> Windrone {
       dir: Direction::Up,
       now_energy: 0.0,
       init_energy: 0.0,
-      history: vec!((0,0)),
-      unique: vec!((0,0)),
       disabled: false,
     }
   }
 }
 
-pub fn set_windrone_state(windrone: &mut Windrone, state: WindroneState) {
-  windrone.status_desc = match state {
+pub fn set_windrone_state(biome: &mut Biome, state: WindroneState) {
+  biome.miner.windrone.status_desc = match state {
     WindroneState::Unconstructed => panic!("A windrone does not deconstruct"),
     WindroneState::WaitingForWind => format!("Waiting for enough wind to take off..."),
     WindroneState::WaitingForGoal => format!("Waiting for expando to move to..."),
@@ -65,7 +64,7 @@ pub fn set_windrone_state(windrone: &mut Windrone, state: WindroneState) {
     WindroneState::FlyingHome => format!("Finished at expando. Flying back to miner..."),
     WindroneState::ReturnedHome => format!("Returned to miner"),
   };
-  windrone.state = state;
+  biome.miner.windrone.state = state;
 }
 
 fn find_closest_expando(expandos: &Vec<Expando>, bx: f64, by: f64) -> (bool, usize, i32, i32, f64) {
@@ -151,23 +150,23 @@ fn find_closest_fountain(fountains: &Vec<Fountain>, bx: f64, by: f64, mut found:
   return (found, closest_i, closest_x, closest_y, closest_d);
 }
 
-pub fn tick_windrone(windrone_slot: &mut Slottable, windrone: &mut Windrone, mx: i32, my: i32, wind: u32, world: &mut World, options: &Options, biome_index: usize) {
-  match windrone.state {
+pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+  match biome.miner.windrone.state {
     WindroneState::Unconstructed => {
 
     }
     WindroneState::WaitingForWind => {
-      if wind >= 10 {
-        set_windrone_state(windrone, WindroneState::WaitingForGoal);
+      if biome.miner.meta.inventory.wind >= 10 {
+        set_windrone_state(biome, WindroneState::WaitingForGoal);
       }
     }
     WindroneState::WaitingForGoal => {
-      if world.expandos.len() > 0 {
+      if biome.world.expandos.len() > 0 {
         // Get it up in the air!
-        set_windrone_state(windrone, WindroneState::ReadyForTakeOff);
-        windrone_slot.val = 1.0;
-        windrone.movable.x = mx;
-        windrone.movable.y = my;
+        set_windrone_state(biome, WindroneState::ReadyForTakeOff);
+        biome.miner.slots[slot_index].val = 1.0;
+        biome.miner.windrone.movable.x = biome.miner.movable.x;
+        biome.miner.windrone.movable.y = biome.miner.movable.y;
       }
     }
     WindroneState::ReadyForTakeOff => {
@@ -185,32 +184,32 @@ pub fn tick_windrone(windrone_slot: &mut Slottable, windrone: &mut Windrone, mx:
       // let mut closest_x = expandos[0].x;
       // let mut closest_y = expandos[0].y;
 
-      let bx = windrone.movable.x;
-      let by = windrone.movable.y;
+      let bx = biome.miner.windrone.movable.x;
+      let by = biome.miner.windrone.movable.y;
       let bfx = bx as f64;
       let bfy = by as f64;
-      let (found, closest_i, closest_x, closest_y, closest_d) = find_closest_expando(&world.expandos, bfx, bfy);
-      let (found, closest_i, closest_x, closest_y, _closest_d) = find_closest_fountain(&world.fountains, bfx, bfy, found, closest_i, closest_x, closest_y, closest_d);
+      let (found, closest_i, closest_x, closest_y, closest_d) = find_closest_expando(&biome.world.expandos, bfx, bfy);
+      let (found, closest_i, closest_x, closest_y, _closest_d) = find_closest_fountain(&biome.world.fountains, bfx, bfy, found, closest_i, closest_x, closest_y, closest_d);
 
-      if found && move_windrone_towards(windrone, closest_x, closest_y, biome_index, ) {
+      if found && move_windrone_towards(&mut biome.miner.windrone, closest_x, closest_y, ) {
         // Windrone reached the expando. Replace it.
 
         // Disable the windrone. No longer flying.
-        set_windrone_state(windrone, WindroneState::FlyingHome);
+        set_windrone_state(biome, WindroneState::FlyingHome);
 
         // Check whether the windrone is on a targeted tile right now
         if bx == closest_x && by == closest_y {
           // Check the kind of cell
-          let cell = get_cell_stuff_at(options, world, closest_x, closest_y);
+          let cell = get_cell_stuff_at(options, &biome.world, closest_x, closest_y);
           match cell {
             (_, Pickup::Fountain, pickup_value, ..) => {
               // let mut found = 0;
               // The cell pickup value should reflect the index of the fountain.
               // Convert all water pickups, return that as a number
-              for (wx, wy) in world.fountains[pickup_value as usize].water_tiles.to_owned().iter() {
-                let stuff = get_cell_stuff_at(options, world, *wx, *wy);
+              for (wx, wy) in biome.world.fountains[pickup_value as usize].water_tiles.to_owned().iter() {
+                let stuff = get_cell_stuff_at(options, &biome.world, *wx, *wy);
                 if matches!(stuff.1, Pickup::Water) {
-                  set_cell_pickup_at(options, world, *wx, *wy, Pickup::Nothing);
+                  set_cell_pickup_at(options, &mut biome.world, *wx, *wy, Pickup::Nothing);
                   // found += 1;
                   // break;
                 }
@@ -218,26 +217,27 @@ pub fn tick_windrone(windrone_slot: &mut Slottable, windrone: &mut Windrone, mx:
             },
             (Tile::ExpandoWater, ..) => {
               // Pop the element and swap it with the closest (if not already last). This will drop closest.
-              let last = world.expandos.pop();
-              if closest_i != world.expandos.len() {
+              let last = biome.world.expandos.pop();
+              if closest_i != biome.world.expandos.len() {
                 // We know there must be at least two expandos since the closest one wasn't last on the list.
-                world.expandos[closest_i] = match last {
+                biome.world.expandos[closest_i] = match last {
                   Some(expando) => expando,
                   None => panic!("{:?}", assert!(false, "cannot happen")),
                 };
               }
 
-              let new_fountain_index = world.fountains.len();
+              let new_fountain_index = biome.world.fountains.len();
 
               // Add the replacement to the world. Working title is "fountain". Set its value to the index. Clear the tile.
-              set_cell_pickup_at(options, world, windrone.movable.x, windrone.movable.y, Pickup::Fountain);
-              set_cell_pickup_value_at(options, world, windrone.movable.x, windrone.movable.y, new_fountain_index as u32); // This will break if we ever start popping/shuffling the fountains vec
-              set_cell_tile_at(options, world, windrone.movable.x, windrone.movable.y, Tile::Empty);
-              set_cell_tile_value_at(options, world, windrone.movable.x, windrone.movable.y, 0);
+              set_cell_pickup_at(options, &mut biome.world, biome.miner.windrone.movable.x, biome.miner.windrone.movable.y, Pickup::Fountain);
+              set_cell_pickup_value_at(options, &mut biome.world, biome.miner.windrone.movable.x, biome.miner.windrone.movable.y, new_fountain_index as u32); // This will break if we ever start popping/shuffling the fountains vec
+              set_cell_tile_at(options, &mut biome.world, biome.miner.windrone.movable.x, biome.miner.windrone.movable.y, Tile::Empty);
+              set_cell_tile_value_at(options, &mut biome.world, biome.miner.windrone.movable.x, biome.miner.windrone.movable.y, 0);
 
               // Add a fountain for this coord into the vec for this world
               // And it will start doing stuff...
-              world.fountains.push(create_fountain(windrone.movable.x, windrone.movable.y, world, options));
+              let fountain = create_fountain(options, biome);
+              biome.world.fountains.push(fountain);
             },
             _ => panic!("Expected to be at a particular cell of interest ... {:?}", cell),
           }
@@ -247,9 +247,9 @@ pub fn tick_windrone(windrone_slot: &mut Slottable, windrone: &mut Windrone, mx:
     WindroneState::FlyingHome => {
       // println!("homing back from {},{} to {},{}", windrone.movable.x, windrone.movable.y, mx, my);
       // Fly back to the miner. Stop flying as soon as you hit the same coord (or next to it?).
-      if move_windrone_towards(windrone, mx, my, biome_index) {
-        windrone.state = WindroneState::ReturnedHome;
-        windrone.status_desc = format!("Idle. Waiting for enough wind...");
+      if move_windrone_towards(&mut biome.miner.windrone, biome.miner.movable.x, biome.miner.movable.y) {
+        biome.miner.windrone.state = WindroneState::ReturnedHome;
+        biome.miner.windrone.status_desc = format!("Idle. Waiting for enough wind...");
       }
     }
     WindroneState::ReturnedHome => {
@@ -262,7 +262,7 @@ pub fn ui_windrone(sandrone: &Windrone, options: &Options) -> String {
   return add_fg_color_with_reset(&format!("{}", ICON_WINDRONE), COLOR_WIND, options);
 }
 
-fn move_windrone_towards(windrone: &mut Windrone, to_x: i32, to_y: i32, _biome_index: usize) -> bool {
+fn move_windrone_towards(windrone: &mut Windrone, to_x: i32, to_y: i32) -> bool {
   let bx = windrone.movable.x;
   let by = windrone.movable.y;
 

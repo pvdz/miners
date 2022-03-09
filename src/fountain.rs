@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
-use crate::tile::*;
-use crate::options::*;
-use crate::world::*;
-use crate::pickup::*;
+use super::tile::*;
+use super::biome::*;
+use super::options::*;
+use super::world::*;
+use super::pickup::*;
 
 #[derive(Debug)]
 pub struct Fountain {
@@ -14,9 +15,15 @@ pub struct Fountain {
   pub disabled: bool,
 }
 
-pub fn create_fountain(x: i32, y: i32, world: &World, options: &Options) -> Fountain {
+pub fn create_fountain(
+  options: &mut Options, biome: &mut Biome
+  // biome.miner.windrone.movable.x, biome.miner.windrone.movable.y, &mut biome.world, options
+  // x: i32, y: i32, world: &World, options: &Options
+) -> Fountain {
+  let x = biome.miner.windrone.movable.x;
+  let y = biome.miner.windrone.movable.y;
   let mut set: HashSet<(i32, i32)> = HashSet::new();
-  collect_connected_water_coords(x, y, world, options, &mut set);
+  collect_connected_water_coords(x, y, &mut biome.world, options, &mut set);
 
   return Fountain {
     x,

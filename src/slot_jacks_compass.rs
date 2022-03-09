@@ -1,4 +1,5 @@
 use crate::pickup::*;
+use crate::biome::*;
 use super::utils::*;
 use super::movable::*;
 use super::slottable::*;
@@ -27,7 +28,9 @@ pub fn create_slot_jacks_compass(slot_index: usize, nth: i32, max_cooldown: f32)
   };
 }
 
-pub fn tick_slot_jacks_compass(slot: &mut Slottable, miner_movable: &mut Movable, _first_miner: bool, world: &World, options: &Options) {
+pub fn tick_slot_jacks_compass(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+  let slot: &mut Slottable = &mut biome.miner.slots[slot_index];
+
   if slot.cur_cooldown < slot.max_cooldown {
     slot.cur_cooldown += 1.0;
   } else {
@@ -37,15 +40,15 @@ pub fn tick_slot_jacks_compass(slot: &mut Slottable, miner_movable: &mut Movable
     // Search in an increasing radius up to 4x4 for the most valuable resource and face that way
     // If nothing is found, nothing happens. Targets the nearest, most valuable resource.
 
-    let mx = miner_movable.x;
-    let my = miner_movable.y;
+    let mx = biome.miner.movable.x;
+    let my = biome.miner.movable.y;
 
     let mut highest = 0;
     let mut tox = 0;
     let mut toy = 0;
     for y in my - 2..my + 2 {
       for x in mx - 2..mx + 2 {
-        let pickup = get_cell_stuff_at(options, world, x, y).1;
+        let pickup = get_cell_stuff_at(options, &biome.world, x, y).1;
         let prio = pickup_to_priority(pickup);
         if prio > highest {
           highest = prio;
@@ -61,7 +64,7 @@ pub fn tick_slot_jacks_compass(slot: &mut Slottable, miner_movable: &mut Movable
       slot.sum += 1.0;
       slot.val = highest as f32;
 
-      miner_movable.dir =
+      biome.miner.movable.dir =
         if (mx - tox).abs() < (my - toy).abs() {
           if tox < mx {
             Direction::Left

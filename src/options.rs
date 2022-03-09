@@ -39,6 +39,8 @@ pub struct Options {
   // Show the miner in all other biomes in the map as well? Confusing but fun? :)
   pub show_biomes: bool,
 
+  pub visible_index: usize, // Which biome are we painting?
+
   // Debugging
   pub paint_ten_lines: bool,
   // Draw grids at every 10th line/col
@@ -86,6 +88,7 @@ pub fn parse_cli_args() -> Options {
     html_mode: false,
 
     show_biomes: true,
+    visible_index: 0,
 
     // Debug
     paint_ten_lines: false,
