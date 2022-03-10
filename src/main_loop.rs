@@ -24,7 +24,6 @@ pub fn pre_ga_loop(options: &mut Options, state: &mut AppState, curr_root_helix:
 
   // Move it move it
   state.batch_loops = 0; // How many iterations for the current GA step
-  state.has_energy = true; // As long as any miner in the current cycle has energy left...
 
   return biomes;
 }
@@ -120,7 +119,7 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
     println!(
       "Hash Map has {} nodes with average trail len of {}. Ticks/s: {}",
       hmap.len(),
-      state.trail_lens / hmap.len() as u64,
+      if hmap.len() == 0 { 0 } else { state.trail_lens / hmap.len() as u64 },
       state.stats_last_ticks_sec
     );
 
@@ -161,7 +160,6 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
   state.batch_loops += 1;
 
   // Tick the biomes
-  state.has_energy = false;
   for m in 0..biomes.len() {
     let biome = &mut biomes[m];
     tick_biome(options, state, biome, hmap);

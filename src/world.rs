@@ -219,7 +219,7 @@ pub fn tick_world(options: &mut Options, state: &mut AppState, biome: &mut Biome
     tick_fountain(n, &mut biome.world, options);
   }
 
-  // Roll the castle
+  // Game of life the castle
   if false && biome.miner.sandrone.post_castle > 0 {
     // Figure out the rectangle and CA them
     let magic_min_x = biome.miner.sandrone.expansion_min_x;
@@ -358,7 +358,7 @@ fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewpo
 }
 
 fn paint_biome_actors(biome: &Biome, options: &Options, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
-  if biome.index == 0 {
+  if biome.index == options.visible_index {
     // Paint the drones first. This way the miner goes on top in case of overlap.
     for drone in &biome.miner.drones {
       if drone.movable.now_energy == 0.0 {
@@ -398,7 +398,7 @@ fn paint_biome_actors(biome: &Biome, options: &Options, view: &mut Vec<Vec<Strin
         _ => "@@".to_string(),
       }
     } else {
-      if biome.index == 0 {
+      if biome.index == options.visible_index {
         add_fg_color_with_reset(
           &format!("{} ", match biome.miner.movable.dir {
             Direction::Up => ICON_MINER_UP,
@@ -701,7 +701,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   view[2].push(format!(" {: <150}", best_miner_str));
   view[3].push(format!(" {: <150}", hmap_str));
   view[4].push(std::iter::repeat(' ').take(150).collect::<String>());
-  view[5].push(format!(" Miner; {: <150}", ' '));
+  view[5].push(format!(" Miner {}; {: <150}", options.visible_index, ' '));
   view[6].push(std::iter::repeat(' ').take(143).collect::<String>());
   view[7].push(format!("   {: <150}", biomes[options.visible_index].miner.helix));
   view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Energy {: <10}", biomes[options.visible_index].miner.movable.x, biomes[options.visible_index].miner.movable.y, progress_bar(30, biomes[options.visible_index].miner.movable.now_energy, biomes[options.visible_index].miner.movable.init_energy, true), get_points(&biomes[options.visible_index].miner.meta.inventory), biomes[options.visible_index].miner.movable.now_energy.round()).to_string());

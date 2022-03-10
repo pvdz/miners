@@ -393,22 +393,32 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
   let unextx = (biome.world.min_x.abs() + nextx) as usize;
   let unexty = (biome.world.min_y.abs() + nexty) as usize;
 
-  let mut fill_current_cell = false;
-  let mut fill_current_x = 0;
-  let mut fill_current_y = 0;
+  // Do not remove an expando when moving over it.
+  match biome.world.tiles[unexty][unextx] {
+    Cell {tile: Tile::Empty, pickup: Pickup::Expando, pickup_value, ..} => {
+      // This must have been an expando that was just revealed. TODO: prevent this case..? :)
+      // Set the cell to water tile and add the expando to the world so it can flow.
+      biome.world.tiles[unexty][unextx].tile = Tile::ExpandoWater;
+      biome.world.expandos.push(create_expando(nextx, nexty, pickup_value));
+    },
+    _ => {},
+  }
 
-  if biome.miner.sandrone.air_lifted { // TODO: rename
-    // If at least one corner is non-zero then assume the ring is active and the miner cannot escape it
-    if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
-      // Mark to be filled
-      fill_current_cell = true;
-      fill_current_x = biome.miner.movable.x;
-      fill_current_y = biome.miner.movable.y;
-    }
-
+  if biome.miner.sandrone.air_lifted { // TODO: rename to "filling castle" or "magic wall up" or whatever
+    // If the miner would move OOB then apply special move logic
     if oob(nextx, nexty, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
       // The miner is about to step OOB. Force it to turn.
-      // println!("Forcing miner to turn away from the magic ring.");
+
+      // The current cell can be filled in some cases, except when it's already the last seen exit tile.
+      if biome.miner.movable.x == biome.miner.sandrone.last_empty_castle_exit_x && biome.miner.movable.y == biome.miner.sandrone.last_empty_castle_exit_y {
+        // Do nothing. Must keep at least one exit tile.
+      } else if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+        set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
+      } else {
+        // This is the new "last seen unfilled exit tile"
+        biome.miner.sandrone.last_empty_castle_exit_x = biome.miner.movable.x;
+        biome.miner.sandrone.last_empty_castle_exit_y = biome.miner.movable.y;
+      }
 
       // So forward is blocked because it's OOB of the magic castle wall. Check which of
       // the other three directions are available. Prefer left or right and otherwise turn
@@ -436,21 +446,13 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
           // Turn around
           biome.miner.movable.dir = turn_back(biome.miner.movable.dir);
         } else {
-          // println!("stuck now...");
-
-          fill_current_cell = true;
-          fill_current_x = biome.miner.movable.x;
-          fill_current_y = biome.miner.movable.y;
-
-          set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
-
-          // options.return_to_move = true;
+          // Last cell? Assume we are finished. Fill it and destroy the magic wall.
           options.visual = true;
-
+          set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
           biome.miner.sandrone.post_castle = biome.ticks;
           biome.miner.sandrone.air_lifted = false;
 
-          // Change tiles for the grid. Reset values and everything.
+          // Change tiles for the entire castle grid. Reset values and everything.
           // Special case the stuck drones?
           for y in biome.miner.sandrone.expansion_min_y..biome.miner.sandrone.expansion_max_y+1 {
             for x in biome.miner.sandrone.expansion_min_x..biome.miner.sandrone.expansion_max_x+1 {
@@ -472,37 +474,11 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     }
   }
 
-  // let (newx, newy, fill_current_cell, fill_current_x, fill_current_y) = move_miner_xy(
-  //   options, biome, What::Miner, biome.miner.movable.x + dx, biome.miner.movable.y + dy, dx, dy
-  // );
-
-  // Do not remove an expando when moving over it.
-  // if !matches!(world.tiles[unexty][unextx].tile, Tile::ExpandoWater) {
-  match biome.world.tiles[unexty][unextx] {
-    Cell {tile: Tile::Empty, pickup: Pickup::Expando, pickup_value, ..} => {
-      // This must have been an expando that was just revealed.
-      // Set the cell to water tile and add the expando to the world so it can flow.
-      biome.world.tiles[unexty][unextx].tile = Tile::ExpandoWater;
-      biome.world.expandos.push(create_expando(nextx, nexty, pickup_value));
-    },
-    _ => {},
-  }
-  // }
-
-
-  // let building_sandcastle = biome.miner.sandrone.air_lifted; // TODO: rename
-  // let post_castle = biome.miner.sandrone.post_castle > 0;
-  // move_miner_xy(
-  //   ticks, biome.miner.movable, mslots_maybe, meta, world, options, biome.miner.movable.x + dx, biome.miner.movable.y + dy, dx, dy, &biome.miner.sandrone, building_sandcastle, post_castle,
-  //   biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
-
-  let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
-
-  // If this move would go OOB, expand the world to make sure that does not happen
-
   let mut fill_current_cell = false;
   let mut fill_current_x = 0;
   let mut fill_current_y = 0;
+
+  let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
 
   // let drills = biome.miner.meta.kind_counts[SlotKind::Drill as usize];
   // let hammers = biome.miner.meta.kind_counts[SlotKind::Hammer as usize];
@@ -604,13 +580,8 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     biome.miner.movable.now_energy = 0.0;
   }
 
-  // return (fill_current_cell, fill_current_x, fill_current_y);
-
-  // biome.miner.movable.x = newx;
-  // biome.miner.movable.x = newy;
-
-  // Allow to fill if it's not the top castle cell at x=0
-  if fill_current_cell && (fill_current_x != 0 || fill_current_y - 1 >= biome.miner.sandrone.expansion_min_y) {
+  // Allow to fill if it's not the last seen exit tile
+  if fill_current_cell && (biome.miner.movable.x != biome.miner.sandrone.last_empty_castle_exit_x || biome.miner.movable.y != biome.miner.sandrone.last_empty_castle_exit_y) {
     set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
     biome.miner.sandrone.impassable_tiles.push((fill_current_x, fill_current_y));
   }

@@ -92,16 +92,14 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
     }
 
     // Does this miner still have energy left?
-    if biome.miner.movable.now_energy > 0.0 {
-      state.has_energy = true;
-    } else {
+    if biome.miner.movable.now_energy <= 0.0 {
       // This miner stopped now
 
       let cur_points = get_points(&biome.miner.meta.inventory);
       let has_trail: bool = hmap.contains_key(&cur_points);
       if !has_trail {
         hmap.insert(cur_points, (cur_points, 0, helix_serialize(&biome.miner.helix)));
-        bridge::log(format!("This miner was new! Score: {} points. Map now contains {} trails.", cur_points, hmap.len()).as_str());
+        bridge::log(format!("Miner {} was new! Score: {} points. Map now contains {} trails.", biome.index, cur_points, hmap.len()).as_str());
       }
     }
   }

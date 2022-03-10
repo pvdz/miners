@@ -92,7 +92,7 @@ pub fn parse_cli_args() -> Options {
 
     // Debug
     paint_ten_lines: false,
-    paint_zero_zero: false,
+    paint_zero_zero: true,
     paint_empty_world: false,
     paint_miner_ids: false,
     hide_world_oob: false,

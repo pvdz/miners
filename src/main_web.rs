@@ -91,7 +91,7 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
 
   let mut ticks = 0;
 
-  while state.has_energy && !state.reset {
+  while !state.reset {
     if options.visual {
       suspend_app_till_next_frame(options, state, hmap).await;
     } else {
@@ -108,6 +108,19 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
       break;
     }
     go_iteration(options, state, &mut biomes, hmap);
+
+    let mut end = true;
+    for biome in &biomes {
+      if biome.miner.movable.now_energy > 0.0 {
+        // Switch to this biome, since it's still alive.
+        options.visible_index = biome.index;
+        end = false;
+        break;
+      }
+    }
+    if end {
+      break;
+    }
   }
 
   return post_ga_loop(options, state, biomes, curr_root_helix, hmap);

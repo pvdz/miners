@@ -73,6 +73,10 @@ pub struct Sandrone {
   last_expansion_x: i32,
   last_expansion_y: i32,
 
+  // Track seen cell exits
+  pub last_empty_castle_exit_x: i32,
+  pub last_empty_castle_exit_y: i32,
+
   // Maintain a rectangle of the size of the castle
   pub expansion_min_x: i32,
   pub expansion_min_y: i32,
@@ -115,6 +119,8 @@ pub fn create_sandrone() -> Sandrone {
     found_end: false,
     last_expansion_x: 0,
     last_expansion_y: 0,
+    last_empty_castle_exit_x: 0,
+    last_empty_castle_exit_y: 0,
     expansion_min_x: 0,
     expansion_min_y: 0,
     expansion_max_x: 0,
@@ -164,7 +170,10 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
           // println!("Shutting down the sandrone");
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-          // options.visual = true;
+          if !options.visual {
+            options.visual = true;
+            options.visible_index = biome.index;
+          }
           sandrone.air_lifting = true;
         }
 
@@ -398,6 +407,9 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         sandrone.air_lifting = false;
         sandrone.air_lifted = true;
         biome.miner.movable.disabled = false;
+        // Set the top-left corner as the initial exit tile. The exit tile is not to be filled if no other exit tiles have been seen.
+        sandrone.last_empty_castle_exit_x = sandrone.expansion_min_x;
+        sandrone.last_empty_castle_exit_y = sandrone.expansion_min_y;
 
         // println!("Return to move enabled. Press ⏎ to tick forward. Press x⏎ to exit this mode.");
         // options.return_to_move = true;
