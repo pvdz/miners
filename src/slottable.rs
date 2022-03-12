@@ -29,7 +29,8 @@ pub enum SlotKind {
     Hammer = 6,
     JacksCompass = 7,
     PurityScanner = 8,
-    Sandrone = 9,
+    RandomStart = 9,
+    Sandrone = 10,
     // Make sure to update the SLOT_COUNT!
 }
 
@@ -44,6 +45,7 @@ fn assert_size(x: &SlotKind) -> i32 {
         | SlotKind::Hammer
         | SlotKind::JacksCompass
         | SlotKind::PurityScanner
+        | SlotKind::RandomStart
         | SlotKind::Sandrone
         | SlotKind::Windrone
         => SLOT_COUNT, // Update SLOT_COUNT when this function updates
@@ -62,8 +64,10 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotKind {
         5 => SlotKind::Hammer,
         6 => SlotKind::PurityScanner,
         7 => SlotKind::JacksCompass,
+        // Must add empty slots for slotkinds that we don't want to generate (TODO: no we dont)
         8 => SlotKind::Emptiness, // SlotKind::Windrone
         9 => SlotKind::Emptiness, // SlotKind::Sandrone
+        10 => SlotKind::Emptiness, // SlotKind::RandomStart // Preventloop
         _ => panic!("wat?"),
     }
 }
@@ -78,8 +82,9 @@ pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
         SlotKind::Hammer => "h".to_string(),
         SlotKind::JacksCompass => "J".to_string(),
         SlotKind::PurityScanner => "P".to_string(),
-        SlotKind::Windrone => "B".to_string(),
+        SlotKind::RandomStart => "?".to_string(),
         SlotKind::Sandrone => "H".to_string(),
+        SlotKind::Windrone => "B".to_string(),
     };
 }
 
@@ -93,8 +98,10 @@ pub fn symbol_to_slot_type(sym: char) -> SlotKind {
         'E' => SlotKind::EnergyCell,
         'J' => SlotKind::JacksCompass,
         'P' => SlotKind::PurityScanner,
+        '?' => SlotKind::RandomStart,
         'H' => SlotKind::Sandrone,
         'B' => SlotKind::Windrone,
+        // ?: random
         _ => panic!("add me, {}", sym),
     }
 }

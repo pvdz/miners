@@ -134,9 +134,9 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
   }
 
   if state.reset {
-    let new_seed = state.instance_rng.next_u64();
+    let new_seed = state.instance_rng_seeded.next_u64();
     bridge::log(format!("New miner seed: {}", new_seed).as_str());
-    next_root_helix = create_initial_helix(&mut state.instance_rng, new_seed);
+    next_root_helix = create_initial_helix(&mut state.instance_rng_seeded, new_seed);
     state.current_miner_count = 0;
 
     // Do we reset other counters?

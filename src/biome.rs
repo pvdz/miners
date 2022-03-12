@@ -36,9 +36,10 @@ pub fn generate_biomes(options: &mut Options, state: &mut AppState, curr_root_he
       if state.load_best_as_miner_zero {
         state.load_best_as_miner_zero = false;
         println!("loading best miner into biome {}... {}", i, curr_root_helix);
-        create_miner_from_helix(curr_root_helix)
+        create_miner_from_helix(state, curr_root_helix)
       } else {
-        create_miner_from_helix(&mutate_helix(&mut state.instance_rng, curr_root_helix, &options)) // The helix will clone/copy. Can/should we prevent this?
+        let helix = mutate_helix(&mut state.instance_rng_seeded, curr_root_helix, &options);
+        create_miner_from_helix(state, &helix) // The helix will clone/copy. Can/should we prevent this?
       };
     let own_world: World = generate_world(&options);
     let biome = Biome {
@@ -48,9 +49,6 @@ pub fn generate_biomes(options: &mut Options, state: &mut AppState, curr_root_he
       miner: cur_miner,
       path: vec!(0, 0),
     };
-    // println!("====== miner ======");
-    // println!("miner slots: {:?}", &biome.miner.slots);
-    // println!("===================");
     biomes.push(biome);
   }
 
@@ -86,6 +84,7 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
         SlotKind::Hammer => (), // noop
         SlotKind::JacksCompass => tick_slot_jacks_compass(options, biome, i),
         SlotKind::PurityScanner => tick_slot_purity_scanner(options, biome, i),
+        SlotKind::RandomStart => panic!("Should not appear at runtime"),
         SlotKind::Windrone => tick_windrone(options, biome, i),
         SlotKind::Sandrone => tick_sandrone(options, biome, i),
       }

@@ -16,7 +16,10 @@ pub struct AppState {
 
   pub best_miner: (Helix, u64, usize, usize, Inventory),
   pub trail_lens: u64,
-  pub instance_rng: Lcg128Xsl64,
+  // Seeded with input seed
+  pub instance_rng_seeded: Lcg128Xsl64,
+  // Seeded from random input, so different for each app start
+  pub instance_rng_unseeded: Lcg128Xsl64,
 
   pub best_min_x: i32,
   pub best_min_y: i32,
@@ -68,13 +71,14 @@ pub struct AppState {
   pub load_best_as_miner_zero: bool,
 }
 
-pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize, Inventory), trail_lens: u64, instance_rng: Lcg128Xsl64) -> AppState {
+pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize, Inventory), trail_lens: u64, instance_rng_seeded: Lcg128Xsl64, instance_rng_unseeded: Lcg128Xsl64) -> AppState {
   return AppState {
     startup: true,
 
     best_miner,
     trail_lens,
-    instance_rng,
+    instance_rng_seeded,
+    instance_rng_unseeded,
 
     best_min_x: 0,
     best_min_y: 0,

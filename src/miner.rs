@@ -1,4 +1,5 @@
 use super::slottable::*;
+use super::app_state::*;
 use super::expando::*;
 use super::cell::*;
 use super::drone_san::*;
@@ -89,7 +90,47 @@ pub struct MinerMeta {
   //  multiplier_cooldown: i32,
 }
 
-pub fn create_miner_from_helix(helix: &Helix) -> Miner {
+
+fn create_slot(kind: SlotKind, i: usize, nth: i32, helix: &Helix, state: &mut AppState) -> Slottable {
+  match kind {
+    SlotKind::BrokenGps => {
+      return create_slot_broken_gps(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+    },
+    SlotKind::Drill => {
+      return create_drill(i, nth);
+    },
+    SlotKind::DroneLauncher => {
+      return create_drone_launcher(i, nth, i as i32, helix.drone_gen_cooldown * 2.0_f32.powf(((nth as f32 / 2.0) + 1.0) as f32));
+    },
+    SlotKind::Emptiness => {
+      return create_empty_slot(i);
+    },
+    SlotKind::EnergyCell => {
+      return create_slot_energy_cell(i, nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+    },
+    SlotKind::Hammer => {
+      return create_hammer(i, nth);
+    },
+    SlotKind::JacksCompass => {
+      return create_slot_jacks_compass(i, nth, 40.0 * 2.0_f32.powf((nth + 1) as f32));
+    }
+    SlotKind::PurityScanner => {
+      return create_slot_purity_scanner(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
+    },
+    SlotKind::Sandrone => {
+      panic!("The sandrone is not a valid starting slot");
+    }
+    SlotKind::RandomStart => {
+      let slot = get_random_slot(&mut state.instance_rng_unseeded);
+      return create_slot(slot, i, nth, helix, state);
+    }
+    SlotKind::Windrone => {
+      panic!("The windrone is not a valid starting slot");
+    }
+  }
+}
+
+pub fn create_miner_from_helix(state: &mut AppState, helix: &Helix) -> Miner {
   // Given a Helix ("footprint of a miner") return a Miner with those baseline properties
   // Note: this function receives a clone of the helix since the helix will be stored in this miner. TODO: what does the version without cloning look like?
 
@@ -135,57 +176,33 @@ pub fn create_miner_from_helix(helix: &Helix) -> Miner {
 
   let mut kind_counts: Vec<i32> = create_slot_kind_counter();
 
+  // Prematurely create 32 drones. Otherwise we'd have to either,
+  // - juggle the drones array into create_slot
+  // - put the drone onto the slot (which is impossible or equally expensive when slottable is generic)
+  // - make the drone optional, which is awkward
+  // - initialize them afterwards, conditionally
+  // The 32 objects should not be a big deal regardless so this is just easier
   let mut drones: Vec<MeDrone> = vec!();
+  for _ in 0..32 {
+    drones.push(MeDrone {
+      movable: Movable {
+        what: WHAT_DRONE,
+        x: 0,
+        y: 0,
+        dir: Direction::Up,
+        now_energy: 0.0,
+        init_energy: 0.0,
+        disabled: false,
+      },
+    });
+  }
 
+  // Initialize the slots from their helix config
   for i in 0..32 {
     let kind: SlotKind = helix.slots[i];
     let kind_usize = kind as usize;
     let nth: i32 = kind_counts[kind_usize];
-    match kind {
-      SlotKind::BrokenGps => {
-        slots[i] = create_slot_broken_gps(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
-      },
-      SlotKind::Drill => {
-        slots[i] = create_drill(i, nth);
-      },
-      SlotKind::DroneLauncher => {
-        slots[i] = create_drone_launcher(i, nth, nth, helix.drone_gen_cooldown * 2.0_f32.powf(((nth as f32 / 2.0) + 1.0) as f32));
-        drones.push(MeDrone {
-          movable: Movable {
-            what: WHAT_DRONE,
-            x: 0,
-            y: 0,
-            dir: Direction::Up,
-            now_energy: 0.0,
-            init_energy: 0.0,
-            disabled: false,
-          },
-        });
-        assert_eq!(drones.len() - 1, nth as usize, "there should be as many drones as there are drone launchers");
-      },
-      SlotKind::Emptiness => {
-        slots[i] = create_empty_slot(i);
-      },
-      SlotKind::EnergyCell => {
-        slots[i] = create_slot_energy_cell(i, nth, 100, 100.0 * 2.0_f32.powf((nth + 1) as f32));
-      },
-      SlotKind::Hammer => {
-        slots[i] = create_hammer(i, nth);
-      },
-      SlotKind::JacksCompass => {
-        slots[i] = create_slot_jacks_compass(i, nth, 40.0 * 2.0_f32.powf((nth + 1) as f32));
-      }
-      SlotKind::PurityScanner => {
-        slots[i] = create_slot_purity_scanner(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
-      },
-      SlotKind::Sandrone => {
-        panic!("The sandrone is not a valid starting slot");
-      }
-      SlotKind::Windrone => {
-        panic!("The windrone is not a valid starting slot");
-      }
-    }
-
+    slots[i] = create_slot(kind, i, nth, helix, state);
     kind_counts[kind_usize] = kind_counts[kind_usize] + 1;
   }
 

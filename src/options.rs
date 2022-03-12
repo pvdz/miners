@@ -18,25 +18,25 @@ pub struct Options {
   pub initial_miner_code: String,
   pub mutation_rate_genes: f32,
   pub mutation_rate_slots: f32,
-  pub mutate_from_best: bool,
   // Mutate a new batch from the overall best or the last winner?
-  pub reset_rate: u32,
+  pub mutate_from_best: bool,
   // Reset every this many generated miners
-  pub reset_after_noop: bool,
+  pub reset_rate: u32,
   // Only reset after that many miners did not yield a new best?
-  pub return_to_move: bool,
+  pub reset_after_noop: bool,
   // Press enter to forward a tick? Useful for debugging.
+  pub return_to_move: bool,
   pub seed: u64,
   pub speed: u64,
   pub frame_skip: u32,
   pub frames_now: u32,
   pub visual: bool,
-  pub sandrone_pickup_count: u32,
   // Sandrone will pick up miner after putting down this many push tiles
-  pub sandcastle_area_limit: u32, // Sandrone will permanently stop building the wall after the castle area is at least this big
+  pub sandrone_pickup_count: u32,
   // print the world in html rather than terminal ansi?
-  pub html_mode: bool,
+  pub sandcastle_area_limit: u32, // Sandrone will permanently stop building the wall after the castle area is at least this big
   // Show the miner in all other biomes in the map as well? Confusing but fun? :)
+  pub html_mode: bool,
   pub show_biomes: bool,
 
   pub visible_index: usize, // Which biome are we painting?
@@ -92,7 +92,7 @@ pub fn parse_cli_args() -> Options {
 
     // Debug
     paint_ten_lines: false,
-    paint_zero_zero: true,
+    paint_zero_zero: false,
     paint_empty_world: false,
     paint_miner_ids: false,
     hide_world_oob: false,

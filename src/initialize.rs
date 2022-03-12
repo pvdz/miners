@@ -44,11 +44,12 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
     println!("Loaded {} miners from disk. Most points: {}. Best helix: {}", len, best_points_from_file, best_helix_from_file);
   }
 
+  let mut seed_rng = rand::thread_rng();
+  let seed_range = Uniform::from(0..1000000);
+
   if options.seed == 0 {
     // Did not receive a seed from the CLI so generate one now. We'll print it so if we find
     // something interesting we can re-play it reliably.
-    let mut seed_rng = rand::thread_rng();
-    let seed_range = Uniform::from(0..1000000);
     options.seed = seed_range.sample(&mut seed_rng);
   }
   println!("World seed: {}", options.seed);
@@ -57,7 +58,9 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
 
   // This copy of rng is the one that is "random" for this whole run, not one epoch
   // It's seeded so are able to repro a run. The initial miner is based on it as well.
-  let mut instance_rng: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
+  let mut instance_rng_seeded: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
+  // This is used to generate randomness that is not based on the input seed (like random slot gen)
+  let mut instance_rng_unseeded: Lcg128Xsl64 = Pcg64::seed_from_u64(seed_range.sample(&mut seed_rng));
 
   println!("Miner seed: {}", options.seed);
   let new_inv = create_inventory();
@@ -90,7 +93,7 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
       )
     } else {
       (
-        create_initial_helix(&mut instance_rng, options.seed),
+        create_initial_helix(&mut instance_rng_seeded, options.seed),
         best_points_from_file,
         0,
         best_steps_from_file,
@@ -99,7 +102,7 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
     };
 
   let next_root_helix = best_miner.0;
-  let mut state = create_app_state(options, best_miner, trail_lens, instance_rng);
+  let mut state = create_app_state(options, best_miner, trail_lens, instance_rng_seeded, instance_rng_unseeded);
   state.load_best_as_miner_zero = load_best_as_miner_zero;
 
   return (state, next_root_helix, hmap);

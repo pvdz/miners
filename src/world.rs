@@ -722,6 +722,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
       SlotKind::Hammer => ui_slot_hammer(slot),
       SlotKind::JacksCompass => ui_slot_jacks_compass(slot),
       SlotKind::PurityScanner => ui_slot_purity_scanner(slot),
+      SlotKind::RandomStart => panic!("Running miners should not get the RandomStart slot"),
       SlotKind::Sandrone => ui_slot_sandrone(slot, &biomes[options.visible_index].miner.sandrone, biomes[options.visible_index].miner.meta.inventory.sand),
       SlotKind::Windrone => ui_slot_windrone(slot, &biomes[options.visible_index].miner.windrone, biomes[options.visible_index].miner.meta.inventory.wind),
     };

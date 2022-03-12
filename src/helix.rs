@@ -23,7 +23,7 @@ pub struct Helix {
   // Gene: How much energy does the miner start with
   pub multiplier_energy_start: f32,
 
-  // Gene: How many fast does the miner receive points
+  // Gene: How fast does the miner receive points
   pub multiplier_points: f32, // TODO: unused until we can properly balance this. This property should probably be a hidden side effect of another gene.
 
   // Gene: How expensive is it to bump against a block?
