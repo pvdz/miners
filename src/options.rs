@@ -88,7 +88,7 @@ pub fn parse_cli_args() -> Options {
     html_mode: false,
 
     show_biomes: true,
-    visible_index: 0,
+    visible_index: 7,
 
     // Debug
     paint_ten_lines: false,
@@ -146,14 +146,19 @@ pub fn parse_cli_args() -> Options {
   options
 }
 
-pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> bool {
-  let mut waiting = true; // This is for x mode in the CLI
+pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> char {
+  // Return value is for x mode in the CLI.
+  // - `!` means "do not step" because no relevant input was received
+  // - ` ` space means an empty or space input was received and it should step
+  // - `x` x means x was received
 
   match key.as_str() {
-    "\n" => waiting = false, // Tick forward
+    | " \n"
+    | "\n" => return ' ', // Tick forward
     "x\n" => {
+      bridge::log("Step mode enabled. Press enter to step. Press x to exit.");
       options.return_to_move = !options.return_to_move;
-      waiting = false;
+      return 'x';
     },
     "v\n" => options.visual = !options.visual,
     "+\n" => {
@@ -244,5 +249,5 @@ pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, hma
     e => if e != "" { bridge::log(format!("Input {:?} had no effect", e.as_bytes()).as_str()) },
   }
 
-  return waiting;
+  return '-';
 }

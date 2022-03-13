@@ -295,38 +295,40 @@ pub fn turn_back(dir: Direction) -> Direction {
   };
 }
 
-pub fn coord_left(x: i32, y: i32, dir: Direction) -> (i32, i32) {
-  return (
-    x + match dir {
-      Direction::Up => -1,
-      Direction::Right => 0,
-      Direction::Down => 1,
-      Direction::Left => 0,
-    },
-    y + match dir {
-      Direction::Up => 0,
-      Direction::Right => -1,
-      Direction::Down => 0,
-      Direction::Left => 1,
+pub fn coord_forward(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+    match dir {
+      Direction::Up =>    (x,    y-1),
+      Direction::Right => (x+1,    y),
+      Direction::Down =>  (x,    y+1),
+      Direction::Left =>  (x-1,    y),
     }
-  );
+}
+
+pub fn coord_back(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x,    y+1),
+    Direction::Right => (x-1,    y),
+    Direction::Down =>  (x,    y-1),
+    Direction::Left =>  (x+1,    y),
+  }
+}
+
+pub fn coord_left(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x-1,    y),
+    Direction::Right => (x,    y-1),
+    Direction::Down =>  (x+1,    y),
+    Direction::Left =>  (x,    y+1),
+  }
 }
 
 pub fn coord_right(x: i32, y: i32, dir: Direction) -> (i32, i32) {
-  return (
-    x + match dir {
-      Direction::Up => 1,
-      Direction::Right => 0,
-      Direction::Down => -1,
-      Direction::Left => 0,
-    },
-    y + match dir {
-      Direction::Up => 0,
-      Direction::Right => 1,
-      Direction::Down => 0,
-      Direction::Left => -1,
-    }
-  );
+  match dir {
+    Direction::Up =>    (x+1,    y),
+    Direction::Right => (x,    y+1),
+    Direction::Down =>  (x-1,    y),
+    Direction::Left =>  (x,    y-1),
+  }
 }
 
 pub fn coord_lr(x: i32, y: i32, dir: Direction, left: bool) -> (i32, i32) {
@@ -336,4 +338,121 @@ pub fn coord_lr(x: i32, y: i32, dir: Direction, left: bool) -> (i32, i32) {
   } else {
     coord_right(x, y, dir)
   };
+}
+
+pub fn coord_fl(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x-1,    y-1),
+    Direction::Right => (x+1,    y-1),
+    Direction::Down =>  (x+1,    y+1),
+    Direction::Left =>  (x-1,    y+1),
+  }
+}
+
+pub fn coord_fr(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x+1,    y-1),
+    Direction::Right => (x+1,    y+1),
+    Direction::Down =>  (x-1,    y+1),
+    Direction::Left =>  (x-1,    y-1),
+  }
+}
+
+pub fn coord_bl(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x-1,    y+1),
+    Direction::Right => (x+1,    y-1),
+    Direction::Down =>  (x+1,    y-1),
+    Direction::Left =>  (x-1,    y+1),
+  }
+}
+
+pub fn coord_br(x: i32, y: i32, dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (x+1,    y+1),
+    Direction::Right => (x-1,    y+1),
+    Direction::Down =>  (x-1,    y-1),
+    Direction::Left =>  (x+1,    y-1),
+  }
+}
+
+pub fn delta_forward(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0,    0-1),
+    Direction::Right => (0+1,    0),
+    Direction::Down =>  (0,    0+1),
+    Direction::Left =>  (0-1,    0),
+  }
+}
+
+pub fn delta_back(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0,    0+1),
+    Direction::Right => (0-1,    0),
+    Direction::Down =>  (0,    0-1),
+    Direction::Left =>  (0+1,    0),
+  }
+}
+
+pub fn delta_left(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0-1,    0),
+    Direction::Right => (0,    0-1),
+    Direction::Down =>  (0+1,    0),
+    Direction::Left =>  (0,    0+1),
+  }
+}
+
+pub fn delta_right(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0+1,    0),
+    Direction::Right => (0,    0+1),
+    Direction::Down =>  (0-1,    0),
+    Direction::Left =>  (0,    0-1),
+  }
+}
+
+pub fn delta_lr(dir: Direction, left: bool) -> (i32, i32) {
+  // Left or right coordinate delta from given x/y/dir
+  return if left {
+    delta_left(dir)
+  } else {
+    delta_right(dir)
+  };
+}
+
+pub fn delta_fl(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0-1,    0-1),
+    Direction::Right => (0+1,    0-1),
+    Direction::Down =>  (0+1,    0+1),
+    Direction::Left =>  (0-1,    0+1),
+  }
+}
+
+pub fn delta_fr(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0+1,    0-1),
+    Direction::Right => (0+1,    0+1),
+    Direction::Down =>  (0-1,    0+1),
+    Direction::Left =>  (0-1,    0-1),
+  }
+}
+
+pub fn delta_bl(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0-1,    0+1),
+    Direction::Right => (0-1,    0-1),
+    Direction::Down =>  (0+1,    0-1),
+    Direction::Left =>  (0+1,    0+1),
+  }
+}
+
+pub fn delta_br(dir: Direction) -> (i32, i32) {
+  match dir {
+    Direction::Up =>    (0+1,    0+1),
+    Direction::Right => (0-1,    0+1),
+    Direction::Down =>  (0-1,    0-1),
+    Direction::Left =>  (0+1,    0-1),
+  }
 }

@@ -31,6 +31,7 @@ pub mod biome;
 pub mod pickup;
 pub mod slot_hammer;
 pub mod slot_drill;
+pub mod slot_magnet;
 pub mod async_stdin;
 pub mod slot_purity_scanner;
 pub mod slot_broken_gps;

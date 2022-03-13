@@ -24,15 +24,17 @@ pub fn tick_me_drone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
     set_cell_tile_value_at(options, &mut biome.world, biome.miner.drones[drone_index].movable.x, biome.miner.drones[drone_index].movable.y, 0);
     if soil_value > 2 {
       biome.miner.meta.inventory.food += 1; // 1? Depends on state of soil and items, I guess.
-      biome.miner.movable.now_energy += 100.0; // ? TBD
+      biome.miner.movable.now_energy = (biome.miner.movable.now_energy + 100.0).min(biome.miner.movable.init_energy); // ? TBD
     }
   }
 }
 
 fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
-  let (deltax, deltay) = dir_to_move_delta(biome.miner.drones[drone_index].movable.dir);
-  let nextx = biome.miner.drones[drone_index].movable.x + deltax;
-  let nexty = biome.miner.drones[drone_index].movable.y + deltay;
+  let dx = biome.miner.drones[drone_index].movable.x;
+  let dy = biome.miner.drones[drone_index].movable.y;
+  let (deltax, deltay) = delta_forward(biome.miner.drones[drone_index].movable.dir);
+  let nextx = dx + deltax;
+  let nexty = dy + deltay;
 
   // If this move would go OOB, expand the world to make sure that does not happen
   ensure_cell_in_world(&mut biome.world, options, nextx, nexty);
@@ -78,8 +80,6 @@ fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
           },
           _ => panic!("This delta should not be possible {},{}", tx, ty),
         };
-
-        //biome.miner.drones[drone_index].movable.now_energy = biome.miner.drones[drone_index].movable.now_energy - biome.miner.meta.block_bump_cost;
     }
 
     // The rest is considered an empty or at least passable tile
@@ -121,7 +121,7 @@ fn move_drone_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, d
     Pickup::Energy => {
       let drone = &mut biome.miner.drones[drone_index];
       // Who picks up the energy? The drone? The miner? Both? Items may determine this. ("drone modifications")
-      drone.movable.now_energy = (drone.movable.now_energy + (E_VALUE as f64 * ((100.0 + biome.miner.meta.multiplier_energy_pickup as f64) / 100.0)) as f32).max(biome.miner.meta.max_energy);
+      drone.movable.now_energy = (drone.movable.now_energy + (E_VALUE as f64 * ((100.0 + biome.miner.meta.multiplier_energy_pickup as f64) / 100.0)) as f32).min(biome.miner.meta.max_energy);
       biome.miner.meta.inventory.energy += 1;
       biome.world.tiles[unexty][unextx] = create_visited_cell(cell.tile, Pickup::Nothing, 0, 0, cell.visited + 1);
     },
@@ -183,7 +183,7 @@ fn move_drone_bump_wall(
   }
 
   // TODO: do drones have a different bump cost?
-  drone.movable.now_energy = drone.movable.now_energy - biome.miner.meta.block_bump_cost;
+  drone.movable.now_energy = (drone.movable.now_energy - biome.miner.meta.block_bump_cost).max(0.0);
   // TODO: should drones use same "prefer visited tiles" heuristic as miner?
   drone.movable.dir = get_most_visited_dir_from_xydir(options, &biome.world, nextx, nexty, drone.movable.dir);
 }

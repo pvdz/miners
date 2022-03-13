@@ -1,4 +1,5 @@
 use super::slottable::*;
+use super::{bridge};
 use super::app_state::*;
 use super::expando::*;
 use super::cell::*;
@@ -10,6 +11,7 @@ use super::slot_sandrone::*;
 use super::slot_emptiness::*;
 use super::world::*;
 use super::slot_drone_launcher::*;
+use super::slot_magnet::*;
 use super::slot_energy_cell::*;
 use super::values::*;
 use super::helix::*;
@@ -113,6 +115,9 @@ fn create_slot(kind: SlotKind, i: usize, nth: i32, helix: &Helix, state: &mut Ap
     },
     SlotKind::JacksCompass => {
       return create_slot_jacks_compass(i, nth, 40.0 * 2.0_f32.powf((nth + 1) as f32));
+    }
+    SlotKind::Magnet => {
+      return create_slot_magnet(i, nth);
     }
     SlotKind::PurityScanner => {
       return create_slot_purity_scanner(i, nth, 100.0 * 2.0_f32.powf((nth + 1) as f32));
@@ -400,9 +405,11 @@ pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
 pub fn move_miner(options: &mut Options, biome: &mut Biome) {
   biome.miner.meta.points_last_move = 0;
 
-  let (deltax, deltay) = dir_to_move_delta(biome.miner.movable.dir);
-  let nextx = biome.miner.movable.x + deltax;
-  let nexty = biome.miner.movable.y + deltay;
+  let cx = biome.miner.movable.x;
+  let cy = biome.miner.movable.y;
+  let (deltax, deltay) = delta_forward(biome.miner.movable.dir);
+  let nextx = cx + deltax;
+  let nexty = cy + deltay;
 
   // If this move would go OOB, expand the world to make sure that does not happen
   ensure_cell_in_world(&mut biome.world, options, nextx, nexty);
@@ -464,7 +471,11 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
           biome.miner.movable.dir = turn_back(biome.miner.movable.dir);
         } else {
           // Last cell? Assume we are finished. Fill it and destroy the magic wall.
-          options.visual = true;
+          if !options.visual {
+            bridge::log("Setting visual because miner finished filling up castle");
+            options.visual = true;
+            options.visible_index = biome.index;
+          }
           set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
           biome.miner.sandrone.post_castle = biome.ticks;
           biome.miner.sandrone.air_lifted = false;
@@ -587,7 +598,91 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
         }
       }
 
-      was_boring = move_miner_pickup_from_empty_tile(options, biome, unextx, unexty);
+      was_boring = true;
+
+      // Always pick up the forward tile (the tile we moved into)
+      if move_miner_pickup_from_empty_tile(options, biome, nextx, nexty) {
+        was_boring = false;
+      }
+
+      // Do we have any magnets primed? Bump the value by that many.
+      // Note: purity scanner only works for the miner itself
+      for slot_index in 0..biome.miner.slots.len() {
+        match biome.miner.slots[slot_index].kind {
+          SlotKind::Magnet => {
+            // Magnets allow to pick up neighboring tiles from the tile you started at
+            // In order of magnet count; back, left, right, forward-left, forward-right, back-left, back-right
+            // There's no advantage to having more than 7 magnets.
+            // TBD whether there's any other drawback than taking up a slot
+            match biome.miner.slots[slot_index].nth {
+              0 => {
+                let (nx, ny) = coord_back(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              1 => {
+                let (nx, ny) = coord_left(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              2 => {
+                let (nx, ny) = coord_right(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              3 => {
+                let (nx, ny) = coord_fl(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              4 => {
+                let (nx, ny) = coord_fr(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              5 => {
+                let (nx, ny) = coord_bl(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              6 => {
+                let (nx, ny) = coord_br(cx, cy, biome.miner.movable.dir);
+                if move_miner_pickup_from_empty_tile(options, biome, nx, ny) {
+                  was_boring = false;
+                } else {
+                  biome.miner.slots[slot_index].sum += 1.0;
+                }
+              },
+              _ => {
+                // Unused magnet
+              }
+            }
+          },
+          _ => {
+
+          }
+        }
+      }
+
+      biome.world.tiles[unexty][unextx].visited += 1;
       biome.miner.movable.x = nextx;
       biome.miner.movable.y = nexty;
     },
@@ -606,7 +701,7 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
   // Cannot be in an infinite loop while building the sand castle
   if was_boring && !biome.miner.sandrone.air_lifted /*&& !post_castle*/ {
     // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
-    biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.boredom_level as f32;
+    biome.miner.movable.now_energy = (biome.miner.movable.now_energy - biome.miner.meta.boredom_level as f32).max(0.0);
     // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
     biome.miner.meta.boredom_level = biome.miner.meta.boredom_level + 1;
   } else {
@@ -641,17 +736,26 @@ pub fn bump_wall_miner(options: &mut Options, biome: &mut Biome, strength: i32, 
   }
   biome.miner.meta.prev_move_bumped = true;
 
-  biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost;
+  biome.miner.movable.now_energy = (biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost).max(0.0);
   // TODO: should drones use same "prefer visited tiles" heuristic as miner?
   biome.miner.movable.dir = get_most_visited_dir_from_xydir(options, &mut biome.world, nextx, nexty, biome.miner.movable.dir);
 }
 
-pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, unextx: usize, unexty: usize) -> bool {
-  match biome.world.tiles[unexty][unextx].pickup {
+pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, x: i32, y: i32) -> bool {
+  // Return true if anything was picked up. False if nothing. Used for the boring stat.
+  ensure_cell_in_world(&mut biome.world, options, x, y);
+
+  let unextx = (biome.world.min_x.abs() + x) as usize;
+  let unexty = (biome.world.min_y.abs() + y) as usize;
+
+  let tile = &mut biome.world.tiles[unexty][unextx];
+  let meta = &mut biome.miner.meta;
+
+  match tile.pickup {
     Pickup::Diamond => {
       let mut primed = 0;
       // Do we have any purity scanners primed? Bump the value by that many.
-      // Note: purity scanner only works for the miner itself.
+      // Note: purity scanner only works for the miner itself
       for n in &mut biome.miner.slots {
         if matches!(n.kind, SlotKind::PurityScanner) && n.cur_cooldown >= n.max_cooldown {
           primed += 1;
@@ -660,34 +764,29 @@ pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biom
 
       // Different gems with different points.
       // Miners could have properties or powerups to affect this, too.
-      let gv: i32 = (biome.world.tiles[unexty][unextx].pickup_value + primed).min(3) as i32;
+      let gv: i32 = (tile.pickup_value + primed).min(3) as i32;
       match gv {
-        0 => biome.miner.meta.inventory.diamond_white += 1,
-        1 => biome.miner.meta.inventory.diamond_green += 1,
-        2 => biome.miner.meta.inventory.diamond_blue += 1,
-        3 => biome.miner.meta.inventory.diamond_yellow += 1,
-        _ => panic!("what value did this diamond have: {:?}", biome.world.tiles[unexty][unextx]),
+        0 => meta.inventory.diamond_white += 1,
+        1 => meta.inventory.diamond_green += 1,
+        2 => meta.inventory.diamond_blue += 1,
+        3 => meta.inventory.diamond_yellow += 1,
+        _ => panic!("what value did this diamond have: {:?}", tile),
       };
       let gem_value: i32 = gv + 1;
 
-      if biome.miner.movable.what == WHAT_MINER {
-        biome.miner.meta.points_last_move = gem_value;
-        biome.world.tiles[unexty][unextx].visited += 1;
-      }
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited);
+      meta.points_last_move = gem_value;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     Pickup::Energy => {
-      biome.miner.movable.now_energy = biome.miner.movable.now_energy + (E_VALUE as f64 * ((100.0 + biome.miner.meta.multiplier_energy_pickup as f64) / 100.0)) as f32;
-      if biome.miner.movable.now_energy > biome.miner.meta.max_energy {
-        biome.miner.movable.now_energy = biome.miner.meta.max_energy;
-        biome.world.tiles[unexty][unextx].visited += 1;
-      }
-      biome.miner.meta.inventory.energy += 1;
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited);
+      biome.miner.movable.now_energy = (biome.miner.movable.now_energy + (E_VALUE as f64 * ((100.0 + meta.multiplier_energy_pickup as f64) / 100.0)) as f32).min(meta.max_energy);
+      meta.inventory.energy += 1;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     Pickup::Stone => {
       // Do we have any purity scanners primed? Bump the value by that many.
-      // Note: purity scanner only works for the miner itself. For drones, slots is empty
+      // Note: purity scanner only works for the miner itself
       let mut primed = 0;
       for n in &mut biome.miner.slots {
         match n.kind {
@@ -698,37 +797,38 @@ pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biom
         }
       }
 
-      // println!("picking up a stone, value: {}, primed: {}", value, primed);
-
-      match (biome.world.tiles[unexty][unextx].pickup_value + primed).min(3) {
-        0 => biome.miner.meta.inventory.stone_white += 1,
-        1 => biome.miner.meta.inventory.stone_green += 1,
-        2 => biome.miner.meta.inventory.stone_blue += 1,
-        3 => biome.miner.meta.inventory.stone_yellow += 1,
-        _ => panic!("what value did this stone have: {:?}", biome.world.tiles[unexty][unextx]),
+      match (tile.pickup_value + primed).min(3) {
+        0 => meta.inventory.stone_white += 1,
+        1 => meta.inventory.stone_green += 1,
+        2 => meta.inventory.stone_blue += 1,
+        3 => meta.inventory.stone_yellow += 1,
+        _ => panic!("what value did this stone have: {:?}", tile),
       }
-      biome.miner.meta.points_last_move = biome.world.tiles[unexty][unextx].pickup_value as i32;
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+      meta.points_last_move = tile.pickup_value as i32;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     Pickup::Wind => {
-      biome.miner.meta.inventory.wind += 1;
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+      meta.inventory.wind += 1;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     Pickup::Water => {
-      biome.miner.meta.inventory.water += 1;
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+      meta.inventory.water += 1;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     Pickup::Wood => {
-      biome.miner.meta.inventory.wood += 1;
-      biome.world.tiles[unexty][unextx] = create_visited_cell(biome.world.tiles[unexty][unextx].tile, Pickup::Nothing, 0, 0, biome.world.tiles[unexty][unextx].visited + 1);
+      meta.inventory.wood += 1;
+      tile.pickup = Pickup::Nothing;
+      tile.pickup_value = 0;
     },
     | Pickup::Nothing
     | Pickup::Expando // Ignore, fake pickup
     | Pickup::Fountain // Ignore, fake pickup... TODO: probably some special behavior?
     => {
-      // Ignore "pickup"
-      biome.world.tiles[unexty][unextx].visited += 1;
-      return true; // "boring"
+      // Ignore this "pickup"
+      return true; // "boring", nothing happened
     },
   }
 

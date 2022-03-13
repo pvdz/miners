@@ -83,6 +83,7 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
         SlotKind::EnergyCell => tick_slot_energy_cell(options, biome, i),
         SlotKind::Hammer => (), // noop
         SlotKind::JacksCompass => tick_slot_jacks_compass(options, biome, i),
+        SlotKind::Magnet => (), // noop
         SlotKind::PurityScanner => tick_slot_purity_scanner(options, biome, i),
         SlotKind::RandomStart => panic!("Should not appear at runtime"),
         SlotKind::Windrone => tick_windrone(options, biome, i),

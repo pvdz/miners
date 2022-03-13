@@ -125,6 +125,8 @@
 // 'P' => SlotKind::PurityScanner,
 // 'H' => SlotKind::Sandrone,
 // 'B' => SlotKind::Windrone,
+// '?' => SlotKind::RandomStart,
+// 'm' => SlotKind::Magnet
 
 </textarea>
   </div>
@@ -138,7 +140,7 @@
       <li><b title="How expensive is it to bump against a block?">block_bump_cost:</b> <input id="$inputBumpCost" style="text-align: right; width: 100px;" value="8.0"/></li>
       <li><b title="How effective are pickups?">multiplier_energy_pickup:</b> <input id="$inputEnergyMultiplier" style="text-align: right; width: 100px;" value="0.0"/></li>
       <li>
-        <b>slots:</b> <input id="$inputSlots" style="width: 300px; font-family: monospace; " value="..DDDDDDDDd.h.dd.EEE.EdEEP.EdPhh" onkeyup="parseSlots();" />
+        <b>slots:</b> <input id="$inputSlots" style="width: 300px; font-family: monospace; " value=".mmmmmmmmmmmmmmDDd.h.dd.EEE.EdEEP.EdPhh" onkeyup="parseSlots();" />
         <ol id="$slotList" style="margin-left: 5px;">
           <li>None</li>
           <li>None</li>
@@ -228,7 +230,10 @@
   }
   function prepareInputTo(now) {
     preparedInput = (now || lastPreparedInput) + '\n';
-    if (now) lastPreparedInput = now;
+    if (now) {
+      if (now === 'x') lastPreparedInput = ''; // Allow stepping
+      else lastPreparedInput = now;
+    }
     $inputInput.value = '';
   }
 

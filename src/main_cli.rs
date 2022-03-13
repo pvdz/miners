@@ -2,6 +2,7 @@
 
 // Necessary for keyboard handling in CLI
 use std::sync::mpsc::TryRecvError;
+use std::{thread};
 
 extern crate serde_json;
 use std::collections::HashMap;
@@ -35,19 +36,22 @@ pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix
   let mut biomes: Vec<Biome> = pre_ga_loop(options, state, curr_root_helix);
 
   while !state.reset {
-    // CLI only: Read input
-    let mut waiting = true;
-    while waiting {
+    // CLI only: Read input. When in step mode, keep reading while waiting is `!`.
+    let mut waiting = '!';
+    while waiting == '!' {
       // Handle keyboard event
       match state.stdin_channel.try_recv() {
         Ok(key) => {
-          // If `x` was pressed in the CLI, stop waiting for one frame. Ignored in the web. (?)
+          // `x` means x was pressed, ` ` means space or just a return was pressed, `!` means
+          // some other input was pressed. Used for stepping logic.
           waiting = parse_input(key, options, state, hmap);
         },
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
       if !options.return_to_move { break; };
+
+      if waiting == '!' { thread::sleep(state.delay); }
     }
     if state.load_best_as_miner_zero || state.reset {
       break;

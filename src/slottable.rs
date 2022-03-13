@@ -17,7 +17,7 @@ pub struct Slottable {
     pub sum: f32,
 }
 
-pub const SLOT_COUNT: i32 = 10; // Must manually keep up to date with the enum ;(
+pub const SLOT_COUNT: i32 = 11; // Must manually keep up to date with the enum ;(
 #[derive(Debug, Clone, Copy)]
 pub enum SlotKind {
     BrokenGps = 0,
@@ -28,9 +28,10 @@ pub enum SlotKind {
     EnergyCell = 5,
     Hammer = 6,
     JacksCompass = 7,
-    PurityScanner = 8,
-    RandomStart = 9,
-    Sandrone = 10,
+    Magnet = 8,
+    PurityScanner = 9,
+    RandomStart = 10,
+    Sandrone = 11,
     // Make sure to update the SLOT_COUNT!
 }
 
@@ -44,6 +45,7 @@ fn assert_size(x: &SlotKind) -> i32 {
         | SlotKind::EnergyCell
         | SlotKind::Hammer
         | SlotKind::JacksCompass
+        | SlotKind::Magnet
         | SlotKind::PurityScanner
         | SlotKind::RandomStart
         | SlotKind::Sandrone
@@ -62,12 +64,13 @@ pub fn get_random_slot(rng: &mut Lcg128Xsl64) -> SlotKind {
         3 => SlotKind::Emptiness,
         4 => SlotKind::EnergyCell,
         5 => SlotKind::Hammer,
-        6 => SlotKind::PurityScanner,
+        6 => SlotKind::Magnet,
         7 => SlotKind::JacksCompass,
+        8 => SlotKind::PurityScanner,
         // Must add empty slots for slotkinds that we don't want to generate (TODO: no we dont)
-        8 => SlotKind::Emptiness, // SlotKind::Windrone
-        9 => SlotKind::Emptiness, // SlotKind::Sandrone
-        10 => SlotKind::Emptiness, // SlotKind::RandomStart // Preventloop
+        9 => SlotKind::Emptiness,  // SlotKind::Windrone
+        10 => SlotKind::Emptiness, // SlotKind::Sandrone
+        11 => SlotKind::Emptiness, // SlotKind::RandomStart // Preventloop
         _ => panic!("wat?"),
     }
 }
@@ -81,6 +84,7 @@ pub fn slot_type_to_symbol(slot: &SlotKind) -> String {
         SlotKind::EnergyCell => "E".to_string(),
         SlotKind::Hammer => "h".to_string(),
         SlotKind::JacksCompass => "J".to_string(),
+        SlotKind::Magnet => "m".to_string(),
         SlotKind::PurityScanner => "P".to_string(),
         SlotKind::RandomStart => "?".to_string(),
         SlotKind::Sandrone => "H".to_string(),
@@ -93,10 +97,11 @@ pub fn symbol_to_slot_type(sym: char) -> SlotKind {
         'G' => SlotKind::BrokenGps,
         'd' => SlotKind::Drill,
         'D' => SlotKind::DroneLauncher,
-        'h' => SlotKind::Hammer,
         '.' => SlotKind::Emptiness,
         'E' => SlotKind::EnergyCell,
+        'h' => SlotKind::Hammer,
         'J' => SlotKind::JacksCompass,
+        'm' => SlotKind::Magnet,
         'P' => SlotKind::PurityScanner,
         '?' => SlotKind::RandomStart,
         'H' => SlotKind::Sandrone,
@@ -107,7 +112,7 @@ pub fn symbol_to_slot_type(sym: char) -> SlotKind {
 }
 
 pub fn create_slot_kind_counter() -> Vec<i32> {
-    assert_eq!(SLOT_COUNT, 10);
+    assert_eq!(SLOT_COUNT, 11);
     return vec![0; SLOT_COUNT as usize]; // One for every slot type value
 }
 

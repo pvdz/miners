@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use super::slottable::*;
 use super::movable::*;
+use super::{bridge};
 use super::tile::*;
 use super::pickup::*;
 use super::options::*;
@@ -154,7 +155,6 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       if biome.miner.meta.inventory.sand >= 10 {
         set_sandrone_state(sandrone, SandroneState::MovingToOrigin);
         // start of building a sand castle
-        // options.visual = true;
       }
     }
     SandroneState::MovingToOrigin => {
@@ -168,9 +168,9 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         set_sandrone_state(sandrone, SandroneState::MovingToNeighborCell);
 
         if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
-          // println!("Shutting down the sandrone");
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
           if !options.visual {
+            bridge::log("Setting visual because shutting down sandrone after building enough tiles");
             options.visual = true;
             options.visible_index = biome.index;
           }
@@ -290,7 +290,6 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
           if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > options.sandrone_pickup_count as usize{
             // println!("Going to pick up miner...");
             set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-            // options.visual = true;
             sandrone.air_lifting = true;
             // Make sure it doesn't branch before it's back at the end...
             sandrone.backtracking = true;
@@ -374,7 +373,11 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       biome.miner.meta.inventory.sand = ((biome.miner.meta.inventory.sand as i32) - 10).max(0) as u32;
 
       if ((sandrone.expansion_max_x - sandrone.expansion_min_x) * (sandrone.expansion_max_y - sandrone.expansion_min_y)) as u32 > options.sandcastle_area_limit {
-        options.visual = true;
+        if !options.visual {
+          bridge::log("Setting visual because castle is big enough to bring in the miner");
+          options.visual = true;
+          options.visible_index = biome.index;
+        }
         // println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
         sandrone.status_desc = format!("Idle. Waiting for completed castle.");
         sandrone.found_end = true;
@@ -382,7 +385,6 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         sandrone.backtracking = false;
         if !sandrone.air_lifted && !sandrone.post_castle > 0 {
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-          // options.visual = true;
           sandrone.air_lifting = true;
           // Make sure it doesn't branch before it's back at the end...
           sandrone.backtracking = true;
@@ -413,7 +415,6 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
 
         // println!("Return to move enabled. Press ⏎ to tick forward. Press x⏎ to exit this mode.");
         // options.return_to_move = true;
-        // options.visual = true;
 
         // println!("Putting sandrone in permanent seek mode");
         // sandrone.found_end = true;

@@ -92,8 +92,9 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
   let mut ticks = 0;
 
   while !state.reset {
-    if options.visual {
-      suspend_app_till_next_frame(options, state, hmap).await;
+    // `x` means x was pressed, ` ` means space was given, `!` means other input was given
+    let received_something: char = if options.visual {
+      suspend_app_till_next_frame(options, state, hmap).await
     } else {
       ticks += 1;
       if ticks > 1000 {
@@ -103,16 +104,26 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
         ticks = 0;
         suspend_app_till_next_frame(options, state, hmap).await;
       }
-    }
+      // Only enable step mode in visual mode
+      ' '
+    };
     if state.load_best_as_miner_zero || state.reset {
       break;
     }
+    if received_something != ' ' && options.return_to_move {
+      // Stepping through and did not receive an empty string last frame.
+      continue;
+    };
+
     go_iteration(options, state, &mut biomes, hmap);
 
+    let current = options.visible_index;
+    let current_depleted = biomes[current].miner.movable.now_energy <= 0;
     let mut end = true;
     for biome in &biomes {
-      if biome.miner.movable.now_energy > 0.0 {
+      if current_depleted && biome.miner.movable.now_energy > 0.0 {
         // Switch to this biome, since it's still alive.
+        bridge::log(format!("Switching to {} because the energy of the current one {} depleted", current, biome.index));
         options.visible_index = biome.index;
         end = false;
         break;
@@ -126,17 +137,20 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
   return post_ga_loop(options, state, biomes, curr_root_helix, hmap);
 }
 
-pub async fn suspend_app_till_next_frame(options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> bool {
+pub async fn suspend_app_till_next_frame(options: &mut Options, state: &mut AppState, hmap: &mut HashMap<u64, (u64, usize, SerializedHelix)>) -> char {
   let str = await_next_frame().await.as_string();
 
   return match str {
     Some(key) => {
-      if key != "" {
-        log(format!("Received input: {}", key.as_str()).as_str());
+      if key == "" {
+        '!'
+      } else {
+        if key != "\n" { log(format!("Received input: {}", key.as_str()).as_str()); }
+        // `x` means x was pressed, ` ` means space was given, `!` means other input was given
+        parse_input(key, options, state, hmap)
       }
-      parse_input(key, options, state, hmap)
     },
-    None => false,
+    None => panic!("This should not happen; would mean the web callback did not return a string at all"),
   };
 }
 
