@@ -62,7 +62,9 @@ pub struct AppState {
   pub stats_total_biome_ticks: i32,
 
   pub batch_loops: i32,
+  pub last_match_loops: i32,
   pub has_energy: bool,
+  pub non_visual_print: u64,
 
   // user input controls
 
@@ -115,7 +117,9 @@ pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize
     stats_total_biome_ticks: 0,
 
     batch_loops: 0,
+    last_match_loops: 0,
     has_energy: true,
+    non_visual_print: 0,
 
     // user input controls
     reset: false,

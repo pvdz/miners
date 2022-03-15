@@ -64,7 +64,6 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
   if biome.miner.movable.now_energy > 0.0 {
     let miner_disabled = biome.miner.movable.disabled;
     biome.ticks += 1;
-    let ticks = biome.ticks;
     state.stats_total_biome_ticks += 1;
 
     tick_world(options, state, biome);
@@ -94,6 +93,8 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
     // Does this miner still have energy left?
     if biome.miner.movable.now_energy <= 0.0 {
       // This miner stopped now
+
+      biome.miner.meta.phase = Phase::OutOfEnergy_7;
 
       let cur_points = get_points(&biome.miner.meta.inventory);
       let has_trail: bool = hmap.contains_key(&cur_points);

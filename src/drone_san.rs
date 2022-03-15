@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-use super::slottable::*;
 use super::movable::*;
 use super::{bridge};
 use super::tile::*;
@@ -11,6 +10,7 @@ use super::icons::*;
 use super::color::*;
 use super::values::*;
 use super::biome::*;
+use super::miner::*;
 
 /*
 
@@ -41,6 +41,7 @@ pub enum SandroneState {
   DeliveringMiner,
   // Post castle building, the sandrone now exclusively moves around on impassible tiles and pushes.
   Redecorating,
+
 }
 
 #[derive(Debug)]
@@ -169,12 +170,9 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
 
         if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-          if !options.visual {
-            bridge::log("Setting visual because shutting down sandrone after building enough tiles");
-            options.visual = true;
-            options.visible_index = biome.index;
-          }
+          bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "shutting down sandrone after building enough tiles");
           sandrone.air_lifting = true;
+          biome.miner.meta.phase = Phase::FinishedCastleWalls_3;
         }
 
         // if sandrone.push_tiles.len() > 1000 {
@@ -211,6 +209,8 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         // Then move like normal movables except the sandrone can only move over Impassible tiles.
         // The sandrone will now be redecorating the castle.
         set_sandrone_state(sandrone, SandroneState::Redecorating);
+        biome.miner.meta.phase = Phase::FilledCastle_6;
+        biome.miner.meta.dying_since = biome.ticks;
 
         // With the current rules, it is not possible to create a 2x2 of castle walls. So
         // checking any quadrant should suffice to guarantee at least one available position.
@@ -291,6 +291,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
             // println!("Going to pick up miner...");
             set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
             sandrone.air_lifting = true;
+            biome.miner.meta.phase = Phase::FinishedCastleWalls_3;
             // Make sure it doesn't branch before it's back at the end...
             sandrone.backtracking = true;
 
@@ -349,6 +350,8 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
     SandroneState::BuildingArrowCell => {
       // Convert the current cell, which ought to be empty, to a push cell
       // println!("Convert {}x{} to a push tile", sandrone.movable.x, sandrone.movable.y);
+
+      ensure_cell_in_world(&mut biome.world, options, sandrone.movable.x, sandrone.movable.y);
       set_cell_tile_at(options, &mut biome.world, sandrone.movable.x, sandrone.movable.y, Tile::Push);
       sandrone.last_expansion_x = sandrone.movable.x;
       sandrone.last_expansion_y = sandrone.movable.y;
@@ -373,11 +376,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       biome.miner.meta.inventory.sand = ((biome.miner.meta.inventory.sand as i32) - 10).max(0) as u32;
 
       if ((sandrone.expansion_max_x - sandrone.expansion_min_x) * (sandrone.expansion_max_y - sandrone.expansion_min_y)) as u32 > options.sandcastle_area_limit {
-        if !options.visual {
-          bridge::log("Setting visual because castle is big enough to bring in the miner");
-          options.visual = true;
-          options.visible_index = biome.index;
-        }
+        bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "castle is big enough to bring in the miner");
         // println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
         sandrone.status_desc = format!("Idle. Waiting for completed castle.");
         sandrone.found_end = true;
@@ -386,6 +385,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         if !sandrone.air_lifted && !sandrone.post_castle > 0 {
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
           sandrone.air_lifting = true;
+          biome.miner.meta.phase = Phase::FinishedCastleWalls_3;
           // Make sure it doesn't branch before it's back at the end...
           sandrone.backtracking = true;
         }
@@ -396,6 +396,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       // println!("SandroneState::PickingUpMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
       if move_sandrone_towards(sandrone, biome.miner.movable.x, biome.miner.movable.y) {
         // println!("  gottem!");
+        biome.miner.meta.phase = Phase::PickedUpMiner_4;
         sandrone.state = SandroneState::DeliveringMiner;
         sandrone.status_desc = format!("Delivering miner to origin...");
       }
@@ -409,6 +410,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
         sandrone.air_lifting = false;
         sandrone.air_lifted = true;
         biome.miner.movable.disabled = false;
+        biome.miner.meta.phase = Phase::FillingCastle_5;
         // Set the top-left corner as the initial exit tile. The exit tile is not to be filled if no other exit tiles have been seen.
         sandrone.last_empty_castle_exit_x = sandrone.expansion_min_x;
         sandrone.last_empty_castle_exit_y = sandrone.expansion_min_y;
@@ -628,10 +630,10 @@ pub fn can_magic_wall_bordering_empty_cell_be_push_cell(options: &Options, world
   // blocking potential other paths from that exit. By "walking around" the current tile we know
   // that this property is preserved. That's why we check the diagonal in most cases.
 
-  // Do not fill the top tile on the zero axis. There must be one.
-  if x == 0 && y - 1 < magic_min_y {
-    return false;
-  }
+  // // Do not fill the top tile on the zero axis. There must be one. -> obsoleted by using the corner instead.
+  // if x == 0 && y - 1 < magic_min_y {
+  //   return false;
+  // }
 
   let e = is_push_impossible_cell(options, world, x, y);
   if e {

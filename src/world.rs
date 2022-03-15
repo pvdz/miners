@@ -209,7 +209,7 @@ pub fn generate_world(options: &Options) -> World {
   return world;
 }
 
-pub fn tick_world(options: &mut Options, state: &mut AppState, biome: &mut Biome) {
+pub fn tick_world(options: &mut Options, _state: &mut AppState, biome: &mut Biome) {
   // world: &mut World, options: &Options, sandrone: &Sandrone
 
   // Walk backwards because they may be removed when they become depleted
@@ -301,6 +301,7 @@ pub fn coord_to_index(x: i32, y: i32, world: &World) -> (i32, i32) {
 }
 
 pub fn assert_world_dimensions(world: &World) {
+  return;
   assert_eq!(world.tiles.len() as i32, world.min_y.abs() + 1 + world.max_y, "World should have min_y+1+max_y rows");
   for y in 0..world.tiles.len() {
     assert_eq!(world.tiles[y].len() as i32, world.min_x.abs() + 1 + world.max_x, "World should have each row with min_x+1+max_x cells");
@@ -310,17 +311,17 @@ pub fn assert_world_dimensions(world: &World) {
 pub fn assert_arr_xy_in_world(world: &World, wx: i32, wy: i32, ax: usize, ay: usize) {
   // Only assert xy (array coords, not world coords!), and not the entire rectangle
 
-  assert!(wx >= world.min_x, "assert_arr_xy_in_world; wx underflow");
-  assert!(wy >= world.min_y, "assert_arr_xy_in_world; wy underflow");
-  assert!(wx <= world.max_x, "assert_arr_xy_in_world; wx overflow");
-  assert!(wy <= world.max_y, "assert_arr_xy_in_world; wy overflow");
+  assert!(wx >= world.min_x, "assert_arr_xy_in_world; wx underflow {} {}", wx, world.min_x);
+  assert!(wy >= world.min_y, "assert_arr_xy_in_world; wy underflow {} {}", wy, world.min_y);
+  assert!(wx <= world.max_x, "assert_arr_xy_in_world; wx overflow {} {}", wx, world.max_x);
+  assert!(wy <= world.max_y, "assert_arr_xy_in_world; wy overflow {} {}", wy, world.min_y);
   // assert!(ax >= 0, "assert_arr_xy_in_world; ax underflow");
   // assert!(ay >= 0, "assert_arr_xy_in_world; ay underflow");
-  assert!(ax < (world.min_x.abs() + 1 + world.max_x) as usize, "assert_arr_xy_in_world; ax overflow");
-  assert!(ay < (world.min_y.abs() + 1 + world.max_y) as usize, "assert_arr_xy_in_world; ay overflow");
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x) as usize, "assert_arr_xy_in_world; ax overflow {} < {} + 1 + {}", ax, world.min_x.abs(), world.max_x);
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y) as usize, "assert_arr_xy_in_world; ay overflow {} < {} + 1 + {}", ay, world.min_y.abs(), world.max_y);
 
-  assert!(world.tiles.len() > ay, "assert_arr_xy_in_world; tile.len <= ay");
-  assert!(world.tiles[ay].len() > ax, "assert_arr_xy_in_world; tile.len <= ax");
+  assert!(world.tiles.len() > ay, "assert_arr_xy_in_world; tile.len <= ay; {} > {}", world.tiles.len(), ay);
+  assert!(world.tiles[ay].len() > ax, "assert_arr_xy_in_world; tile.len <= ax; {} > {}", world.tiles[ay].len(), ax);
 }
 
 fn paint_maybe(x: i32, y: i32, what: String, view: &mut Vec<Vec<String>>, viewport_offset_x: i32, viewport_offset_y: i32, viewport_size_w: usize, viewport_size_h: usize, vox: i32, voy: i32) {
@@ -731,7 +732,7 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
     view[so + n].push(format!(" {: <20} {: <40} {: <70}", head, progress, tail).to_string());
   }
 
-  let mut input_hint_lines = 7;
+  let input_hint_lines = 7;
 
   for y in so + biomes[options.visible_index].miner.slots.len()..vlen - input_hint_lines {
     view[y].push(std::iter::repeat(' ').take(100).collect::<String>());
@@ -943,6 +944,37 @@ pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> T
   assert!(ay < (world.min_y.abs() + 1 + world.max_y));
 
   return world.tiles[ay as usize][ax as usize].tile;
+}
+pub fn get_cell_pickup_at(options: &Options, world: &World, wx: i32, wy: i32) -> Pickup {
+  // wx/wy should be world coordinates
+  assert_world_dimensions(world);
+
+  // Is the cell explicitly stored in the world right now? If not then use the procedure.
+  if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
+    // OOB. Use generated value
+    return generate_cell(options, wx, wy).pickup;
+  }
+
+  // If x is negative then the coord is `min_x.abs() + x` (ex: `abs(-10) + -5` or `10 - 5` = 5)
+  // If x is positive then the coord is `min_x.abs() + x` (ex: `abs(-10) + 5` or `10 + 5` = 15)
+  // If x is zero then the coord is `min_x.abs()`
+  // So in all cases, the absolute coord of x is `min_x.abs() + x`
+  let ax = world.min_x.abs() + wx;
+  let ay = world.min_y.abs() + wy;
+
+  // println!("real {} >= {} <= {} ({}, {})   {} >= {} <= {} ({}, {})", world.min_x, x, world.max_x, world.tiles[0].len(), world.min_x <= x && world.max_x >= x, world.min_y, y, world.max_y, world.tiles.len(), world.min_y <= y && world.max_y >= y);
+  // println!("abso {} >= {} <  {} ({}, {})   {} >= {} <  {} ({}, {})", 0, ax, world.min_x.abs() + 1 + world.max_x, world.tiles[0].len(), 0 <= ax && world.tiles[0].len() as i32 >= ax, 0, ay, world.min_y.abs() + 1 + world.max_y, world.tiles.len(), 0 <= ay && world.tiles.len() as i32 >= ay);
+
+  assert!(wx >= world.min_x);
+  assert!(wy >= world.min_y);
+  assert!(wx <= world.max_x);
+  assert!(wy <= world.max_y);
+  assert!(ax >= 0);
+  assert!(ay >= 0);
+  assert!(ax < (world.min_x.abs() + 1 + world.max_x));
+  assert!(ay < (world.min_y.abs() + 1 + world.max_y));
+
+  return world.tiles[ay as usize][ax as usize].pickup;
 }
 
 pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> u32 {

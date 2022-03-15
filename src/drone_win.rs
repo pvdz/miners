@@ -5,7 +5,6 @@ use super::options::*;
 use super::pickup::*;
 use super::world::*;
 use super::biome::*;
-use super::slottable::*;
 use super::expando::*;
 use super::values::*;
 use super::color::*;
@@ -111,8 +110,10 @@ fn find_closest_expando(expandos: &Vec<Expando>, bx: f64, by: f64) -> (bool, usi
   return (found, closest_i, closest_x, closest_y, closest_d);
 }
 
-fn find_closest_fountain(fountains: &Vec<Fountain>, bx: f64, by: f64, mut found: bool, mut closest_i: usize, mut closest_x: i32, mut closest_y: i32, mut closest_d: f64) -> (bool, usize, i32, i32, f64) {
+fn find_closest_fountain(fountains: &Vec<Fountain>, bx: f64, by: f64, mut closest_x: i32, mut closest_y: i32, mut closest_d: f64) -> (bool, usize, i32, i32, f64) {
   let len = fountains.len();
+  let mut found = false;
+  let mut closest_i = 0;
 
   for i in 0..len {
     if fountains[i].disabled { continue; }
@@ -184,15 +185,31 @@ pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize
       // let mut closest_x = expandos[0].x;
       // let mut closest_y = expandos[0].y;
 
+      // Make sure all expandos are still there
+      for i in 0..biome.world.expandos.len() {
+        if biome.world.expandos[i].disabled { continue; }
+        if !matches!(get_cell_tile_at(options, &biome.world, biome.world.expandos[i].x, biome.world.expandos[i].y), Tile::ExpandoWater) {
+          biome.world.expandos[i].disabled = true;
+        }
+      }
+
+      // Make sure all fountains are still there
+      for i in 0..biome.world.fountains.len() {
+        if biome.world.fountains[i].disabled { continue; }
+        if !matches!(get_cell_pickup_at(options, &biome.world, biome.world.fountains[i].x, biome.world.fountains[i].y), Pickup::Fountain) {
+          biome.world.fountains[i].disabled = true;
+        }
+      }
+
       let bx = biome.miner.windrone.movable.x;
       let by = biome.miner.windrone.movable.y;
       let bfx = bx as f64;
       let bfy = by as f64;
-      let (found, closest_i, closest_x, closest_y, closest_d) = find_closest_expando(&biome.world.expandos, bfx, bfy);
-      let (found, closest_i, closest_x, closest_y, _closest_d) = find_closest_fountain(&biome.world.fountains, bfx, bfy, found, closest_i, closest_x, closest_y, closest_d);
+      let (found_a, closest_i_a, closest_x_a, closest_y_a, closest_d_a) = find_closest_expando(&biome.world.expandos, bfx, bfy);
+      let (found_b, closest_i, closest_x, closest_y, closest_d) = find_closest_fountain(&biome.world.fountains, bfx, bfy, closest_x_a, closest_y_a, closest_d_a);
 
-      if found && move_windrone_towards(&mut biome.miner.windrone, closest_x, closest_y, ) {
-        // Windrone reached the expando. Replace it.
+      if (found_a || found_b) && move_windrone_towards(&mut biome.miner.windrone, closest_x, closest_y, ) {
+        // Windrone reached an expando or fountain. Replace it.
 
         // Disable the windrone. No longer flying.
         set_windrone_state(biome, WindroneState::FlyingHome);
@@ -218,9 +235,9 @@ pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize
             (Tile::ExpandoWater, ..) => {
               // Pop the element and swap it with the closest (if not already last). This will drop closest.
               let last = biome.world.expandos.pop();
-              if closest_i != biome.world.expandos.len() {
+              if closest_i_a != biome.world.expandos.len() {
                 // We know there must be at least two expandos since the closest one wasn't last on the list.
-                biome.world.expandos[closest_i] = match last {
+                biome.world.expandos[closest_i_a] = match last {
                   Some(expando) => expando,
                   None => panic!("{:?}", assert!(false, "cannot happen")),
                 };
@@ -239,7 +256,7 @@ pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize
               let fountain = create_fountain(options, biome);
               biome.world.fountains.push(fountain);
             },
-            _ => panic!("Expected to be at a particular cell of interest ... {:?}", cell),
+            _ => panic!("Expected to be at a particular cell of interest ... {:?} {} {} {} {} {} {} {} {} {} {} {} {}", cell, found_a, closest_i_a, closest_x_a, closest_y_a, closest_d_a, found_b, closest_i, closest_x, closest_y, closest_d, biome.world.expandos.len(), biome.world.fountains.len()),
           }
         }
       }
@@ -258,7 +275,7 @@ pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize
   }
 }
 
-pub fn ui_windrone(sandrone: &Windrone, options: &Options) -> String {
+pub fn ui_windrone(_sandrone: &Windrone, options: &Options) -> String {
   return add_fg_color_with_reset(&format!("{}", ICON_WINDRONE), COLOR_WIND, options);
 }
 

@@ -42,7 +42,7 @@ pub fn tick_slot_drone_launcher(options: &mut Options, biome: &mut Biome, slot_i
     if slot.cur_cooldown >= slot.max_cooldown {
       if biome.miner.movable.now_energy > 2.0 * DRONE_INITIAL_ENERGY {
         drone.movable.now_energy = DRONE_INITIAL_ENERGY;
-        biome.miner.movable.now_energy = (biome.miner.movable.now_energy - (DRONE_INITIAL_ENERGY / 2.0)).min(biome.miner.movable.init_energy); // TODO: this ratio can be a tool to act as penalty for a helix property
+        biome.miner.movable.now_energy = (biome.miner.movable.now_energy - (DRONE_INITIAL_ENERGY / 2.0)).min(biome.miner.movable.init_energy).max(0.0); // TODO: this ratio can be a tool to act as penalty for a helix property
         // Position the drone on your location, facing perpendicular from your current direction
         drone.movable.x = biome.miner.movable.x;
         drone.movable.y = biome.miner.movable.y;

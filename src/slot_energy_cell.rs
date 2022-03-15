@@ -27,7 +27,7 @@ pub fn tick_slot_energy_cell(options: &mut Options, biome: &mut Biome, slot_inde
 
     slot.cur_cooldown += 1.0;
     if slot.cur_cooldown >= slot.max_cooldown {
-        biome.miner.movable.now_energy += slot.val;
+        biome.miner.movable.now_energy = (biome.miner.movable.now_energy + slot.val).max(0.0);
         slot.sum += slot.val;
         if biome.miner.movable.now_energy > biome.miner.movable.init_energy {
             biome.miner.movable.now_energy = biome.miner.movable.init_energy;

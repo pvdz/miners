@@ -4,7 +4,6 @@ use super::world::*;
 use super::movable::*;
 use super::tile::*;
 use super::biome::*;
-use super::cell::*;
 use super::pickup::*;
 
 pub struct MeDrone {
@@ -59,7 +58,7 @@ fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
       // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
       // not to send the movable into an infinite loop.
 
-        let (tx, ty, fill): (i32, i32, bool) = push_corner_move(options, &mut biome.world, biome.miner.drones[drone_index].movable.x, biome.miner.drones[drone_index].movable.y, deltax, deltay, false);
+        let (tx, ty, _fill): (i32, i32, bool) = push_corner_move(options, &mut biome.world, biome.miner.drones[drone_index].movable.x, biome.miner.drones[drone_index].movable.y, deltax, deltay, false);
 
         // We have the new delta xy for the turn. Act accordingly. If they're 0 flip-flop. The normal rule has a reasonable chance to loop so flip-flopping is more efficient.
         biome.miner.drones[drone_index].movable.dir = match (tx, ty) {

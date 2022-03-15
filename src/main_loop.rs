@@ -5,6 +5,7 @@ use super::options::*;
 use super::app_state::*;
 use super::inventory::*;
 use super::{bridge};
+use super::utils::*;
 
 use std::collections::HashMap;
 
@@ -13,6 +14,7 @@ use std::{thread};
 
 // Required to be able to cal next_u64
 use rand::prelude::*;
+use crate::miner::Phase;
 
 pub fn pre_ga_loop(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix) -> Vec<Biome> {
 
@@ -186,6 +188,45 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
       // TODO: delay is currently 1:1 bound with tick time. We should detach that ;) Maybe. Yes for sure. The sleep is an artificial delay.
       #[cfg(not(target_arch = "wasm32"))]
       thread::sleep(state.delay);
+    }
+  } else {
+    // Print status of all miners in the current batch. At an interval because terminal will slow
+    // down the app significantly if we don't throttle printing to it.
+
+    let now = bridge::date_now();
+    if now - state.non_visual_print > 200 {
+      state.non_visual_print = now;
+      let loops = state.batch_loops - state.last_match_loops;
+      state.last_match_loops = state.batch_loops;
+
+      let mut total_map_size = 0;
+
+      println!("{: <200}", ' ');
+      println!("============================================ {: <100}", ' ');
+      println!("=============== batch; loop {} / {} ====================== {: <100}", loops, state.batch_loops, ' ');
+      println!("============================================ {: <100}", ' ');
+      for biome_index in 0..biomes.len() {
+        if !matches!(biomes[biome_index].miner.meta.phase, Phase::OutOfEnergy_7) {
+          total_map_size += (biomes[biome_index].world.min_x.abs() + 1 + biomes[biome_index].world.max_x) * (biomes[biome_index].world.min_y.abs() + 1 + biomes[biome_index].world.max_y);
+        }
+        println!("Biome {} Energy: {} Phase: {: >21}  Points: {: >10}  {: >4},{: <4}  {: >3},{: <3}  =>  {: >4},{: <4} {: <100}",
+          biome_index,
+          progress_bar(20, biomes[biome_index].miner.movable.now_energy, biomes[biome_index].miner.movable.init_energy, false),
+          format!("{:?}", biomes[biome_index].miner.meta.phase),
+          get_points(&biomes[biome_index].miner.meta.inventory),
+          biomes[biome_index].world.min_x,
+          biomes[biome_index].world.min_y,
+          biomes[biome_index].world.max_x,
+          biomes[biome_index].world.max_y,
+          biomes[biome_index].world.min_x.abs() + 1 + biomes[biome_index].world.max_x,
+          biomes[biome_index].world.min_y.abs() + 1 + biomes[biome_index].world.max_y,
+          ' '
+        );
+      }
+      println!("============================================ {: <100}", ' ');
+      println!("============= total map size: {} =============================== {: <100}", total_map_size, ' ');
+      println!("{: <200}", ' ');
+      print!("\x1b[{}A\n", 8 + biomes.len());
     }
   }
 

@@ -47,6 +47,7 @@ pub mod app_state;
 pub mod initialize;
 
 // Web has src/lib as entry point. This function won't be called there.
+#[allow(dead_code)]
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
   main_cli::main();

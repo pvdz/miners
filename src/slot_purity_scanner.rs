@@ -23,7 +23,7 @@ pub fn create_slot_purity_scanner(slot_index: usize, nth: i32, max_cooldown: f32
     };
 }
 
-pub fn tick_slot_purity_scanner(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+pub fn tick_slot_purity_scanner(_options: &mut Options, biome: &mut Biome, slot_index: usize) {
     let slot: &mut Slottable = &mut biome.miner.slots[slot_index];
     if slot.cur_cooldown < slot.max_cooldown {
         slot.cur_cooldown += 1.0;

@@ -17,10 +17,10 @@ extern crate serde_json;
 pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64, usize, SerializedHelix)>) {
   // https://doc.rust-lang.org/std/collections/struct.HashMap.html
   let mut hmap: HashMap<u64, (u64, usize, SerializedHelix)> = HashMap::new();
-  let mut trail_lens: u64 = 0;
+  let trail_lens: u64 = 0;
 
   let mut best_points_from_file: u64 = 0;
-  let mut best_steps_from_file: usize = 0;
+  let best_steps_from_file: usize = 0;
   let mut best_helix_from_file: Helix = create_null_helix();
   let seed_hmap_file = format!("./seed_{}.rson", options.seed);
   let seed_hmap_path = Path::new(&seed_hmap_file);
@@ -60,7 +60,7 @@ pub fn initialize(options: &mut Options) -> (AppState, Helix, HashMap<u64, (u64,
   // It's seeded so are able to repro a run. The initial miner is based on it as well.
   let mut instance_rng_seeded: Lcg128Xsl64 = Pcg64::seed_from_u64(options.seed);
   // This is used to generate randomness that is not based on the input seed (like random slot gen)
-  let mut instance_rng_unseeded: Lcg128Xsl64 = Pcg64::seed_from_u64(seed_range.sample(&mut seed_rng));
+  let instance_rng_unseeded: Lcg128Xsl64 = Pcg64::seed_from_u64(seed_range.sample(&mut seed_rng));
 
   println!("Miner seed: {}", options.seed);
   let new_inv = create_inventory();

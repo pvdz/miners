@@ -49,10 +49,17 @@ pub fn tick_fountain(fountain_index: usize, world: &mut World, options: &Options
     world.fountains[fountain_index].ticks = 0;
     // println!("its doing the thing!");
     // Find a tile that is not yet full and fill it. Otherwise ignore.
+
     for (wx, wy) in world.fountains[fountain_index].water_tiles.iter() {
       let stuff = get_cell_stuff_at(options, world, *wx, *wy);
       if matches!(stuff.1, Pickup::Nothing) {
-        set_cell_pickup_at(options, world, *wx, *wy, Pickup::Water);
+        let ax = world.min_x.abs() + wx;
+        let ay = world.min_y.abs() + wy;
+        assert_arr_xy_in_world(world, *wx, *wy, ax as usize, ay as usize);
+        world.tiles[ay as usize][ax as usize].pickup = Pickup::Water;
+
+        // Can be this but it emits a warning that it's no longer valid later... :/
+        // set_cell_pickup_at(options, world, *wx, *wy, Pickup::Water);
         break;
       }
     }

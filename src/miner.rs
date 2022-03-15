@@ -48,6 +48,28 @@ pub struct Miner {
   pub sandrone: Sandrone,
 }
 
+// In order ...
+#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone)]
+pub enum Phase {
+  // Step 0: Start of the game. Building a windrone.
+  Start_0,
+  // Step 1: collect enough resources to build a windrone
+  HasWindrone_1,
+  // Step 2: Collect enough resources to build a sandrone
+  HasSandrone_2,
+  // Step 3: The sandrone builds enough castle walls and starts picking up the miner
+  FinishedCastleWalls_3,
+  // Step 4: The sandrone is moving the miner
+  PickedUpMiner_4,
+  // Step 5: Magic walls are up and miner is filling up the castle
+  FillingCastle_5,
+  // Step 6: Magic wall explodes, miner is free, sandrone is pushing blocks
+  FilledCastle_6,
+  // Step 7: The end.
+  OutOfEnergy_7,
+}
+
 /**
  * This structure exists to work around the Rust rule that each object may have either
  * one write reference or any read references at any time, for any object recursively.
@@ -90,6 +112,10 @@ pub struct MinerMeta {
 
   // Gene: How effective are items (slottables)?
   //  multiplier_cooldown: i32,
+
+  // phase
+  pub phase: Phase,
+  pub dying_since: u32,
 }
 
 
@@ -237,6 +263,13 @@ pub fn create_miner_from_helix(state: &mut AppState, helix: &Helix) -> Miner {
       block_bump_cost: helix.block_bump_cost,
       prev_move_bumped: false,
       multiplier_energy_pickup: 1, // TODO
+
+      phase: Phase::Start_0,
+      dying_since: 0,
+
+      // picked_up_miner: false,
+      // filling_castle: false,
+      // fiiled_castle: false,
     },
 
     slots,
@@ -329,6 +362,8 @@ pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
           }
           assert!(i < len - 1, "should have asserted beforehand that the windrone would fit somewhere");
         }
+
+        biome.miner.meta.phase = Phase::HasWindrone_1;
       }
     }
     WindroneState::WaitingForWind => {}
@@ -386,6 +421,8 @@ pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
           }
           assert!(i < len - 1, "should have asserted beforehand that the sandrone would fit somewhere");
         }
+
+        biome.miner.meta.phase = Phase::HasSandrone_2;
       }
     }
     SandroneState::WaitingForWater => {}
@@ -438,6 +475,7 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
         // Do nothing. Must keep at least one exit tile.
       } else if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
         set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
+        set_cell_pickup_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Pickup::Nothing);
       } else {
         // This is the new "last seen unfilled exit tile"
         biome.miner.sandrone.last_empty_castle_exit_x = biome.miner.movable.x;
@@ -471,12 +509,9 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
           biome.miner.movable.dir = turn_back(biome.miner.movable.dir);
         } else {
           // Last cell? Assume we are finished. Fill it and destroy the magic wall.
-          if !options.visual {
-            bridge::log("Setting visual because miner finished filling up castle");
-            options.visual = true;
-            options.visible_index = biome.index;
-          }
+          bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "miner finished filling up castle");
           set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
+          set_cell_pickup_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Pickup::Nothing);
           biome.miner.sandrone.post_castle = biome.ticks;
           biome.miner.sandrone.air_lifted = false;
 
@@ -541,38 +576,18 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
           // Check for oobs. Prevents annoying flip-flop patterns for one-way-streets
           if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
             // Do not turn this way. Turn the other way.
-            // Turn clockwise
-            match biome.miner.movable.dir {
-              Direction::Up => Direction::Right,
-              Direction::Right => Direction::Down,
-              Direction::Down => Direction::Left,
-              Direction::Left => Direction::Up,
-            }
+            turn_right(biome.miner.movable.dir)
           } else if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
             // Do not turn this way, turn the other way
-            // Turn counter-clockwise
-            match biome.miner.movable.dir {
-              Direction::Up => Direction::Left,
-              Direction::Right => Direction::Up,
-              Direction::Down => Direction::Right,
-              Direction::Left => Direction::Down,
-            }
+            turn_left(biome.miner.movable.dir)
           } else {
             let v = get_cell_tile_value_at(options, &biome.world, biome.miner.movable.x, biome.miner.movable.y, );
             set_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, if v == 1 { 0 } else { 1 });
-
-            match biome.miner.movable.dir {
-              Direction::Up => if v == 1 { Direction::Left } else { Direction::Right },
-              Direction::Right => if v == 1 { Direction::Up } else { Direction::Down },
-              Direction::Down => if v == 1 { Direction::Right } else { Direction::Left },
-              Direction::Left => if v == 1 { Direction::Down } else { Direction::Up },
-            }
+            turn_lr(biome.miner.movable.dir, v == 1)
           }
         },
         _ => panic!("This delta should not be possible {},{}", tx, ty),
       };
-
-      //biome.miner.movable.now_energy = biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost;
     }
 
     // The rest is considered an empty or at least passable tile
@@ -688,13 +703,10 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     },
   }
 
-  if biome.miner.movable.now_energy < 0.0 {
-    biome.miner.movable.now_energy = 0.0;
-  }
-
   // Allow to fill if it's not the last seen exit tile
-  if fill_current_cell && (biome.miner.movable.x != biome.miner.sandrone.last_empty_castle_exit_x || biome.miner.movable.y != biome.miner.sandrone.last_empty_castle_exit_y) {
+  if fill_current_cell && (fill_current_x != biome.miner.sandrone.last_empty_castle_exit_x || fill_current_y != biome.miner.sandrone.last_empty_castle_exit_y) {
     set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
+    set_cell_pickup_at(options, &mut biome.world, fill_current_x, fill_current_y, Pickup::Nothing);
     biome.miner.sandrone.impassable_tiles.push((fill_current_x, fill_current_y));
   }
 
@@ -706,6 +718,11 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     biome.miner.meta.boredom_level = biome.miner.meta.boredom_level + 1;
   } else {
     biome.miner.meta.boredom_level = 0;
+  }
+
+  if biome.miner.meta.dying_since > 0 {
+    // Start decaying the miner after the last phase.
+    biome.miner.movable.now_energy = (biome.miner.movable.now_energy - (biome.ticks - biome.miner.meta.dying_since) as f32).max(0.0);
   }
 }
 

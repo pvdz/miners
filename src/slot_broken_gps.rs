@@ -24,7 +24,7 @@ pub fn create_slot_broken_gps(slot_index: usize, nth: i32, max_cooldown: f32) ->
     };
 }
 
-pub fn tick_slot_broken_gps(options: &Options, biome: &mut Biome, slot_index: usize) {
+pub fn tick_slot_broken_gps(_options: &Options, biome: &mut Biome, slot_index: usize) {
 
     let slot = &mut biome.miner.slots[slot_index];
 
