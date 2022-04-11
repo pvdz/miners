@@ -9,6 +9,7 @@ use super::expando::*;
 use super::values::*;
 use super::color::*;
 use super::icons::*;
+use super::app_state::*;
 
 #[derive(Debug)]
 pub enum WindroneState {
@@ -151,7 +152,7 @@ fn find_closest_fountain(fountains: &Vec<Fountain>, bx: f64, by: f64, mut closes
   return (found, closest_i, closest_x, closest_y, closest_d);
 }
 
-pub fn tick_windrone(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+pub fn tick_windrone(options: &mut Options, _state: &mut AppState, biome: &mut Biome, slot_index: usize) {
   match biome.miner.windrone.state {
     WindroneState::Unconstructed => {
 

@@ -108,7 +108,15 @@ pub fn get_most_visited_dir_from_xydir(options: &Options, world: &World, wx: i32
   return turn_lr(dir, visited_left > visited_right);
 }
 
-pub fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32, dy: i32, back_case: bool) -> (i32, i32, bool ) {
+pub fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32, dy: i32, back_case: bool, bug: bool, dir: Direction) -> (i32, i32, bool ) {
+  let (tx, ty, fill) = _push_corner_move(options, world, mx, my, dx, dy, back_case, bug, dir);
+  if bug {
+    println!("  -> new tx: {} ty: {}, fill? {}", tx, ty, fill);
+  }
+  return (tx, ty, fill);
+}
+pub fn _push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32, dy: i32, back_case: bool, bug: bool, dir: Direction) -> (i32, i32, bool ) {
+  // Return value: delta x, delta y, fill
 
   // Coerce the miner into a subset of directions in some cases, depending on
   // how the miner is surrounded by push tiles. There are two discernible patterns which are
@@ -141,17 +149,33 @@ pub fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: 
   assert!(dx != 0 || dy == -1 || dy == 1, "if deltax is 0 then deltay should be nonzero left or right {}", dy);
 
   // Check the cells in all eight directions of the current location
-  let blocked_xy = match get_cell_tile_at(options, world, mx, my) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_fl = match get_cell_tile_at(options, world, mx + dy + dx, my + dy + -dx) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_fwd = if back_case { false } else { match get_cell_tile_at(options, world, mx + dx, my + dy) { Tile::Push | Tile::Impassible => true, _ => false } };
-  let blocked_fr = match get_cell_tile_at(options, world, mx + dx + -dy, my + dx + dy) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_right = match get_cell_tile_at(options, world, mx + -dy, my + dx) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_br = match get_cell_tile_at(options, world, mx + -dy + -dx, my + dx + -dy) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_back = back_case || match get_cell_tile_at(options, world, mx + -dx, my + -dy) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_bl = match get_cell_tile_at(options, world, mx + dy + -dx, my + -dx + -dy) { Tile::Push | Tile::Impassible => true, _ => false };
-  let blocked_left = match get_cell_tile_at(options, world, mx + dy, my + -dx) { Tile::Push | Tile::Impassible => true, _ => false };
+  let blocked_xy = matches!(get_cell_tile_at(options, world, mx, my), Tile::Push | Tile::Impassible);
+  let blocked_fl = matches!(get_cell_tile_at(options, world, mx + dy + dx, my + dy + -dx), Tile::Push | Tile::Impassible);
+  let blocked_fwd = matches!(get_cell_tile_at(options, world, mx + dx, my + dy), Tile::Push | Tile::Impassible);
+  let blocked_fr = matches!(get_cell_tile_at(options, world, mx + dx + -dy, my + dx + dy), Tile::Push | Tile::Impassible);
+  let blocked_right = matches!(get_cell_tile_at(options, world, mx + -dy, my + dx), Tile::Push | Tile::Impassible);
+  let blocked_br = matches!(get_cell_tile_at(options, world, mx + -dy + -dx, my + dx + -dy), Tile::Push | Tile::Impassible);
+  let blocked_back = matches!(get_cell_tile_at(options, world, mx + -dx, my + -dy), Tile::Push | Tile::Impassible);
+  let blocked_bl = matches!(get_cell_tile_at(options, world, mx + dy + -dx, my + -dx + -dy), Tile::Push | Tile::Impassible);
+  let blocked_left = matches!(get_cell_tile_at(options, world, mx + dy, my + -dx), Tile::Push | Tile::Impassible);
 
-  // println!("  blocked; fl: {}, fwd: {}, fr: {}, right: {}, br: {}, back: {}, bl: {}, left: {}, n={}", blocked_fl, blocked_fwd, blocked_fr, blocked_right, blocked_br, blocked_back, blocked_bl, blocked_left, (blocked_fwd as u8) + (blocked_left as u8) + (blocked_back as u8) + (blocked_right as u8));
+  if bug {
+    println!("/---\\                         \n|{}{}{}|                       \n|{} {}| {:?}                 \n|{}{}{}|                         \n\\---/     ",
+      if blocked_fl { 'F' } else { '.' },
+      if blocked_fwd { 'F' } else { '.' },
+      if blocked_fr { 'F' } else { '.' },
+
+      if blocked_left { 'F' } else { '.' },
+      if blocked_right { 'F' } else { ',' },
+      dir,
+
+      if blocked_bl { 'F' } else { '.' },
+      if blocked_back { 'F' } else { '.' },
+      if blocked_br { 'F' } else { '.' },
+    );
+    println!(" xy: {},{} dxy: {},{}  blocked; fl: {}, fwd: {}, fr: {}, right: {}, br: {}, back: {}, bl: {}, left: {}, n={}",
+      mx,my, dx,dy, blocked_fl, blocked_fwd, blocked_fr, blocked_right, blocked_br, blocked_back, blocked_bl, blocked_left, (blocked_fwd as u8) + (blocked_left as u8) + (blocked_back as u8) + (blocked_right as u8));
+  }
 
   // If already blocked then there's no point in detecting whether we need to block
   let blocked_count = (blocked_fwd as u8) + (blocked_left as u8) + (blocked_back as u8) + (blocked_right as u8);

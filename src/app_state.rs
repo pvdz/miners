@@ -46,11 +46,15 @@ pub struct AppState {
   // Delay is thread::sleep driven which won't work in main-web-thread so it's cli only
   pub delay: Duration,
 
+  // see options.cost_increase_rate and options.cost_increase_interval
+  pub cost_increase_value: f32,
+
   pub total_miner_count: u32,
   pub current_miner_count: u32,
   pub miner_count_since_last_best: u32,
 
   pub start_time: u64,
+  pub pause_after_ticks: u64,
 
   pub stats_last_second: u64,
 
@@ -61,7 +65,7 @@ pub struct AppState {
   pub stats_total_batch_loops: i32,
   pub stats_total_biome_ticks: i32,
 
-  pub batch_loops: i32,
+  pub batch_ticks: i32,
   pub last_match_loops: i32,
   pub has_energy: bool,
   pub non_visual_print: u64,
@@ -103,10 +107,13 @@ pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize
 
     delay: Duration::from_millis(options.speed),
 
+    cost_increase_value: 0.0,
+
     total_miner_count: 0,
     current_miner_count: 0,
     miner_count_since_last_best: 0,
     start_time: bridge::date_now(),
+    pause_after_ticks: 0,
 
     stats_last_second: 0,
     stats_last_biome_ticks: 0,
@@ -116,7 +123,7 @@ pub fn create_app_state(options: &Options, best_miner: (Helix, u64, usize, usize
     stats_total_batch_loops: 0,
     stats_total_biome_ticks: 0,
 
-    batch_loops: 0,
+    batch_ticks: 0,
     last_match_loops: 0,
     has_energy: true,
     non_visual_print: 0,

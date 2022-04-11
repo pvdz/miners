@@ -11,6 +11,7 @@ use super::color::*;
 use super::values::*;
 use super::biome::*;
 use super::miner::*;
+use super::app_state::*;
 
 /*
 
@@ -145,7 +146,7 @@ pub fn set_sandrone_state(sandrone: &mut Sandrone, state: SandroneState) {
   sandrone.state = state;
 }
 
-pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usize) {
+pub fn tick_sandrone(options: &mut Options, state: &mut AppState, biome: &mut Biome, _slot_index: usize) {
   let sandrone: &mut Sandrone = &mut biome.miner.sandrone;
 
   match sandrone.state {
@@ -170,7 +171,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
 
         if !sandrone.air_lifted && !sandrone.post_castle > 0 && !sandrone.air_lifting && sandrone.push_tiles.len() > 1000 {
           set_sandrone_state(sandrone, SandroneState::PickingUpMiner);
-          bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "shutting down sandrone after building enough tiles");
+          // bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "shutting down sandrone after building enough tiles");
           sandrone.air_lifting = true;
           biome.miner.meta.phase = Phase::FinishedCastleWalls_3;
         }
@@ -306,23 +307,37 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
           }
         }
 
+        // Must plug at least one hole (fill single tile gap between Tile::Push and magic wall
+        // with a Tile::Impassible) because otherwise the miner may end up running in circles.
+        // I think this should not endanger locking up the miner (since that would mean blocking
+        // an exit and the hole plugged here is between a push block and the wall). Additionally
+        // due to the way the wall is positioned there should always be at least four such gaps;
+        // one on each side. Usually there's many. Blocking the path once should prevent looping.
         if sandrone.air_lifted && !sandrone.plugged_a_hole {
           if fx - 1 == sandrone.expansion_min_x {
+            // println!("sandrone setting impassible tile");
             set_cell_tile_at(options, &mut biome.world, fx - 1, fy, Tile::Impassible);
             sandrone.plugged_a_hole = true;
             sandrone.impassable_tiles.push((fx - 1, fy));
+            // println!("Sandrone setting impassible at {}, {} minmax {},{} {},{}", fx - 1, fy, sandrone.expansion_min_x, sandrone.expansion_min_y, sandrone.expansion_max_x, sandrone.expansion_max_y);
           } else if fx + 1 == sandrone.expansion_max_x {
+            // println!("sandrone setting impassible tile");
             set_cell_tile_at(options, &mut biome.world, fx + 1, fy, Tile::Impassible);
             sandrone.plugged_a_hole = true;
             sandrone.impassable_tiles.push((fx + 1, fy));
+            // println!("Sandrone setting impassible at {}, {} minmax {},{} {},{}", fx + 1, fy, sandrone.expansion_min_x, sandrone.expansion_min_y, sandrone.expansion_max_x, sandrone.expansion_max_y);
           } else if fy - 1 == sandrone.expansion_min_y {
+            // println!("sandrone setting impassible tile");
             set_cell_tile_at(options, &mut biome.world, fx, fy - 1, Tile::Impassible);
             sandrone.plugged_a_hole = true;
             sandrone.impassable_tiles.push((fx, fy - 1));
+            // println!("Sandrone setting impassible at {}, {} minmax {},{} {},{}", fx, fy - 1, sandrone.expansion_min_x, sandrone.expansion_min_y, sandrone.expansion_max_x, sandrone.expansion_max_y);
           } else if fy + 1 == sandrone.expansion_max_y {
+            // println!("sandrone setting impassible tile");
             set_cell_tile_at(options, &mut biome.world, fx, fy + 1, Tile::Impassible);
             sandrone.plugged_a_hole = true;
             sandrone.impassable_tiles.push((fx, fy + 1));
+            // println!("Sandrone setting impassible at {}, {} minmax {},{} {},{}", fx, fy + 1, sandrone.expansion_min_x, sandrone.expansion_min_y, sandrone.expansion_max_x, sandrone.expansion_max_y);
           }
         }
 
@@ -376,7 +391,7 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       biome.miner.meta.inventory.sand = ((biome.miner.meta.inventory.sand as i32) - 10).max(0) as u32;
 
       if ((sandrone.expansion_max_x - sandrone.expansion_min_x) * (sandrone.expansion_max_y - sandrone.expansion_min_y)) as u32 > options.sandcastle_area_limit {
-        bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "castle is big enough to bring in the miner");
+        // bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "castle is big enough to bring in the miner");
         // println!("Castle area is now over 1000 cells. It is finished. Waiting for miner to complete filling.");
         sandrone.status_desc = format!("Idle. Waiting for completed castle.");
         sandrone.found_end = true;
@@ -405,6 +420,9 @@ pub fn tick_sandrone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
       // println!("SandroneState::DeliveringMiner at {}x{}", sandrone.movable.x, sandrone.movable.y);
       // Home in on the miner. Whereever it is.
       if move_sandrone_towards(sandrone, 0, 0) {
+        // bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "delivered miner, will now be filling");
+        // state.pause_after_ticks = 50;
+
         sandrone.state = SandroneState::MovingToNeighborCell;
         sandrone.status_desc = format!("Idle. Waiting for enough wind...");
         sandrone.air_lifting = false;
@@ -609,214 +627,6 @@ fn can_empty_cell_be_push_cell(options: &Options, world: &World, tx: i32, ty: i3
     !i && // down-right
     !f // right
   }
-}
-pub fn can_magic_wall_bordering_empty_cell_be_push_cell(options: &Options, world: &World, x: i32, y: i32, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) -> bool {
-  // When the forward cell is a magic wall:
-  // - Left or right is a magic wall and the opposite diagonal and other left or right is empty
-  // - This is a dead end with one exit to the side (and so the back closed)
-  // - Left or right is full, not a dead end, and the opposite diagonal is empty
-  // There are seven cases to consider: (W=magic wall, P=push block, x=miner, .=empty, ?=whatever)
-  //
-  //    WWW   WWW   WWW   WWW   WWW   |   WWW   WWW   WWW   WWW
-  //    .xP   .xP   .xP   .x.   PxP   |   Wx?   WxP   Wx.   WxP
-  //    ..?   ?P?   P.?   ?P?   ?.P   |   W..   W.P   W.P   WP.
-  //                                  |
-  //    yes   yes   no    no    no    |   yes   yes   no    wtf (should not be a possible state)
-  //
-  // The main point is that we want to test whether we can fill the current tile without risking
-  // locking the miner in. A path to an outside wall must keep existing. These fill rules are set
-  // up in such a way that this is guaranteed as long as the rule is correct. We basically only
-  // fill if even after the fill a path to the exit can be found from the current tile, and without
-  // blocking potential other paths from that exit. By "walking around" the current tile we know
-  // that this property is preserved. That's why we check the diagonal in most cases.
-
-  // // Do not fill the top tile on the zero axis. There must be one. -> obsoleted by using the corner instead.
-  // if x == 0 && y - 1 < magic_min_y {
-  //   return false;
-  // }
-
-  let e = is_push_impossible_cell(options, world, x, y);
-  if e {
-    return false;
-  }
-
-  // abc
-  // def  <- xy is at e
-  // ghi
-
-  let a = is_push_impossible_cell(options, world, x - 1, y - 1) || x - 1 < magic_min_x || y - 1 < magic_min_y;
-  let b = is_push_impossible_cell(options, world, x,   y - 1) || y - 1 < magic_min_y;
-  let c = is_push_impossible_cell(options, world, x + 1,   y - 1) || x + 1 > magic_max_x || y - 1 < magic_min_y;
-  let d = is_push_impossible_cell(options, world, x - 1, y) || x - 1 < magic_min_x;
-  let f = is_push_impossible_cell(options, world, x + 1, y) || x + 1 > magic_max_x;
-  let g = is_push_impossible_cell(options, world, x - 1,   y + 1) || x - 1 < magic_min_x || y + 1 > magic_max_y;
-  let h = is_push_impossible_cell(options, world, x,   y + 1) || y + 1 > magic_max_y;
-  let i = is_push_impossible_cell(options, world, x + 1,   y + 1) || x + 1 > magic_max_x || y + 1 > magic_max_y;
-
-
-  // println!("At {},{}. area: {},{} ~ {},{} The circle a-i: {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}, {} {}",
-  //   x, y,
-  //   magic_min_x, magic_min_y, magic_max_x, magic_max_y,
-  //   is_push_impossible_cell(options, world, x - 1, y - 1), x - 1 < magic_min_x || y - 1 < magic_min_y,
-  //   is_push_impossible_cell(options, world, x,   y - 1), y - 1 < magic_min_y,
-  //   is_push_impossible_cell(options, world, x + 1,   y - 1), x + 1 > magic_max_x || y - 1 < magic_min_y,
-  //   is_push_impossible_cell(options, world, x - 1, y), x - 1 < magic_min_x,
-  //   '-','-',
-  //   is_push_impossible_cell(options, world, x + 1, y), x + 1 > magic_max_x,
-  //   is_push_impossible_cell(options, world, x - 1,   y + 1), x - 1 < magic_min_x || y + 1 > magic_max_y,
-  //   is_push_impossible_cell(options, world, x,   y + 1), y + 1 > magic_max_y,
-  //   is_push_impossible_cell(options, world, x + 1,   y + 1), x + 1 > magic_max_x || y + 1 > magic_max_y,
-  // );
-
-
-  // if
-  //   (b && !(f || i || h || g || d)) ||
-  //   (f && !(h || g || d || a || b)) ||
-  //   (h && !(d || a || b || c || f)) ||
-  //   (d && !(b || c || f || i || h))
-  // {
-  //   // One horizontal or vertical cell is full while the opposite half-moon is empty
-  //   // It should be safe to fill the current tile because there is still a path to the empty
-  //   // neighbors currently and it will neighbor an existing tile.
-  //   return true;
-  // }
-
-  if y - 1 < magic_min_y {
-    // The magic wall is up (at least)
-
-    //  WWW   WWW   WWW   WWW
-    //  W^?   W^P   W^.   W^P
-    //  W..   W.P   W.P   WP.
-    //
-    //  yes   yes   no    wtf
-
-    if x - 1 < magic_min_x {
-      // up-left corner of the magic wall
-      // only fill when right is empty or down is full
-      // return !f && (!i || h);
-      // Only fill when the down-right diagonal is empty or there is at least one full neighbor
-      return !i || f || h;
-    } else if x +1 > magic_max_x {
-      // up-right corner of the magic wall
-      // only fill when left is empty
-      // return !d && (!g || h);
-      // Only fill when the down-left diagonal is empty or there is at least one full neighbor
-      return !g || d || h;
-    } else {
-
-      //   abc   WWW   WWW   WWW   WWW   WWW      WWW
-      //   def   .^P   .^P   .^P   .^.   P^P      P^P
-      //   ghi   ..?   ?P?   P.?   ?P?   ???      ???
-      //
-      //         yes   yes   no    no    no       yes
-
-      if d {
-        // up wall, not corner, left cell is full
-        // Only fill when right is empty and; down is full or down-right diagonal is empty
-        if f { return true; } // temp
-        return !f && (h || !i);
-      } else if f {
-        // up wall, not corner, right cell is full
-        // Only fill when left is empty and; down is full or down-left diagonal is empty
-        // return /*!d &&*/ (h || !g);
-        return h || !g;
-      }
-    }
-
-    // Both left and right are empty. Do not fill regardless.
-    return false;
-  }
-
-  if y + 1 > magic_max_y {
-    // The magic wall is down (at least)
-
-    //  W..   W.P   W.P   WP.
-    //  Wv?   WvP   Wv.   WvP
-    //  WWW   WWW   WWW   WWW
-    //
-    //  yes   yes   no    wtf
-
-    if x - 1 < magic_min_x {
-      // down-left corner of the magic wall
-      // Only fill when the up-right diagonal is empty or there is at least one full neighbor
-      return !c || f || b;
-    } else if x +1 > magic_max_x {
-      // up-right corner of the magic wall
-      // Only fill when the down-left diagonal is empty or there is at least one full neighbor
-      return !a || d || b;
-    } else {
-
-      //    ..?   ?..   ?P?   ?P?   P.?   ?P?   ???
-      //    .vP   Pv.   .vP   Pv.   .vP   .v.   PvP
-      //    WWW   WWW   WWW   WWW   WWW   WWW   WWW
-      //
-      //    yes   yes   yes   yes   no    no    no
-
-      if d {
-        // down wall, not corner, left cell is full
-        // Only fill when right is empty and; up is full or up-right diagonal is empty
-        if f { return true; } // temp
-        return !f && (b || !c);
-      } else if f {
-        // down wall, not corner, right cell is full
-        // Only fill when left is empty and; up is full or up-left diagonal is empty
-        // return !d && (b || !a);
-        return b || !a;
-      }
-    }
-
-    // Both left and right are empty. Do not fill regardless.
-    return false
-  }
-
-  if x - 1 < magic_min_x {
-    // The magic wall is to the left
-    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
-
-    //    W..   WP?   W.?   W.P   W.?   WP?
-    //    Wx.   Wx.   WxP   Wx.   WxP   Wx?
-    //    WP?   W..   WP?   WP?   W.?   WP?
-    //
-    //    yes   yes   yes   no    no    no
-
-    if b {
-      // left wall, not corner, up cell is full
-      // Only fill when down is empty and; right is full or down-right diagonal is empty
-      if h { return true; } // temp
-      return !h && (f || !i);
-    } else if h {
-      // left wall, not corner, down cell is full
-      // Only fill when up is empty and; right is full or up-right diagonal is empty
-      // return !b && (f || !c);
-      return f || !c;
-    }
-
-    // Both up and down and right are empty. Do not fill regardless.
-    return false;
-  }
-
-  if x +1 > magic_max_x {
-    // The magic wall is to the right
-    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
-
-    if b {
-      // right wall, not corner, up cell is full
-      // Only fill when down is empty and; left is full or down-left diagonal is empty
-      if h { return true; } // temp
-      return !h && (d || !g);
-    } else if h {
-      // left wall, not corner, down cell is full
-      // Only fill when up is empty and; left is full or up-left diagonal is empty
-      // return !b && (d || !a);
-      return d || !a;
-    }
-
-    // Both up and down and right are empty. Do not fill regardless.
-    return false;
-  }
-
-  // Apparently the coord is not bordering a magic wall
-  return false;
 }
 
 // fn sandrone_can_move_to(options: &Options, world: &World, tx: i32, ty: i32, dx: i32, dy: i32) -> bool {

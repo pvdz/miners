@@ -25,7 +25,8 @@ pub fn pre_ga_loop(options: &mut Options, state: &mut AppState, curr_root_helix:
   // bridge::log("loaded");
 
   // Move it move it
-  state.batch_loops = 0; // How many iterations for the current GA step
+  state.batch_ticks = 0; // How many times did we tick the current biomes that are still up?
+  state.cost_increase_value = 0.0;
 
   return biomes;
 }
@@ -88,7 +89,7 @@ pub fn post_ga_loop(options: &mut Options, state: &mut AppState, biomes: Vec<Bio
       "Time: {} s, batches: {: <5} bath loops: {: <5} miners: {}, in current seed: {}. Winner/Best points: {: >5} / {: >5}. Winner @ [{}x{} , {}x{}] -> {}{: >50}",
       bridge::date_now() - state.start_time,
       state.stats_total_batches,
-      state.batch_loops,
+      state.batch_ticks,
       state.total_miner_count,
       state.current_miner_count,
 
@@ -159,7 +160,18 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
   // log("inside loop start");
 
   state.stats_total_batch_loops += 1;
-  state.batch_loops += 1;
+  state.batch_ticks += 1;
+
+  if state.pause_after_ticks > 0 {
+    state.pause_after_ticks -= 1;
+    if state.pause_after_ticks == 0 {
+      bridge::focus_weak(options, 0, biomes[0].miner.meta.phase, "auto-paused after step count");
+    }
+  }
+
+  if (state.batch_ticks % options.cost_increase_interval) == 0 {
+    state.cost_increase_value += options.cost_increase_rate;
+  }
 
   // Tick the biomes
   for m in 0..biomes.len() {
@@ -196,14 +208,14 @@ pub fn go_iteration(options: &mut Options, state: &mut AppState, biomes: &mut Ve
     let now = bridge::date_now();
     if now - state.non_visual_print > 200 {
       state.non_visual_print = now;
-      let loops = state.batch_loops - state.last_match_loops;
-      state.last_match_loops = state.batch_loops;
+      let loops = state.batch_ticks - state.last_match_loops;
+      state.last_match_loops = state.batch_ticks;
 
       let mut total_map_size = 0;
 
       println!("{: <200}", ' ');
       println!("============================================ {: <100}", ' ');
-      println!("=============== batch; loop {} / {} ====================== {: <100}", loops, state.batch_loops, ' ');
+      println!("=============== batch; loop {} / {} ====================== {: <100}", loops, state.batch_ticks, ' ');
       println!("============================================ {: <100}", ' ');
       for biome_index in 0..biomes.len() {
         if !matches!(biomes[biome_index].miner.meta.phase, Phase::OutOfEnergy_7) {

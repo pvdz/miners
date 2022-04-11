@@ -702,17 +702,18 @@ pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, s
   view[1].push(format!(" Gene mutation rate: {}%  Slot mutation rate: {}%   Miner batch size: {}   Reset rate: {: <120}", options.mutation_rate_genes, options.mutation_rate_slots, options.batch_size, options.reset_rate).to_string());
   view[2].push(format!(" {: <150}", best_miner_str));
   view[3].push(format!(" {: <150}", hmap_str));
-  view[4].push(std::iter::repeat(' ').take(150).collect::<String>());
-  view[5].push(format!(" Miner {}; {: <150}", options.visible_index, ' '));
-  view[6].push(std::iter::repeat(' ').take(143).collect::<String>());
-  view[7].push(format!("   {: <150}", biomes[options.visible_index].miner.helix));
-  view[8].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Energy {: <10}", biomes[options.visible_index].miner.movable.x, biomes[options.visible_index].miner.movable.y, progress_bar(30, biomes[options.visible_index].miner.movable.now_energy, biomes[options.visible_index].miner.movable.init_energy, true), get_points(&biomes[options.visible_index].miner.meta.inventory), biomes[options.visible_index].miner.movable.now_energy.round()).to_string());
-  view[9].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[options.visible_index].miner.meta.inventory, options)));
+  view[4].push(format!(" Batch tick: {} Decay interval: {} Decay rate: {} Current decay value: {: <100}", state.batch_ticks, options.cost_increase_interval, options.cost_increase_rate, state.cost_increase_value));
+  view[5].push(std::iter::repeat(' ').take(150).collect::<String>());
+  view[6].push(format!(" Miner {}; {: <150}", options.visible_index, ' '));
+  view[7].push(std::iter::repeat(' ').take(143).collect::<String>());
+  view[8].push(format!("   {: <150}", biomes[options.visible_index].miner.helix));
+  view[9].push(format!("   XY: {: >4}, {: <10} {: <45} Points: {: <10} Energy {: <10}", biomes[options.visible_index].miner.movable.x, biomes[options.visible_index].miner.movable.y, progress_bar(30, biomes[options.visible_index].miner.movable.now_energy, biomes[options.visible_index].miner.movable.init_energy, true), get_points(&biomes[options.visible_index].miner.meta.inventory), biomes[options.visible_index].miner.movable.now_energy.round()).to_string());
+  view[10].push(format!("   Inventory:   {: <100}", ui_inventory(&biomes[options.visible_index].miner.meta.inventory, options)));
   let t = helix_serialize(&biomes[options.visible_index].miner.helix);
-  view[10].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY, options));
-  view[11].push(std::iter::repeat(' ').take(100).collect::<String>());
+  view[11].push(add_fg_color_with_reset(&format!("   Current miner code: `{}`", serde_json::to_string(&t).unwrap()).to_string(), COLOR_GREY, options));
+  view[12].push(std::iter::repeat(' ').take(100).collect::<String>());
 
-  let so = 12;
+  let so = 13;
   for n in 0..biomes[options.visible_index].miner.slots.len() {
     let slot: &Slottable = &biomes[options.visible_index].miner.slots[n];
     let (head, progress, tail) = match slot.kind {

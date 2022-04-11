@@ -49,7 +49,7 @@ pub fn ga_step_sync(options: &mut Options, state: &mut AppState, curr_root_helix
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
       }
-      if !options.return_to_move { break; };
+      if !options.return_to_move || state.pause_after_ticks > 0 { break; };
 
       if waiting == '!' { thread::sleep(state.delay); }
     }

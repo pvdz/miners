@@ -28,6 +28,11 @@ pub struct Options {
   pub return_to_move: bool,
   pub seed: u64,
   pub speed: u64,
+
+  // -> state.cost_increase_value
+  pub cost_increase_rate: f32,
+  pub cost_increase_interval: i32,
+
   pub frame_skip: u32,
   pub frames_now: u32,
   pub visual: bool,
@@ -75,6 +80,10 @@ pub fn parse_cli_args() -> Options {
     mutate_from_best: false,
     seed: 210114, // 0 is random. Can be set through --seed
     speed: 1,
+
+    cost_increase_rate: 1.0,
+    cost_increase_interval: 1000, // bump the cost value every 1000 frames?
+
     frame_skip: 0,
     frames_now: 0,
     reset_rate: 500,
@@ -154,7 +163,9 @@ pub fn parse_input(key: String, options: &mut Options, state: &mut AppState, hma
 
   match key.as_str() {
     | " \n"
-    | "\n" => return ' ', // Tick forward
+    | "\n"
+    => return ' ', // Tick forward
+    "  \n" => state.pause_after_ticks = 100, // Double space: Forward 100
     "x\n" => {
       bridge::log("Step mode enabled. Press enter to step. Press x to exit.");
       options.return_to_move = !options.return_to_move;

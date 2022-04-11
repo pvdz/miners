@@ -21,10 +21,10 @@ pub fn print_world(s: &str) {
 }
 
 pub fn focus_weak(options: &mut Options, biome_index: usize, phase: Phase, desc: &str) {
-  return;
   if !options.visual {
     log(format!("Setting visual to biome {} at {:?} because {}", biome_index, phase, desc).as_str());
     options.visual = true;
+    options.return_to_move = true;
     options.visible_index = biome_index;
   }
 }

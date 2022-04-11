@@ -31,7 +31,8 @@ pub fn tick_me_drone(options: &mut Options, biome: &mut Biome, _slot_index: usiz
 fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
   let dx = biome.miner.drones[drone_index].movable.x;
   let dy = biome.miner.drones[drone_index].movable.y;
-  let (deltax, deltay) = delta_forward(biome.miner.drones[drone_index].movable.dir);
+  let dir = biome.miner.drones[drone_index].movable.dir;
+  let (deltax, deltay) = delta_forward(dir);
   let nextx = dx + deltax;
   let nexty = dy + deltay;
 
@@ -58,7 +59,7 @@ fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
       // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
       // not to send the movable into an infinite loop.
 
-        let (tx, ty, _fill): (i32, i32, bool) = push_corner_move(options, &mut biome.world, biome.miner.drones[drone_index].movable.x, biome.miner.drones[drone_index].movable.y, deltax, deltay, false);
+        let (tx, ty, _fill): (i32, i32, bool) = push_corner_move(options, &mut biome.world, biome.miner.drones[drone_index].movable.x, biome.miner.drones[drone_index].movable.y, deltax, deltay, false, false, dir);
 
         // We have the new delta xy for the turn. Act accordingly. If they're 0 flip-flop. The normal rule has a reasonable chance to loop so flip-flopping is more efficient.
         biome.miner.drones[drone_index].movable.dir = match (tx, ty) {

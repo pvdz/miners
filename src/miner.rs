@@ -314,7 +314,7 @@ fn can_craft_sandrone(meta: &MinerMeta, slots: &Vec<Slottable>) -> bool {
   return meta.inventory.wood > 5 && meta.inventory.water > 10 && (/*meta.inventory.stone_white + */meta.inventory.stone_blue + meta.inventory.stone_green + meta.inventory.stone_yellow) > 5;
 }
 
-pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
+pub fn tick_miner(options: &mut Options, state: &mut AppState, biome: &mut Biome) {
   // If;
   // - There are slots available
   // - The build drone was built
@@ -435,16 +435,21 @@ pub fn tick_miner(options: &mut Options, biome: &mut Biome) {
   }
 
   if !biome.miner.sandrone.air_lifting {
-    move_miner(options, biome);
+    move_miner(options, state, biome);
   }
 }
 
-pub fn move_miner(options: &mut Options, biome: &mut Biome) {
+pub fn move_miner(options: &mut Options, state: &mut AppState, biome: &mut Biome) {
   biome.miner.meta.points_last_move = 0;
+
+  // if options.return_to_move {
+  //   println!("           \nmove_miner:           ");
+  // }
 
   let cx = biome.miner.movable.x;
   let cy = biome.miner.movable.y;
-  let (deltax, deltay) = delta_forward(biome.miner.movable.dir);
+  let dir = biome.miner.movable.dir;
+  let (deltax, deltay) = delta_forward(dir);
   let nextx = cx + deltax;
   let nexty = cy + deltay;
 
@@ -453,6 +458,11 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
 
   let unextx = (biome.world.min_x.abs() + nextx) as usize;
   let unexty = (biome.world.min_y.abs() + nexty) as usize;
+
+  let wtlx = biome.miner.sandrone.expansion_min_x;
+  let wtly = biome.miner.sandrone.expansion_min_y;
+  let wbrx = biome.miner.sandrone.expansion_max_x;
+  let wbry = biome.miner.sandrone.expansion_max_y;
 
   // Do not remove an expando when moving over it.
   match biome.world.tiles[unexty][unextx] {
@@ -467,58 +477,72 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
 
   if biome.miner.sandrone.air_lifted { // TODO: rename to "filling castle" or "magic wall up" or whatever
     // If the miner would move OOB then apply special move logic
-    if oob(nextx, nexty, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+
+    // The current cell can be filled in some cases, except when it's already the last seen exit tile.
+    let mut yar = true;
+    if cx == biome.miner.sandrone.last_empty_castle_exit_x && cy == biome.miner.sandrone.last_empty_castle_exit_y {
+      // Do nothing. Must keep at least one exit tile.
+      yar = false;
+    } else if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, cx, cy, wtlx, wtly, wbrx, wbry) {
+      // println!("Filling {},{} last exit is {},{}", cx, cy, biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y);
+      // if options.return_to_move {
+      //   println!("miner setting impassible tile 1");
+      // }
+      set_cell_tile_at(options, &mut biome.world, cx, cy, Tile::Impassible);
+      set_cell_pickup_at(options, &mut biome.world, cx, cy, Pickup::Nothing);
+      yar = false;
+    }
+
+    if oob(nextx, nexty, wtlx, wtly, wbrx, wbry) {
       // The miner is about to step OOB. Force it to turn.
 
-      // The current cell can be filled in some cases, except when it's already the last seen exit tile.
-      if biome.miner.movable.x == biome.miner.sandrone.last_empty_castle_exit_x && biome.miner.movable.y == biome.miner.sandrone.last_empty_castle_exit_y {
-        // Do nothing. Must keep at least one exit tile.
-      } else if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
-        set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
-        set_cell_pickup_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Pickup::Nothing);
-      } else {
+      if !is_push_impossible_cell(options, &biome.world, cx, cy) {
         // This is the new "last seen unfilled exit tile"
-        biome.miner.sandrone.last_empty_castle_exit_x = biome.miner.movable.x;
-        biome.miner.sandrone.last_empty_castle_exit_y = biome.miner.movable.y;
+        biome.miner.sandrone.last_empty_castle_exit_x = cx;
+        biome.miner.sandrone.last_empty_castle_exit_y = cy;
       }
 
       // So forward is blocked because it's OOB of the magic castle wall. Check which of
       // the other three directions are available. Prefer left or right and otherwise turn
       // around. Only when the miner is completely stuck do we destroy the magic wall.
 
-      let avail_left = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x + deltay, biome.miner.movable.y - deltax) && !oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
-      let avail_right = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x - deltay, biome.miner.movable.y + deltax) && !oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+      let avail_left = !is_push_impossible_cell(options, &biome.world, cx + deltay, cy - deltax) && !oob(cx + deltay, cy - deltax, wtlx, wtly, wbrx, wbry);
+      let avail_right = !is_push_impossible_cell(options, &biome.world, cx - deltay, cy + deltax) && !oob(cx - deltay, cy + deltax, wtlx, wtly, wbrx, wbry);
 
       if avail_left && avail_right {
         // flip-flop (each time you visit this tile take left then right then left in repeat)
 
-        let v = get_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, );
-        set_cell_tile_value_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, if v == 1 { 0 } else { 1 });
+        let v = get_cell_tile_value_at(options, &mut biome.world, cx, cy, );
+        set_cell_tile_value_at(options, &mut biome.world, cx, cy, if v == 1 { 0 } else { 1 });
 
-        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, v == 1);
+        biome.miner.movable.dir = turn_lr(dir, v == 1);
       } else if avail_left {
-        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, true);
+        biome.miner.movable.dir = turn_lr(dir, true);
       } else if avail_right {
-        biome.miner.movable.dir = turn_lr(biome.miner.movable.dir, false);
+        biome.miner.movable.dir = turn_lr(dir, false);
       } else {
         // Can't go left or right. Check back.
         // In practice the back should not be oob but in theory that's possible :shrug:
-        let avail_back = !is_push_impossible_cell(options, &mut biome.world, biome.miner.movable.x - deltax, biome.miner.movable.y - deltay) && !oob(biome.miner.movable.x - deltax, biome.miner.movable.y - deltay, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y);
+        let avail_back = !is_push_impossible_cell(options, &mut biome.world, cx - deltax, cy - deltay) && !oob(cx - deltax, cy - deltay, wtlx, wtly, wbrx, wbry);
         if avail_back {
           // Turn around
-          biome.miner.movable.dir = turn_back(biome.miner.movable.dir);
+          biome.miner.movable.dir = turn_back(dir);
         } else {
           // Last cell? Assume we are finished. Fill it and destroy the magic wall.
-          bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "miner finished filling up castle");
-          set_cell_tile_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Tile::Impassible);
-          set_cell_pickup_at(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, Pickup::Nothing);
+          // bridge::focus_weak(options, biome.index, biome.miner.meta.phase, "miner finished filling up castle");
+          // println!("Filling {},{} last exit is {},{}", cx, cy, biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y);
+          // if options.return_to_move {
+          //   println!("miner setting impassible tile 2");
+          // }
+          set_cell_tile_at(options, &mut biome.world, cx, cy, Tile::Impassible);
+          set_cell_pickup_at(options, &mut biome.world, cx, cy, Pickup::Nothing);
           biome.miner.sandrone.post_castle = biome.ticks;
           biome.miner.sandrone.air_lifted = false;
 
           // Change tiles for the entire castle grid. Reset values and everything.
           // Special case the stuck drones?
-          for y in biome.miner.sandrone.expansion_min_y..biome.miner.sandrone.expansion_max_y+1 {
-            for x in biome.miner.sandrone.expansion_min_x..biome.miner.sandrone.expansion_max_x+1 {
+          for y in wtly..wbry+1 {
+            for x in wtlx..wbrx+1 {
               if matches!(get_cell_tile_at(options, &mut biome.world, x, y), Tile::Impassible) {
                 // Change the tile so we can enable special drawing mode for it
                 // TODO: if a drone was stuck in it perhaps it enables a special super soil?
@@ -533,6 +557,9 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
       }
 
       // Do not move the miner, just turn it. This should prevent it from going OOB.
+      // if options.return_to_move {
+      //   println!("- not moving; turning it around to prevent oob");
+      // }
       return;
     }
   }
@@ -542,6 +569,12 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
   let mut fill_current_y = 0;
 
   let mut was_boring = false; // Did we just move forward? No blocks, no pickups?
+
+  let filling_phase = matches!(biome.miner.meta.phase, Phase::FillingCastle_5);
+
+  // if options.return_to_move {
+  //   println!("- normal move           ");
+  // }
 
   // let drills = biome.miner.meta.kind_counts[SlotKind::Drill as usize];
   // let hammers = biome.miner.meta.kind_counts[SlotKind::Hammer as usize];
@@ -557,9 +590,14 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     => {
       // Moving to a push tile or an impassible (dead end) tile. Must turn and try to make sure
       // not to send the movable into an infinite loop.
-      let ( tx, ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, false) ;
+      let ( tx, ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, false, false, biome.miner.movable.dir) ;
 
-      if biome.miner.sandrone.air_lifted && fill {
+      // if options.return_to_move {
+      //   println!("- bumping against push or impossible block, facing: {:?}", biome.miner.movable.dir);
+      // }
+
+      if filling_phase && fill {
+        // println!("fill current because pushcornermove sais so based on the current and next tile, last exit {},{} current coord {},{}", biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y, biome.miner.movable.x, biome.miner.movable.y);
         fill_current_cell = true;
         fill_current_x = biome.miner.movable.x;
         fill_current_y = biome.miner.movable.y;
@@ -574,10 +612,10 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
         (0, 0) => {
           // Must check whether left or right is oob. If so, force the other way.
           // Check for oobs. Prevents annoying flip-flop patterns for one-way-streets
-          if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+          if filling_phase && oob(biome.miner.movable.x + deltay, biome.miner.movable.y - deltax, wtlx, wtly, wbrx, wbry) {
             // Do not turn this way. Turn the other way.
             turn_right(biome.miner.movable.dir)
-          } else if biome.miner.sandrone.air_lifted && oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, biome.miner.sandrone.expansion_min_x, biome.miner.sandrone.expansion_min_y, biome.miner.sandrone.expansion_max_x, biome.miner.sandrone.expansion_max_y) {
+          } else if filling_phase && oob(biome.miner.movable.x - deltay, biome.miner.movable.y + deltax, wtlx, wtly, wbrx, wbry) {
             // Do not turn this way, turn the other way
             turn_left(biome.miner.movable.dir)
           } else {
@@ -588,6 +626,9 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
         },
         _ => panic!("This delta should not be possible {},{}", tx, ty),
       };
+      // if options.return_to_move {
+      //   println!("- changed dir, now facing: {:?}", biome.miner.movable.dir);
+      // }
     }
 
     // The rest is considered an empty or at least passable tile
@@ -601,16 +642,32 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     | Tile::Empty
     | Tile::ExpandoWater
     => {
-      if biome.miner.sandrone.air_lifted {
+      if filling_phase {
         let blocked_back = matches!(get_cell_tile_at(options, &biome.world, biome.miner.movable.x + -deltax, biome.miner.movable.y + -deltay), Tile::Push | Tile::Impassible);
         if blocked_back {
-          let ( _tx, _ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, true) ;
+          let ( _tx, _ty, fill ): ( i32, i32, bool ) = push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, true, false, biome.miner.movable.dir);
           if fill {
+            // println!("fill current because pushcornermove sais so based on the current and next tile, last exit {},{} current coord {},{}", biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y, biome.miner.movable.x, biome.miner.movable.y);
             fill_current_cell = true;
             fill_current_x = biome.miner.movable.x;
             fill_current_y = biome.miner.movable.y;
+            // if options.return_to_move {
+            //   println!("- into an empty-ish cell, filling departing cell");
+            // }
+          } else {
+            // if options.return_to_move {
+            //   println!("- into an empty-ish cell, not filling departing cell even though back is blocked");
+            // }
           }
+        } else {
+          // if options.return_to_move {
+          //   println!("- into an empty-ish cell, not filling departing cell; back is not blocked ({})", fill_current_cell);
+          // }
         }
+      } else {
+        // if options.return_to_move {
+        //   println!("- into an empty-ish cell, not filling departing cell; not in filling phase");
+        // }
       }
 
       was_boring = true;
@@ -705,13 +762,14 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
 
   // Allow to fill if it's not the last seen exit tile
   if fill_current_cell && (fill_current_x != biome.miner.sandrone.last_empty_castle_exit_x || fill_current_y != biome.miner.sandrone.last_empty_castle_exit_y) {
+    // println!("miner at {},{} filling at {}, {} last exit at {},{}", biome.miner.movable.x, biome.miner.movable.y, fill_current_x, fill_current_y, biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y);
     set_cell_tile_at(options, &mut biome.world, fill_current_x, fill_current_y, Tile::Impassible);
     set_cell_pickup_at(options, &mut biome.world, fill_current_x, fill_current_y, Pickup::Nothing);
     biome.miner.sandrone.impassable_tiles.push((fill_current_x, fill_current_y));
   }
 
   // Cannot be in an infinite loop while building the sand castle
-  if was_boring && !biome.miner.sandrone.air_lifted /*&& !post_castle*/ {
+  if was_boring && !filling_phase {
     // Prevent endless loops by making it increasingly more difficult to make consecutive moves that where nothing happens
     biome.miner.movable.now_energy = (biome.miner.movable.now_energy - biome.miner.meta.boredom_level as f32).max(0.0);
     // The cost grows the longer nothing keeps happening ("You're getting antsy, thirsty for an event")
@@ -720,13 +778,25 @@ pub fn move_miner(options: &mut Options, biome: &mut Biome) {
     biome.miner.meta.boredom_level = 0;
   }
 
+  biome.miner.movable.now_energy = (biome.miner.movable.now_energy - if filling_phase { state.cost_increase_value / 4.0 } else { state.cost_increase_value }).max(0.0);
+
   if biome.miner.meta.dying_since > 0 {
     // Start decaying the miner after the last phase.
     biome.miner.movable.now_energy = (biome.miner.movable.now_energy - (biome.ticks - biome.miner.meta.dying_since) as f32).max(0.0);
   }
+
+
+  // if filling_phase {
+  //   push_corner_move(options, &mut biome.world, biome.miner.movable.x, biome.miner.movable.y, deltax, deltay, false, true) ;
+  // }
 }
 
 pub fn bump_wall_miner(options: &mut Options, biome: &mut Biome, strength: i32, nextx: i32, nexty: i32, deltax: i32, deltay: i32, unextx: usize, unexty: usize) {
+  // if options.return_to_move {
+  //   println!("- bumping against wall, facing {:?}", biome.miner.movable.dir);
+  // }
+
+
   let cell = &mut biome.world.tiles[unexty][unextx];
 
   let hammers = biome.miner.meta.kind_counts[SlotKind::Hammer as usize];
@@ -756,6 +826,10 @@ pub fn bump_wall_miner(options: &mut Options, biome: &mut Biome, strength: i32, 
   biome.miner.movable.now_energy = (biome.miner.movable.now_energy - biome.miner.meta.block_bump_cost).max(0.0);
   // TODO: should drones use same "prefer visited tiles" heuristic as miner?
   biome.miner.movable.dir = get_most_visited_dir_from_xydir(options, &mut biome.world, nextx, nexty, biome.miner.movable.dir);
+
+  // if options.return_to_move {
+  //   println!("- now facing {:?}", biome.miner.movable.dir);
+  // }
 }
 
 pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, x: i32, y: i32) -> bool {
@@ -851,4 +925,267 @@ pub fn move_miner_pickup_from_empty_tile(options: &mut Options, biome: &mut Biom
 
   // Was not boring
   return false; // "not boring"
+}
+
+pub fn can_magic_wall_bordering_empty_cell_be_push_cell(options: &Options, world: &World, x: i32, y: i32, magic_min_x: i32, magic_min_y: i32, magic_max_x: i32, magic_max_y: i32) -> bool {
+  // When the current cell is next to a magic wall:
+  // - Left or right is a magic wall and the opposite diagonal and other left or right is empty
+  // - This is a dead end with one exit to the side (and so the back closed)
+  // - Left or right is full, not a dead end, and the opposite diagonal is empty
+  // There are seven cases to consider: (W=magic wall, P=push block, x=miner, .=empty, ?=whatever)
+  //
+  //    WWW   WWW   WWW   WWW   WWW   |   WWW   WWW   WWW   WWW
+  //    .xP   .xP   .xP   .x.   PxP   |   Wx?   WxP   Wx.   WxP
+  //    ..?   ?P?   P.?   ?P?   ?.P   |   W..   W.P   W.P   WP.
+  //                                  |
+  //    yes   yes   no    no    no    |   yes   yes   no    wtf (should not be a possible state)
+  //
+  // The main point is that we want to test whether we can fill the current tile without risking
+  // locking the miner in. A path to an outside wall must keep existing. These fill rules are set
+  // up in such a way that this is guaranteed as long as the rule is correct. We basically only
+  // fill if even after the fill a path to the exit can be found from the current tile, and without
+  // blocking potential other paths from that exit. By "walking around" the current tile we know
+  // that this property is preserved. That's why we check the diagonal in most cases.
+
+  // // Do not fill the top tile on the zero axis. There must be one. -> obsoleted by using the corner instead.
+  // if x == 0 && y - 1 < magic_min_y {
+  //   return false;
+  // }
+
+  let e = is_push_impossible_cell(options, world, x, y);
+  if e { // No point considering when the cell is already impossible
+    return false;
+  }
+
+  // if options.return_to_move {
+  //   println!("can_magic_wall_bordering_empty_cell_be_push_cell; At {},{}. area: {},{} ~ {},{} The circle a-i:              \n                            \n  {} {} {}              \n  {} - {}              \n  {} {} {}              \n                            \n",
+  //     x, y,
+  //     magic_min_x, magic_min_y, magic_max_x, magic_max_y,
+  //     if x - 1 < magic_min_x || y - 1 < magic_min_y { 'W' } else if is_push_impossible_cell(options, world, x - 1, y - 1)     { 'P' } else { ' ' },
+  //     if y - 1 < magic_min_y { 'W' } else if is_push_impossible_cell(options, world, x,   y - 1)          { 'P' } else { ' ' },
+  //     if x + 1 > magic_max_x || y - 1 < magic_min_y { 'W' } else if is_push_impossible_cell(options, world, x + 1,   y - 1)   { 'P' } else { ' ' },
+  //     if x - 1 < magic_min_x { 'W' } else if is_push_impossible_cell(options, world, x - 1, y)            { 'P' } else { ' ' },
+  //     if x + 1 > magic_max_x { 'W' } else if is_push_impossible_cell(options, world, x + 1, y)            { 'P' } else { ' ' },
+  //     if x - 1 < magic_min_x || y + 1 > magic_max_y { 'W' } else if is_push_impossible_cell(options, world, x - 1,   y + 1)   { 'P' } else { ' ' },
+  //     if y + 1 > magic_max_y { 'W' } else if is_push_impossible_cell(options, world, x,   y + 1)          { 'P' } else { ' ' },
+  //     if x + 1 > magic_max_x || y + 1 > magic_max_y { 'W' } else if is_push_impossible_cell(options, world, x + 1,   y + 1)   { 'P' } else { ' ' },
+  //   );
+  // }
+
+
+  // abc
+  // def  <- xy is at e, direction determines facing b, f, h, or d.
+  // ghi
+
+  // before we checked both "is impossible cell" AND "is OOB". but that was probably a bad idea.
+  // let a = is_push_impossible_cell(options, world, x - 1, y - 1)    || x - 1 < magic_min_x || y - 1 < magic_min_y;
+  // let b = is_push_impossible_cell(options, world, x,   y - 1)         || y - 1 < magic_min_y;
+  // let c = is_push_impossible_cell(options, world, x + 1,   y - 1)  || x + 1 > magic_max_x || y - 1 < magic_min_y;
+  // let d = is_push_impossible_cell(options, world, x - 1, y)           || x - 1 < magic_min_x;
+  // let f = is_push_impossible_cell(options, world, x + 1, y)           || x + 1 > magic_max_x;
+  // let g = is_push_impossible_cell(options, world, x - 1,   y + 1)  || x - 1 < magic_min_x || y + 1 > magic_max_y;
+  // let h = is_push_impossible_cell(options, world, x,   y + 1)         || y + 1 > magic_max_y;
+  // let i = is_push_impossible_cell(options, world, x + 1,   y + 1)  || x + 1 > magic_max_x || y + 1 > magic_max_y;
+
+  // let a = is_push_impossible_cell(options, world, x - 1, y - 1);
+  // let b = is_push_impossible_cell(options, world, x,   y - 1);
+  // let c = is_push_impossible_cell(options, world, x + 1,   y - 1);
+  // let d = is_push_impossible_cell(options, world, x - 1, y);
+  // let f = is_push_impossible_cell(options, world, x + 1, y);
+  // let g = is_push_impossible_cell(options, world, x - 1,   y + 1);
+  // let h = is_push_impossible_cell(options, world, x,   y + 1);
+  // let i = is_push_impossible_cell(options, world, x + 1,   y + 1);
+
+  if y - 1 < magic_min_y {
+    // The magic wall is up (at least)
+
+    //  WWW   WWW   WWW   WWW   WWW   WWW
+    //  W^?   W^.   W^P   W^.   W^.   W^P
+    //  W..   W?.   W.P   WPP   W.P   WP.
+    //
+    //  yes   yes   yes   yes   no    wtf
+
+    if x - 1 < magic_min_x {
+      // Upper-left corner of the magic wall
+      // This cell is not the last exit cell so it should be safely fillable when;
+      // - At least one neighbor is full, or
+      // - Corner cell is empty (cause then the two areas can't be separated by this fill)
+
+      let f = is_push_impossible_cell(options, world, x + 1, y);
+      let h = is_push_impossible_cell(options, world, x,   y + 1);
+      let i = is_push_impossible_cell(options, world, x + 1,   y + 1);
+
+      return f || h || !i;
+    } else if x + 1 > magic_max_x {
+      // Upper-right corner of the magic wall
+      // Same as other corner, x-mirrored.
+
+      let d = is_push_impossible_cell(options, world, x - 1, y);
+      let h = is_push_impossible_cell(options, world, x,   y + 1);
+      let g = is_push_impossible_cell(options, world, x - 1,   y + 1);
+
+      return d || h || !g;
+    } else {
+      // Not in a wall-corner. Two cases to consider, both have mirror cases:
+
+      //         1.a   1.b   1.c   1.d   2.a   2.b   3.a   3.b   3.c   3.d   4.a   4.b
+      //   abc   WWW   WWW   WWW   WWW   WWW   WWW   WWW   WWW   WWW   WWW   WWW   WWW
+      //   def   .^.   .^.   .^.   .^.   P^.   .^P   P^.   .^P   P^.   .^P   P^P   P^P
+      //   ghi   ...   P??   ?P?   ??P   ?P?   ?P?   ?..   ..?   ?.P   P.?   ?.?   ?P?
+      //
+      //         yes   no    no    no    yes   yes   yes   yes   no    no
+
+      // - 1; when the sides are empty then can only fill if (g), (h), and (i) are empty as well.
+      //      otherwise you risk separating two areas.
+      // - 2; when the back and at least one side are full, you can just fill
+      // - 3; when the the back and one side are empty, you can fill if the corner next to the empty
+      //      side is also empty. this way there's at least one path between the two empty cells)
+      // - 4; when both sides are full, always fill. either this is the last cell to fill or this
+      //      was not the last seen exit cell so there must be another.
+
+      let d = is_push_impossible_cell(options, world, x - 1, y);
+      let f = is_push_impossible_cell(options, world, x + 1, y);
+
+      if d && f {
+        // 4
+        // If the back is full as well then this should be the last cell of the castle so fill it
+        // Else this can't be the last seen exit cell so it should be safe to block this one off.
+        return true;
+      }
+
+      let g = is_push_impossible_cell(options, world, x - 1,   y + 1);
+      let h = is_push_impossible_cell(options, world, x,   y + 1);
+      let i = is_push_impossible_cell(options, world, x + 1,   y + 1);
+
+      if d {
+        // 2.a, 3.a, 3.c
+        // Left blocked, right not.
+        // Fill if down is full or down-right is empty
+        return h || !i;
+      }
+
+      if f {
+        // 2.b, 3.b, 3.d
+        // Right blocked, left not
+        return h || !g;
+      }
+
+      // 1
+      // Left and right are empty
+      // Fill only if all bottom cells are empty
+      return !g && !h && !i;
+    }
+  }
+
+  if y + 1 > magic_max_y {
+    // The magic wall is down (at least)
+    // (Similar logic to the wall-above case, just up/down abc/ghi flipped)
+
+    //  W..   W?.   W.P   WPP   W.P   WP.
+    //  W^?   W^.   W^P   W^.   W^.   W^P
+    //  WWW   WWW   WWW   WWW   WWW   WWW
+    //
+    //  yes   yes   yes   yes   no    wtf
+
+    if x - 1 < magic_min_x {
+      // Bottom-left corner of the magic wall
+      // This cell is not the last exit cell so it should be safely fillable when;
+      // - At least one neighbor is full, or
+      // - Corner cell is empty (cause then the two areas can't be separated by this fill)
+      let c = is_push_impossible_cell(options, world, x + 1,   y - 1);
+      let b = is_push_impossible_cell(options, world, x,   y - 1);
+      let f = is_push_impossible_cell(options, world, x + 1, y);
+      return f || b || !c;
+    } else if x + 1 > magic_max_x {
+      // Bottom-right corner of the magic wall
+      // Same as other corner, x-mirrored.
+      let a = is_push_impossible_cell(options, world, x - 1, y - 1);
+      let b = is_push_impossible_cell(options, world, x,   y - 1);
+      let d = is_push_impossible_cell(options, world, x - 1, y);
+      return d || b || !a;
+    } else {
+      // (see flipped case above for desc)
+
+      //         1.a   1.b   2.a   2.b   3     4
+      //   abc   ?P?   ?P?   ..?   ..?   P.?   ?P?
+      //   def   P^?   .^P   .^P   .^P   .^P   .^.
+      //   ghi   WWW   WWW   WWW   WWW   WWW   WWW
+      //
+      //         yes   yes   no    no    no    no
+
+      let a = is_push_impossible_cell(options, world, x - 1, y - 1);
+      let b = is_push_impossible_cell(options, world, x,   y - 1);
+      let c = is_push_impossible_cell(options, world, x + 1,   y - 1);
+      let d = is_push_impossible_cell(options, world, x - 1, y);
+      let f = is_push_impossible_cell(options, world, x + 1, y);
+      return (d && (f || b || !c)) || (f && (b || !a)) || (!a && !b && !c);
+    }
+  }
+
+  if x - 1 < magic_min_x {
+    // The magic wall is to the left. Can not be in a corner.
+    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
+
+    // Same logic as up/down, transposed
+
+    //    W..   WP?   W.?   W.P   W.?   WP?
+    //    Wx.   Wx.   WxP   Wx.   WxP   Wx?
+    //    WP?   W..   WP?   WP?   W.?   WP?
+    //
+    //    yes   yes   yes   no    no    no
+
+
+    // (see above case for desc)
+
+    let b = is_push_impossible_cell(options, world, x,   y - 1);
+    let h = is_push_impossible_cell(options, world, x,   y + 1);
+    if b && h {
+      return true;
+    }
+
+    let c = is_push_impossible_cell(options, world, x + 1,   y - 1);
+    let f = is_push_impossible_cell(options, world, x + 1, y);
+    let i = is_push_impossible_cell(options, world, x + 1,   y + 1);
+
+    if b {
+      return f || !i;
+    }
+
+    if h {
+      return f || !c;
+    }
+
+    return !c && !f && !i;
+  }
+
+  if x +1 > magic_max_x {
+    // The magic wall is to the right
+    assert!(y -1 >= magic_min_y && y +1 <= magic_max_y, "corner case would have been checked above");
+
+    // Same logic as left wall, flipped
+
+    let b = is_push_impossible_cell(options, world, x,   y - 1);
+    let h = is_push_impossible_cell(options, world, x,   y + 1);
+
+    if b && h {
+      return true;
+    }
+
+    let a = is_push_impossible_cell(options, world, x - 1, y - 1);
+    let d = is_push_impossible_cell(options, world, x - 1, y);
+    let g = is_push_impossible_cell(options, world, x - 1,   y + 1);
+
+    if b {
+      return d || !g;
+    }
+
+    if h {
+      return d || !a;
+    }
+
+    return !a && !d && !g;
+  }
+
+  // Apparently the coord is not bordering a magic wall
+  return false;
 }

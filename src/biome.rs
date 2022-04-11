@@ -13,6 +13,7 @@ use super::drone_san::*;
 use super::slot_energy_cell::*;
 use super::slot_drone_launcher::*;
 use super::slot_jacks_compass::*;
+use super::app_state::*;
 
 use std::collections::HashMap;
 
@@ -21,9 +22,6 @@ pub struct Biome {
   pub ticks: u32,
   pub world: World,
   pub miner: Miner,
-
-  // The real path this miner has taken in this world
-  pub path: Vec<i32>,
 }
 
 pub fn generate_biomes(options: &mut Options, state: &mut AppState, curr_root_helix: &mut Helix) -> Vec<Biome> {
@@ -47,7 +45,6 @@ pub fn generate_biomes(options: &mut Options, state: &mut AppState, curr_root_he
       ticks: 0,
       world: own_world,
       miner: cur_miner,
-      path: vec!(0, 0),
     };
     biomes.push(biome);
   }
@@ -69,7 +66,7 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
     tick_world(options, state, biome);
     if !miner_disabled {
       // tick_miner(mminermovable, mmeta, mslots, mwindrone, msandrone);
-      tick_miner(options, biome);
+      tick_miner(options, state, biome);
     }
 
     for i in 0..biome.miner.slots.len() {
@@ -85,8 +82,8 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
         SlotKind::Magnet => (), // noop
         SlotKind::PurityScanner => tick_slot_purity_scanner(options, biome, i),
         SlotKind::RandomStart => panic!("Should not appear at runtime"),
-        SlotKind::Windrone => tick_windrone(options, biome, i),
-        SlotKind::Sandrone => tick_sandrone(options, biome, i),
+        SlotKind::Windrone => tick_windrone(options, state, biome, i),
+        SlotKind::Sandrone => tick_sandrone(options, state, biome, i),
       }
     }
 
@@ -100,7 +97,7 @@ pub fn tick_biome(options: &mut Options, state: &mut AppState, biome: &mut Biome
       let has_trail: bool = hmap.contains_key(&cur_points);
       if !has_trail {
         hmap.insert(cur_points, (cur_points, 0, helix_serialize(&biome.miner.helix)));
-        bridge::log(format!("Miner {} was new! Score: {} points. Map now contains {} trails.", biome.index, cur_points, hmap.len()).as_str());
+        bridge::log(format!("Miner {} was new! Score: {} points after {} ticks. Map now contains {} trails.", biome.index, cur_points, biome.ticks, hmap.len()).as_str());
       }
     }
   }
