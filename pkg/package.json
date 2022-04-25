@@ -1,0 +1,12 @@
+{
+  "name": "miners",
+  "version": "0.1.0",
+  "files": [
+    "miners_bg.wasm",
+    "miners.js",
+    "miners.d.ts"
+  ],
+  "module": "miners.js",
+  "types": "miners.d.ts",
+  "sideEffects": false
+}
