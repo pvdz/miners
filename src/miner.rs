@@ -479,10 +479,8 @@ pub fn move_miner(options: &mut Options, state: &mut AppState, biome: &mut Biome
     // If the miner would move OOB then apply special move logic
 
     // The current cell can be filled in some cases, except when it's already the last seen exit tile.
-    let mut yar = true;
     if cx == biome.miner.sandrone.last_empty_castle_exit_x && cy == biome.miner.sandrone.last_empty_castle_exit_y {
       // Do nothing. Must keep at least one exit tile.
-      yar = false;
     } else if can_magic_wall_bordering_empty_cell_be_push_cell(options, &mut biome.world, cx, cy, wtlx, wtly, wbrx, wbry) {
       // println!("Filling {},{} last exit is {},{}", cx, cy, biome.miner.sandrone.last_empty_castle_exit_x, biome.miner.sandrone.last_empty_castle_exit_y);
       // if options.return_to_move {
@@ -490,7 +488,6 @@ pub fn move_miner(options: &mut Options, state: &mut AppState, biome: &mut Biome
       // }
       set_cell_tile_at(options, &mut biome.world, cx, cy, Tile::Impassible);
       set_cell_pickup_at(options, &mut biome.world, cx, cy, Pickup::Nothing);
-      yar = false;
     }
 
     if oob(nextx, nexty, wtlx, wtly, wbrx, wbry) {

@@ -22,7 +22,7 @@ pub fn create_slot_energy_cell(slot_index: usize, nth: i32, energy_bonus: i32, m
     };
 }
 
-pub fn tick_slot_energy_cell(options: &mut Options, biome: &mut Biome, slot_index: usize) {
+pub fn tick_slot_energy_cell(_options: &mut Options, biome: &mut Biome, slot_index: usize) {
     let slot: &mut Slottable = &mut biome.miner.slots[slot_index];
 
     slot.cur_cooldown += 1.0;

@@ -13,7 +13,6 @@ use super::drone_san::*;
 use super::slot_energy_cell::*;
 use super::slot_drone_launcher::*;
 use super::slot_jacks_compass::*;
-use super::app_state::*;
 
 use std::collections::HashMap;
 

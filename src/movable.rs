@@ -115,7 +115,7 @@ pub fn push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: 
   }
   return (tx, ty, fill);
 }
-pub fn _push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32, dy: i32, back_case: bool, bug: bool, dir: Direction) -> (i32, i32, bool ) {
+pub fn _push_corner_move(options: &Options, world: &World, mx: i32, my: i32, dx: i32, dy: i32, _back_case: bool, bug: bool, dir: Direction) -> (i32, i32, bool ) {
   // Return value: delta x, delta y, fill
 
   // Coerce the miner into a subset of directions in some cases, depending on

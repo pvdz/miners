@@ -101,7 +101,7 @@ fn move_drone(options: &mut Options, biome: &mut Biome, drone_index: usize) {
   }
 }
 
-fn move_drone_pickup_from_empty_tile(options: &mut Options, biome: &mut Biome, drone_index: usize, unextx: usize, unexty: usize) {
+fn move_drone_pickup_from_empty_tile(_options: &mut Options, biome: &mut Biome, drone_index: usize, unextx: usize, unexty: usize) {
   let cell = &mut biome.world.tiles[unexty][unextx];
 
   match cell.pickup {

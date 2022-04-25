@@ -300,14 +300,6 @@ pub fn coord_to_index(x: i32, y: i32, world: &World) -> (i32, i32) {
   return (world.min_x.abs() - x, world.min_y.abs() - y);
 }
 
-pub fn assert_world_dimensions(world: &World) {
-  return;
-  assert_eq!(world.tiles.len() as i32, world.min_y.abs() + 1 + world.max_y, "World should have min_y+1+max_y rows");
-  for y in 0..world.tiles.len() {
-    assert_eq!(world.tiles[y].len() as i32, world.min_x.abs() + 1 + world.max_x, "World should have each row with min_x+1+max_x cells");
-  }
-}
-
 pub fn assert_arr_xy_in_world(world: &World, wx: i32, wy: i32, ax: usize, ay: usize) {
   // Only assert xy (array coords, not world coords!), and not the entire rectangle
 
@@ -422,8 +414,6 @@ fn paint_biome_actors(biome: &Biome, options: &Options, view: &mut Vec<Vec<Strin
 pub fn serialize_world(world0: &World, biomes: &Vec<Biome>, options: &Options, state: &mut AppState, best_miner_str: String, hmap_str: String) -> String {
   // We assume a 150x80 terminal screen space (half my ultra wide)
   // We draw every cell twice because the terminal cells have a 1:2 w:h ratio
-
-  assert_world_dimensions(world0);
 
   // Start by painting the world. Give it a border too (annoying with calculations but worth it)
 
@@ -851,8 +841,6 @@ pub fn ensure_cell_in_world(world: &mut World, options: &Options, x: i32, y: i32
 
     world.max_y = world.max_y + to_append;
   }
-
-  assert_world_dimensions(world);
 }
 
 pub fn create_unvisited_cell(tile: Tile, pickup: Pickup, tile_value: u32, pickup_value: u32) -> Cell {
@@ -867,7 +855,6 @@ pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
   // Return tile, pickup, value, visited.
 
   // wx/wy should be world coordinates
-  assert_world_dimensions(world);
 
   // Is the cell explicitly stored in the world right now? If not then use the procedure.
   if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
@@ -909,7 +896,6 @@ pub fn get_cell_stuff_at(options: &Options, world: &World, wx: i32, wy: i32) -> 
 
 pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> Tile {
   // wx/wy should be world coordinates
-  assert_world_dimensions(world);
 
   // Is the cell explicitly stored in the world right now? If not then use the procedure.
   if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
@@ -948,7 +934,6 @@ pub fn get_cell_tile_at(options: &Options, world: &World, wx: i32, wy: i32) -> T
 }
 pub fn get_cell_pickup_at(options: &Options, world: &World, wx: i32, wy: i32) -> Pickup {
   // wx/wy should be world coordinates
-  assert_world_dimensions(world);
 
   // Is the cell explicitly stored in the world right now? If not then use the procedure.
   if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {
@@ -980,7 +965,6 @@ pub fn get_cell_pickup_at(options: &Options, world: &World, wx: i32, wy: i32) ->
 
 pub fn get_cell_value_at(options: &Options, world: &World, wx: i32, wy: i32) -> u32 {
   // wx/wy should be world coordinates
-  assert_world_dimensions(world);
 
   // Is the cell explicitly stored in the world right now? If not then use the procedure.
   if wx < world.min_x || wx > world.max_x || wy < world.min_y || wy > world.max_y {

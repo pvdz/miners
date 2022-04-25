@@ -96,6 +96,9 @@
   sandrone_pickup_count: 200, // Sandrone will pick up miner after putting down this many push tiles
   sandcastle_area_limit: 500, // Sandrone will stop building the wall after the castle is this big
 
+  cost_increase_rate: 1.0,    // Cost increment after the interval
+  cost_increase_interval: 1000, // Number of ticks after which to increase the generic cost
+
   html_mode: true,            // We want this :) Else output will use terminal ANSI codes
 
   show_biomes: false,         // Show miners from other biomes in the world view? A little chaotic :)
@@ -140,7 +143,7 @@
       <li><b title="How expensive is it to bump against a block?">block_bump_cost:</b> <input id="$inputBumpCost" style="text-align: right; width: 100px;" value="8.0"/></li>
       <li><b title="How effective are pickups?">multiplier_energy_pickup:</b> <input id="$inputEnergyMultiplier" style="text-align: right; width: 100px;" value="0.0"/></li>
       <li>
-        <b>slots:</b> <input id="$inputSlots" style="width: 300px; font-family: monospace; " value=".mmmmmmmmmmmmmmDDd.h.dd.EEE.EdEEP.EdPhh" onkeyup="parseSlots();" />
+        <b>slots:</b> <input id="$inputSlots" style="width: 300px; font-family: monospace; " value=".............DDDDd.h.dd.EEE.EdEEP.EdPhh" onkeyup="parseSlots();" />
         <ol id="$slotList" style="margin-left: 5px;">
           <li>None</li>
           <li>None</li>

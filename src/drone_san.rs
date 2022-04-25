@@ -146,7 +146,7 @@ pub fn set_sandrone_state(sandrone: &mut Sandrone, state: SandroneState) {
   sandrone.state = state;
 }
 
-pub fn tick_sandrone(options: &mut Options, state: &mut AppState, biome: &mut Biome, _slot_index: usize) {
+pub fn tick_sandrone(options: &mut Options, _state: &mut AppState, biome: &mut Biome, _slot_index: usize) {
   let sandrone: &mut Sandrone = &mut biome.miner.sandrone;
 
   match sandrone.state {

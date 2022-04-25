@@ -59,7 +59,7 @@ pub async fn web_main() {
       panic!("nope")
     },
   };
-  let str = format!("Bwtf? {:?}", input_options);
+  let str = format!("Received input options: {:?}", input_options);
   log(str.as_str());
 
   main_async(&mut input_options).await;
@@ -118,19 +118,22 @@ pub async fn ga_step_async(options: &mut Options, state: &mut AppState, curr_roo
     go_iteration(options, state, &mut biomes, hmap);
 
     let current = options.visible_index;
-    let current_depleted = biomes[current].miner.movable.now_energy <= 0;
-    let mut end = true;
-    for biome in &biomes {
-      if current_depleted && biome.miner.movable.now_energy > 0.0 {
-        // Switch to this biome, since it's still alive.
-        bridge::log(format!("Switching to {} because the energy of the current one {} depleted", current, biome.index));
-        options.visible_index = biome.index;
-        end = false;
+    let current_depleted = biomes[current].miner.movable.now_energy <= 0.0;
+    if current_depleted {
+      let mut end = true;
+      for biome in &biomes {
+        if biome.miner.movable.now_energy > 0.0 {
+          // Switch to this biome, since it's still alive.
+          log(format!("Switching to {} because the energy of the current one {} depleted", current, biome.index).as_str());
+          options.visible_index = biome.index;
+          end = false;
+          break;
+        }
+      }
+      if end {
+        log("This is the end!");
         break;
       }
-    }
-    if end {
-      break;
     }
   }
 
