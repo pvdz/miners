@@ -8,6 +8,10 @@ A Genetic Algorithm attempts to optimize a problem by starting at a random (or n
 
 Combined there's an emergent gameplay where you search for the miner that collects the most points. Just don't expect much from it :)
 
+## Demo
+
+Github pages is set up to serve the [web based version with precompiled wasm binary](https://pvdz.github.io/miners/) for your viewing pleasure :)
+
 ## Inspiration
 
 I drew my inspiration from [boxcar2d](https://rednuht.org/genetic_cars_2/), an enticing time sink where a randomly generated vehicle traverses a randomly generated world. At the end of a run the best car is picked, copied a few times with minor modifications, and the next run starts.
