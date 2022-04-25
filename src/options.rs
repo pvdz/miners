@@ -38,30 +38,31 @@ pub struct Options {
   pub visual: bool,
   // Sandrone will pick up miner after putting down this many push tiles
   pub sandrone_pickup_count: u32,
-  // print the world in html rather than terminal ansi?
   pub sandcastle_area_limit: u32, // Sandrone will permanently stop building the wall after the castle area is at least this big
-  // Show the miner in all other biomes in the map as well? Confusing but fun? :)
+  // Print the world in html rather than terminal ansi?
   pub html_mode: bool,
+  // Show the miner in all other biomes in the map as well? Confusing but fun? :)
   pub show_biomes: bool,
 
   pub visible_index: usize, // Which biome are we painting?
 
   // Debugging
-  pub paint_ten_lines: bool,
   // Draw grids at every 10th line/col
-  pub paint_zero_zero: bool,
+  pub paint_ten_lines: bool,
   // Draw hash for the 0,0 coord
-  pub paint_miner_ids: bool,
+  pub paint_zero_zero: bool,
   // Draw biome index for other biome miners rather than emoji
-  pub paint_empty_world: bool,
+  pub paint_miner_ids: bool,
   // Always draw empty tiles instead of the world
-  pub hide_world_oob: bool,
+  pub paint_empty_world: bool,
   // Do not draw the world that doesn't explicitly exist in memory
-  pub hide_world_ib: bool,
+  pub hide_world_oob: bool,
   // Do not draw the world that explicitly exists in memory (only oob)
-  pub paint_visited: bool,
+  pub hide_world_ib: bool,
   // Paint the number of times the miner visited a tile, in the world view?
-  pub paint_visited_bool: bool, // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
+  pub paint_visited: bool,
+  // If the miner visited a tile, paint that tile so you can see? Not a count, just a yes/no.
+  pub paint_visited_bool: bool,
   // Film noir?
   pub paint_colors: bool,
   // Can disable background colors while keeping foreground colors
