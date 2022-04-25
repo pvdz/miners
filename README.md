@@ -36,6 +36,18 @@ There's a total of four of these special drones to build. And a castle. But I'll
 
 When running multiple instances for the GA it will show you the position of the other miners, which will be in the same world as you are. (You can configure this visualization; it's not as inspiring as I hoped it to be, like how boxcar can do it).
 
+## The goal
+
+You'll have reached the end if the miner finishes the castles and the stars explode.
+
+To get there from scratch, start a new game in single batch mode (`cargo run -- --batch-size 1 --no-visual`) and disable the visual mode (press v and then enter) for a while. After a bunch of batches you'll see that the number of ticks goes up, which is a good thing, the miner evolves to survive longer.
+
+At some point enable visual mode again (v + enter) and hopefully you'll see the miner reach the castle and the stars :)
+
+I've recorded a video to show more or less what I see. You're missing out on the castle being built and it took forever to get wells in this run but oh well:
+
+- [castle_stars.mp4](https://pvdz.github.io/miners/2022-04-25.castle_stars.mp4)
+
 ## Features
 
 - Langton Ant as a game

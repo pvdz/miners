@@ -80,7 +80,7 @@ pub fn parse_cli_args() -> Options {
     mutation_rate_slots: 5.0,
     mutate_from_best: false,
     seed: 210114, // 0 is random. Can be set through --seed
-    speed: 1,
+    speed: 10,
 
     cost_increase_rate: 1.0,
     cost_increase_interval: 1000, // bump the cost value every 1000 frames?
@@ -98,7 +98,7 @@ pub fn parse_cli_args() -> Options {
     html_mode: false,
 
     show_biomes: true,
-    visible_index: 7,
+    visible_index: 0,
 
     // Debug
     paint_ten_lines: false,
